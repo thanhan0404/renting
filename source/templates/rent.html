@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h2>Rent Camera Gear</h2>
+    
+    {% if message %}
+    <div style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+        {{ message }}
+    </div>
+    {% endif %}
+
+    <div style="display: flex; gap: 40px;">
+        <div style="flex: 1; max-width: 400px;">
+            <h3>Book a Rental</h3>
+            <form method="POST" action="/rent" style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <label><strong>Your Name:</strong></label><br>
+                    <input type="text" name="customer_name" required style="width: 100%; padding: 8px;">
+                </div>
+                
+                <div>
+                    <label><strong>Select Camera:</strong></label><br>
+                    <select name="camera_id" required style="width: 100%; padding: 8px;">
+                        {% for camera in cameras %}
+                            <option value="{{ camera.id }}">{{ camera.name }} - ${{ camera.price }}/day</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label><strong>Start Date:</strong></label><br>
+                    <input type="date" name="start_date" required style="width: 100%; padding: 8px;">
+                </div>
+                
+                <div>
+                    <label><strong>End Date:</strong></label><br>
+                    <input type="date" name="end_date" required style="width: 100%; padding: 8px;">
+                </div>
+                
+                <button type="submit" style="padding: 10px; background: #28A745; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Confirm Booking
+                </button>
+            </form>
+        </div>
+
+        <div style="flex: 1;">
+            <h3>Available Gear</h3>
+            <ul>
+                {% for camera in cameras %}
+                    <li style="margin-bottom: 10px;">
+                        <strong>{{ camera.name }}</strong><br>
+                        Rate: ${{ camera.price }} per day
+                    </li>
+                {% else %}
+                    <p>No gear currently available for rent.</p>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

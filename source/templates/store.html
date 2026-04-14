@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h2>Cameras for Sale</h2>
+    <p>Browse our selection of premium cameras available for purchase.</p>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        {% for camera in cameras %}
+        <div style="border: 1px solid #ccc; padding: 15px; border-radius: 8px; width: 250px;">
+            <h3>{{ camera.name }}</h3>
+            <p><strong>Price:</strong> ${{ camera.price }}</p>
+            <p><strong>In Stock:</strong> {{ camera.stock }} units</p>
+            <button style="padding: 8px 15px; background: #007BFF; color: white; border: none; border-radius: 4px; cursor: pointer;">Add to Cart</button>
+        </div>
+        {% else %}
+        <p>No cameras are currently available for sale.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
