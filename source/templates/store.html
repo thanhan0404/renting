@@ -1,20 +1,84 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div style="padding: 20px;">
-    <h2>Cameras for Sale</h2>
-    <p>Browse our selection of premium cameras available for purchase.</p>
+<style>
+    /* Extracted classes to keep the HTML clean and keep VS Code happy */
+    .stock-badge {
+        font-size: 0.85rem; 
+        font-weight: 600; 
+        padding: 6px 12px; 
+        border-radius: 100px;
+    }
+    .badge-in-stock {
+        color: #10b981; 
+        background: #d1fae5;
+    }
+    .badge-out-of-stock {
+        color: #ef4444; 
+        background: #fee2e2;
+    }
 
-    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+    .action-btn {
+        width: 100%; 
+        padding: 14px; 
+        border-radius: 12px; 
+        font-weight: 600; 
+        font-size: 0.95rem;
+    }
+    .btn-in-stock {
+        background: var(--primary); 
+        color: white; 
+        border: none; 
+        cursor: pointer;
+    }
+    .btn-out-of-stock {
+        background: var(--surface); 
+        color: var(--text-muted); 
+        border: 1px solid var(--border); 
+        cursor: not-allowed;
+    }
+</style>
+
+<div style="padding: 60px 5%; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box;">
+    
+    <div style="text-align: center; margin-bottom: 60px;">
+        <h1 style="font-size: 2.5rem; font-weight: 800; color: var(--primary); margin: 0 0 16px 0; letter-spacing: -0.03em;">Thiết bị đang bán</h1>
+        <p style="color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto;">Khám phá bộ sưu tập máy ảnh cao cấp với mức giá tốt nhất.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px;">
         {% for camera in cameras %}
-        <div style="border: 1px solid #ccc; padding: 15px; border-radius: 8px; width: 250px;">
-            <h3>{{ camera.name }}</h3>
-            <p><strong>Price:</strong> ${{ camera.price }}</p>
-            <p><strong>In Stock:</strong> {{ camera.stock }} units</p>
-            <button style="padding: 8px 15px; background: #007BFF; color: white; border: none; border-radius: 4px; cursor: pointer;">Add to Cart</button>
+        <div style="background: white; border-radius: 20px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s;">
+            
+            <div style="height: 200px; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 3rem; border-bottom: 1px solid var(--border);">
+                📷
+            </div>
+            
+            <div style="padding: 24px; display: flex; flex-direction: column; flex: 1;">
+                <h3 style="margin: 0 0 8px 0; font-size: 1.25rem; color: var(--primary); font-weight: 700;">{{ camera.name }}</h3>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <span style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">${{ camera.price }}</span>
+                    
+                    <span class="stock-badge {% if camera.stock > 0 %}badge-in-stock{% else %}badge-out-of-stock{% endif %}">
+                        {% if camera.stock > 0 %}Còn {{ camera.stock }} máy{% else %}Hết hàng{% endif %}
+                    </span>
+                </div>
+                
+                <div style="margin-top: auto;">
+                    <button class="action-btn {% if camera.stock > 0 %}btn-in-stock{% else %}btn-out-of-stock{% endif %}">
+                        {% if camera.stock > 0 %}Thêm vào giỏ{% else %}Liên hệ sau{% endif %}
+                    </button>
+                </div>
+            </div>
+            
         </div>
         {% else %}
-        <p>No cameras are currently available for sale.</p>
+        <div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; background: white; border-radius: 20px; border: 1px dashed var(--border);">
+            <div style="font-size: 3rem; margin-bottom: 16px;">📦</div>
+            <h3 style="margin: 0 0 8px 0; color: var(--primary);">Chưa có sản phẩm</h3>
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin: 0;">Hiện chưa có máy ảnh nào đang bán trong kho.</p>
+        </div>
         {% endfor %}
     </div>
 </div>

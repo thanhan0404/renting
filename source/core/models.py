@@ -13,6 +13,8 @@ class RentalBooking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     camera_id = db.Column(db.Integer, db.ForeignKey('camera.id'))
     customer_name = db.Column(db.String(100))
+    phone = db.Column(db.String(20)) # New field
+    notes = db.Column(db.Text)       # New field
     start_date = db.Column(db.DateTime, nullable=False)
     end_date = db.Column(db.DateTime, nullable=False)
     total_price = db.Column(db.Float)

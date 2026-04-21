@@ -1,14 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
-    <title>Pro Camera Shop</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tintus.digicam - Premium Camera Rental</title>
+    <style>
+        /* Modern CSS Reset and Variables */
+        :root {
+            --primary: #0f172a;
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+            --bg: #ffffff;
+            --surface: #f8fafc;
+            --border: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Sleek, Sticky Navigation Bar */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 5%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            background: var(--surface);
+            padding: 8px 10px;
+            border-radius: 8px;
+            color: var(--accent);
+            font-size: 1.2rem;
+            border: 1px solid var(--border);
+        }
+
+        .logo-title {
+            font-weight: 800;
+            color: var(--primary);
+            font-size: 1.25rem;
+            letter-spacing: -0.02em;
+        }
+
+        .logo-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .contact-info {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: color 0.2s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
 </head>
 <body>
     <nav>
-        <a href="/">Home</a>
-        <a href="/store">Buy Cameras</a>
-        <a href="/rent">Rent Gear</a>
+        <a href="/" class="logo-section">
+            <div class="logo-icon">📷</div>
+            <div>
+                <div class="logo-title">tintus.digicam</div>
+                <div class="logo-subtitle">Rental Studio</div>
+            </div>
+        </a>
+        
+        <div class="nav-right">
+            <div class="contact-info">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                0345765217
+            </div>
+            <div class="nav-links">
+                <a href="/">Trang chủ</a>
+                <a href="/store">Mua máy</a>
+                <a href="/rent">Thuê máy</a>
+            </div>
+        </div>
     </nav>
     
     <main>
