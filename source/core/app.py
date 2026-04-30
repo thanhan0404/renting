@@ -2,22 +2,25 @@ import os
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for
-from models import db, Camera, RentalBooking
+from flask import Flask, render_template, request, redirect, url_for, session
+
+# Import thêm PurchaseOrder
+from models import db, Camera, RentalBooking, PurchaseOrder
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 template_dir = os.path.join(basedir, '..', 'templates')
 app = Flask(__name__, template_folder=template_dir)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///camerashop.db'
-app.config['SECRET_KEY'] = 'a_secure_secret_key' # Flask-Admin requires a secret key for session security
+app.config['SECRET_KEY'] = 'a_secure_secret_key' 
 db.init_app(app)
 
 admin = Admin(app, name='Camera Shop Admin')
 
-# Add administrative views for your models
+# Thêm views cho Admin
 admin.add_view(ModelView(Camera, db.session))
 admin.add_view(ModelView(RentalBooking, db.session))
+admin.add_view(ModelView(PurchaseOrder, db.session)) # View cho đơn mua hàng
 
 @app.route('/')
 def home():
@@ -25,9 +28,75 @@ def home():
 
 @app.route('/store')
 def store():
-    # Fetch only cameras meant for sale
     sale_cameras = Camera.query.filter_by(type='Sale').all()
     return render_template('store.html', cameras=sale_cameras)
+
+# --- CHỨC NĂNG GIỎ HÀNG VÀ THANH TOÁN ---
+
+@app.route('/add_to_cart/<int:camera_id>')
+def add_to_cart(camera_id):
+    if 'cart' not in session:
+        session['cart'] = {}
+    
+    cart = session['cart']
+    camera = Camera.query.get_or_404(camera_id)
+    
+    if camera.stock > 0:
+        cam_id_str = str(camera_id)
+        if cam_id_str in cart:
+            if cart[cam_id_str] < camera.stock:
+                cart[cam_id_str] += 1
+        else:
+            cart[cam_id_str] = 1
+        session.modified = True
+        
+    return redirect(url_for('cart'))
+
+@app.route('/cart')
+def cart():
+    cart_items = session.get('cart', {})
+    items = []
+    total = 0
+    for cam_id, qty in cart_items.items():
+        camera = Camera.query.get(int(cam_id))
+        if camera:
+            item_total = camera.price * qty
+            total += item_total
+            items.append({'camera': camera, 'quantity': qty, 'item_total': item_total})
+    return render_template('cart.html', items=items, total=total)
+
+@app.route('/checkout', methods=['POST'])
+def checkout():
+    cart_items = session.get('cart', {})
+    if not cart_items:
+        return redirect(url_for('store'))
+    
+    customer_name = request.form.get('customer_name')
+    phone = request.form.get('phone')
+    address = request.form.get('address')
+    
+    for cam_id, qty in cart_items.items():
+        camera = Camera.query.get(int(cam_id))
+        if camera and camera.stock >= qty:
+            # Trừ số lượng tồn kho
+            camera.stock -= qty
+            
+            # Tạo đơn hàng mới
+            order = PurchaseOrder(
+                camera_id=camera.id,
+                customer_name=customer_name,
+                phone=phone,
+                address=address,
+                quantity=qty,
+                total_price=camera.price * qty
+            )
+            db.session.add(order)
+            
+    db.session.commit()
+    session.pop('cart', None) # Xóa giỏ hàng sau khi thanh toán
+    return render_template('cart.html', message="Mua hàng thành công! Chúng tôi sẽ sớm liên hệ với bạn.", items=[], total=0)
+
+# --- CHỨC NĂNG THUÊ MÁY (Giữ nguyên) ---
 
 @app.route('/rent', methods=['GET', 'POST'])
 def rent():
@@ -35,30 +104,27 @@ def rent():
     if request.method == 'POST':
         camera_id = request.form.get('camera_id')
         customer_name = request.form.get('customer_name')
-        phone = request.form.get('phone') # Capture phone
-        notes = request.form.get('notes') # Capture notes
+        phone = request.form.get('phone') 
+        notes = request.form.get('notes') 
         start_date_str = request.form.get('start_date')
         end_date_str = request.form.get('end_date')
 
-        # Notice the 'T' and %H:%M added to the strptime format
         start_date = datetime.strptime(start_date_str, '%Y-%m-%dT%H:%M')
         end_date = datetime.strptime(end_date_str, '%Y-%m-%dT%H:%M')
 
-        # Calculate rental duration in hours, then convert to days (minimum 1 day)
         duration_seconds = (end_date - start_date).total_seconds()
-        days = duration_seconds / 86400.0 # 86400 seconds in a day
+        days = duration_seconds / 86400.0 
         if days < 1:
             days = 1
             
         camera = Camera.query.get(camera_id)
-        # Round the price to 2 decimal places
         total_price = round(days * camera.price, 2)
 
         booking = RentalBooking(
             camera_id=camera_id,
             customer_name=customer_name,
-            phone=phone, # Save to DB
-            notes=notes, # Save to DB
+            phone=phone, 
+            notes=notes, 
             start_date=start_date,
             end_date=end_date,
             total_price=total_price
@@ -72,25 +138,13 @@ def rent():
     return render_template('rent.html', cameras=rent_cameras, message=message)
 
 if __name__ == '__main__':
-    # 1. Open the application context
     with app.app_context():
-        # 2. Create the tables based on models.py
         db.create_all() 
-        
-        # 3. Check if the database is empty before adding dummy data
         if not Camera.query.first():
-            print("Database is empty. Adding dummy cameras...")
             cam1 = Camera(name="Sony A7III", type="Sale", price=1999.99, stock=5)
             cam2 = Camera(name="Canon EOS R5", type="Rent", price=85.00, stock=2)
             cam3 = Camera(name="Nikon Z7 II", type="Rent", price=70.00, stock=3)
-            cam4 = Camera(name="Fujifilm X-T4", type="Sale", price=1699.00, stock=0) # Out of stock example
-            
-            # Add them to the session
+            cam4 = Camera(name="Fujifilm X-T4", type="Sale", price=1699.00, stock=0) 
             db.session.add_all([cam1, cam2, cam3, cam4])
             db.session.commit()
-            print("Dummy cameras added successfully!")
-        else:
-            print("Database already contains data. Skipping dummy data insertion.")
-
-    # Start the server
     app.run(host='0.0.0.0', port=5000, debug=False)

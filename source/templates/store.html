@@ -67,7 +67,13 @@
                 
                 <div style="margin-top: auto;">
                     <button class="action-btn {% if camera.stock > 0 %}btn-in-stock{% else %}btn-out-of-stock{% endif %}">
-                        {% if camera.stock > 0 %}Thêm vào giỏ{% else %}Liên hệ sau{% endif %}
+                        {% if camera.stock > 0 %}
+                        <a href="/add_to_cart/{{ camera.id }}" class="action-btn btn-in-stock" style="display: block; text-align: center; text-decoration: none; box-sizing: border-box;">
+                            Thêm vào giỏ
+                        </a>
+                        {% else %}
+                            Liên hệ sau
+                        {% endif %}
                     </button>
                 </div>
             </div>
