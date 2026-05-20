@@ -2,216 +2,1143 @@
 
 {% block content %}
 <style>
-    /* Modal Styles */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(4px);
-        z-index: 1000;
+    /* ══════════════════════════════
+       PAGE LAYOUT
+    ══════════════════════════════ */
+    .rent-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 60px 6% 100px;
+        width: 100%;
+    }
+
+    /* ── Page header ── */
+    .page-header {
+        text-align: center;
+        margin-bottom: 56px;
+    }
+
+    .page-tag {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--red);
+        margin-bottom: 16px;
+    }
+
+    .page-title {
+        font-size: clamp(2rem, 4vw, 2.8rem);
+        font-weight: 900;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        margin-bottom: 16px;
+    }
+
+    .page-sub {
+        font-size: 1rem;
+        color: var(--muted);
+        max-width: 480px;
+        margin: 0 auto;
+        line-height: 1.6;
+    }
+
+    /* ── Success message ── */
+    .success-msg {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        background: rgba(16,185,129,0.08);
+        border: 1px solid rgba(16,185,129,0.3);
+        color: #6ee7b7;
+        border-radius: 12px;
+        font-weight: 500;
+        margin-bottom: 48px;
+    }
+
+    /* ══════════════════════════════
+       FLOW TABS
+    ══════════════════════════════ */
+    .flow-tabs {
+        display: flex;
+        gap: 4px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 5px;
+        width: fit-content;
+        margin: 0 auto 56px;
+    }
+
+    .flow-tab {
+        padding: 11px 28px;
+        border-radius: 9px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        letter-spacing: 0.03em;
+        border: none;
+        cursor: pointer;
+        transition: background 0.2s, color 0.2s;
+        background: transparent;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .flow-tab.active {
+        background: var(--red);
+        color: #fff;
+    }
+
+    .flow-tab:not(.active):hover {
+        background: var(--card);
+        color: var(--text);
+    }
+
+    /* ══════════════════════════════
+       CAMERA FLOW — grid of cameras
+    ══════════════════════════════ */
+    .flow-panel { display: none; }
+    .flow-panel.active { display: block; }
+
+    .camera-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 24px;
+    }
+
+    .camera-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: border-color 0.25s, transform 0.25s;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .camera-card:hover {
+        border-color: rgba(230,57,70,0.45);
+        transform: translateY(-4px);
+    }
+
+    /* Camera image area — replace emoji with real photos via the admin page */
+    .camera-thumb {
+        height: 200px;
+        background: var(--surface);
+        display: flex;
         align-items: center;
         justify-content: center;
-    }
-    
-    .modal-overlay.active {
-        display: flex;
-    }
-    
-    .modal-content {
-        background: white;
-        padding: 32px;
-        border-radius: 24px;
-        width: 100%;
-        max-width: 500px; /* Widened slightly for the 2-column layout */
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        font-size: 3.5rem;
+        border-bottom: 1px solid var(--border);
         position: relative;
-        animation: modalFadeIn 0.3s ease;
-        max-height: 90vh;
-        overflow-y: auto;
     }
 
-    @keyframes modalFadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .close-btn {
-        position: absolute;
-        top: 16px; right: 16px;
-        background: none; border: none; font-size: 1.8rem; 
-        cursor: pointer; color: var(--text-muted);
-        line-height: 1;
-    }
-    
-    .close-btn:hover {
-        color: var(--primary);
+    .camera-info {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
     }
 
-    .form-group {
-        display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;
-    }
-    
-    .form-group label {
-        font-size: 0.9rem; font-weight: 600; color: var(--primary);
-    }
-    
-    .form-input {
-        padding: 12px 16px; border: 1px solid var(--border); 
-        border-radius: 12px; font-size: 1rem; color: var(--text-main); 
-        background: var(--surface); outline: none; transition: border 0.2s;
-        font-family: inherit;
+    .camera-name {
+        font-size: 1.15rem;
+        font-weight: 700;
+        margin-bottom: 12px;
     }
 
-    .form-input:focus {
-        border-color: var(--accent);
+    .camera-price-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
     }
-    
-    .form-row {
+
+    .camera-price {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--red);
+    }
+
+    .camera-price small {
+        font-size: 0.85rem;
+        color: var(--muted);
+        font-weight: 500;
+    }
+
+    .avail-badge {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #6ee7b7;
+        background: rgba(16,185,129,0.1);
+        border: 1px solid rgba(16,185,129,0.25);
+        padding: 5px 12px;
+        border-radius: 100px;
+    }
+
+    .btn-choose-camera {
+        width: 100%;
+        padding: 13px;
+        background: var(--red);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        letter-spacing: 0.04em;
+        margin-top: auto;
+        transition: background 0.2s;
+    }
+
+    .btn-choose-camera:hover { background: var(--red-dark); }
+
+    .empty-state {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 80px 20px;
+        background: var(--card);
+        border: 1px dashed var(--border);
+        border-radius: 16px;
+        color: var(--muted);
+    }
+
+    .empty-state .icon { font-size: 3rem; margin-bottom: 16px; display: block; }
+
+    /* ══════════════════════════════
+       DATE FLOW — picker + results
+    ══════════════════════════════ */
+    .date-picker-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 36px 40px;
+        max-width: 640px;
+        margin: 0 auto 48px;
+    }
+
+    .date-picker-box h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 24px;
+        color: var(--text);
+    }
+
+    .date-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .form-field { display: flex; flex-direction: column; gap: 8px; }
+
+    .form-label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .form-input {
+        padding: 12px 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        font-size: 0.95rem;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s;
+        color-scheme: dark;
+    }
+
+    .form-input:focus { border-color: var(--red); }
+
+    .date-error {
+        font-size: 0.85rem;
+        color: #f87171;
+        min-height: 20px;
+        margin-bottom: 4px;
+    }
+
+    .btn-search {
+        width: 100%;
+        padding: 14px;
+        background: var(--red);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 1rem;
+        cursor: pointer;
+        letter-spacing: 0.05em;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .btn-search:hover:not(:disabled) { background: var(--red-dark); }
+    .btn-search:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Results */
+    .results-section {
+        display: none;
+        max-width: 640px;
+        margin: 0 auto;
+    }
+
+    .results-section.visible { display: block; }
+
+    .results-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .results-title { font-size: 1.05rem; font-weight: 700; }
+
+    .results-count {
+        font-size: 0.8rem;
+        color: var(--muted);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 100px;
+        padding: 4px 12px;
+        font-weight: 600;
+    }
+
+    .result-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-bottom: 12px;
+        transition: border-color 0.2s, transform 0.2s;
+        cursor: pointer;
+    }
+
+    .result-card:hover {
+        border-color: rgba(230,57,70,0.4);
+        transform: translateX(4px);
+    }
+
+    .result-icon {
+        width: 56px;
+        height: 56px;
+        background: var(--surface);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.6rem;
+        flex-shrink: 0;
+        border: 1px solid var(--border);
+    }
+
+    .result-details { flex: 1; }
+
+    .result-name { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+
+    .result-price { font-size: 0.875rem; color: var(--red); font-weight: 700; }
+
+    .btn-book-result {
+        padding: 9px 20px;
+        background: var(--red);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.2s;
+        white-space: nowrap;
+        letter-spacing: 0.03em;
+    }
+
+    .btn-book-result:hover { background: var(--red-dark); }
+
+    .no-results {
+        text-align: center;
+        padding: 48px 20px;
+        color: var(--muted);
+        background: var(--card);
+        border: 1px dashed var(--border);
+        border-radius: 12px;
+    }
+
+    /* ══════════════════════════════
+       BOOKING MODAL (shared)
+    ══════════════════════════════ */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.75);
+        backdrop-filter: blur(6px);
+        z-index: 500;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal-box {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        width: 100%;
+        max-width: 520px;
+        max-height: 90vh;
+        overflow-y: auto;
+        position: relative;
+        animation: slideUp 0.25s ease;
+    }
+
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(24px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+        padding: 28px 28px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .modal-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
+    .modal-sub   { color: var(--red); font-weight: 600; font-size: 0.95rem; margin-top: 4px; }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 1.6rem;
+        cursor: pointer;
+        line-height: 1;
+        padding: 0;
+        transition: color 0.2s;
+        margin-left: 12px;
+        flex-shrink: 0;
+    }
+
+    .modal-close:hover { color: var(--text); }
+
+    .modal-body { padding: 24px 28px 28px; }
+
+    /* Step indicator */
+    .step-indicator {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+    }
+
+    .step-dot {
+        flex: 1;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--border);
+        transition: background 0.3s;
+    }
+
+    .step-dot.done { background: var(--red); }
+
+    /* Booked periods list */
+    .booked-list {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 20px;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    .booked-list-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 10px;
+    }
+
+    .booked-period {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: #fca5a5;
+        padding: 5px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .booked-period:last-child { border-bottom: none; }
+
+    .all-free {
+        font-size: 0.85rem;
+        color: #6ee7b7;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Modal form fields */
+    .modal-form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
+
+    .modal-form-field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+
+    .modal-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+    }
+
+    textarea.form-input { resize: vertical; min-height: 72px; }
+
+    /* Booking summary box */
+    .booking-summary {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        color: var(--muted);
+    }
+
+    .booking-summary strong { color: var(--text); }
+    .booking-summary .total { color: var(--red); font-weight: 800; font-size: 1rem; }
+
+    /* Modal action buttons */
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+    }
+
+    .btn-back {
+        padding: 13px 18px;
+        background: var(--surface);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: color 0.2s;
+        white-space: nowrap;
+    }
+
+    .btn-back:hover { color: var(--text); }
+
+    .btn-confirm {
+        flex: 1;
+        padding: 14px;
+        background: var(--red);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        cursor: pointer;
+        letter-spacing: 0.04em;
+        transition: background 0.2s;
+    }
+
+    .btn-confirm:hover { background: var(--red-dark); }
+
+    .btn-next {
+        width: 100%;
+        padding: 14px;
+        background: var(--text);
+        color: var(--bg);
+        border: none;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        cursor: pointer;
+        letter-spacing: 0.04em;
+        transition: background 0.2s;
+        margin-top: 4px;
+    }
+
+    .btn-next:hover { background: #e8e8e8; }
+
+    .inline-error {
+        color: #f87171;
+        font-size: 0.82rem;
+        margin-top: -8px;
+        margin-bottom: 6px;
+        min-height: 18px;
+    }
+
+    @media (max-width: 600px) {
+        .modal-form-row { grid-template-columns: 1fr; }
+        .date-row { grid-template-columns: 1fr; }
     }
 </style>
 
-<div style="padding: 60px 5%; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box;">
-    
-    <div style="text-align: center; margin-bottom: 60px;">
-        <h1 style="font-size: 2.5rem; font-weight: 800; color: var(--primary); margin: 0 0 16px 0; letter-spacing: -0.03em;">Thiết bị cho thuê</h1>
-        <p style="color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto;">Lựa chọn thiết bị phù hợp và đặt lịch nhận máy ngay hôm nay.</p>
+<div class="rent-page">
+
+    <!-- Page header -->
+    <div class="page-header">
+        <div class="page-tag">Đặt thuê</div>
+        <h1 class="page-title">Thuê máy ảnh<br><span class="red">chuyên nghiệp</span></h1>
+        <p class="page-sub">Chọn theo máy ảnh bạn muốn, hoặc chọn ngày rồi xem máy nào còn trống.</p>
     </div>
 
+    <!-- Success message (shown after booking) -->
     {% if message %}
-    <div style="max-width: 900px; margin: 0 auto 40px auto; background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 16px 20px; border-radius: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-        <span style="font-size: 1.2rem;">✅</span> {{ message }}
+    <div class="success-msg">
+        <span>✅</span> {{ message }}
     </div>
     {% endif %}
 
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px;">
-        {% for camera in cameras %}
-        <div style="background: white; border-radius: 20px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s;">
-            
-            <div style="height: 200px; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 3rem; border-bottom: 1px solid var(--border);">
-                📷
-            </div>
-            
-            <div style="padding: 24px; display: flex; flex-direction: column; flex: 1;">
-                <h3 style="margin: 0 0 8px 0; font-size: 1.25rem; color: var(--primary); font-weight: 700;">{{ camera.name }}</h3>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <span style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">${{ camera.price }}<span style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">/ngày</span></span>
-                    
-                    <span style="font-size: 0.85rem; font-weight: 600; color: #10b981; background: #d1fae5; padding: 6px 12px; border-radius: 100px;">
-                        Sẵn sàng
-                    </span>
+    <!-- ── Flow tab switcher ── -->
+    <div class="flow-tabs" role="tablist">
+        <button class="flow-tab" id="tab-camera" role="tab"
+                onclick="switchFlow('camera')" aria-selected="false">
+            📷 &nbsp;Chọn Máy Ảnh
+        </button>
+        <button class="flow-tab" id="tab-date" role="tab"
+                onclick="switchFlow('date')" aria-selected="false">
+            📅 &nbsp;Chọn Ngày Thuê
+        </button>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         FLOW 1 — Browse cameras, then pick dates
+    ══════════════════════════════════════════════ -->
+    <div class="flow-panel" id="panel-camera" role="tabpanel">
+        <div class="camera-grid">
+            {% for camera in cameras %}
+            <div class="camera-card">
+                <div class="camera-thumb">
+                    📷
+                    <!-- To show a real camera photo, replace the emoji above with:
+                         <img src="/static/images/{{ camera.name|lower|replace(' ', '_') }}.jpg"
+                              style="width:100%; height:100%; object-fit:cover;">
+                    -->
                 </div>
-                
-                <div style="margin-top: auto;">
-                    <button onclick="openModal('{{ camera.id }}', '{{ camera.name }}')" style="width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 600; font-size: 0.95rem; cursor: pointer;">
-                        Đặt thuê ngay
+                <div class="camera-info">
+                    <div class="camera-name">{{ camera.name }}</div>
+                    <div class="camera-price-row">
+                        <span class="camera-price">
+                            {{ camera.price | int }}đ
+                            <small>/ngày</small>
+                        </span>
+                        <span class="avail-badge">Sẵn sàng</span>
+                    </div>
+                    <button class="btn-choose-camera"
+                            onclick="openCameraFlow({{ camera.id }}, '{{ camera.name }}', {{ camera.price }})">
+                        Xem lịch &amp; Đặt thuê
                     </button>
                 </div>
             </div>
+            {% else %}
+            <div class="empty-state">
+                <span class="icon">📦</span>
+                <strong>Chưa có máy ảnh nào</strong>
+                <p style="margin-top:8px; font-size:0.9rem;">Vui lòng thêm thiết bị qua trang quản trị.</p>
+            </div>
+            {% endfor %}
         </div>
-        {% else %}
-        <div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; background: white; border-radius: 20px; border: 1px dashed var(--border);">
-            <div style="font-size: 3rem; margin-bottom: 16px;">📦</div>
-            <h3 style="margin: 0 0 8px 0; color: var(--primary);">Chưa có sản phẩm</h3>
-            <p style="color: var(--text-muted); font-size: 1.1rem; margin: 0;">Hiện chưa có máy ảnh nào sẵn sàng để thuê.</p>
+    </div>
+
+    <!-- ══════════════════════════════════════════════
+         FLOW 2 — Pick dates first, then see available cameras
+    ══════════════════════════════════════════════ -->
+    <div class="flow-panel" id="panel-date" role="tabpanel">
+
+        <div class="date-picker-box">
+            <h3>Chọn thời gian thuê</h3>
+
+            <div class="date-row">
+                <div class="form-field">
+                    <label class="form-label" for="dateStart">Thời gian nhận máy</label>
+                    <input type="datetime-local" id="dateStart" class="form-input"
+                           onchange="validateDateRange()">
+                </div>
+                <div class="form-field">
+                    <label class="form-label" for="dateEnd">Thời gian trả máy</label>
+                    <input type="datetime-local" id="dateEnd" class="form-input"
+                           onchange="validateDateRange()">
+                </div>
+            </div>
+
+            <div class="date-error" id="dateFlowError"></div>
+
+            <button class="btn-search" id="searchBtn" onclick="searchCameras()" disabled>
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                Tìm máy trống
+            </button>
         </div>
-        {% endfor %}
+
+        <!-- Results appear here after search -->
+        <div class="results-section" id="resultsSection">
+            <div class="results-header">
+                <span class="results-title">Máy ảnh còn trống</span>
+                <span class="results-count" id="resultsCount">0 máy</span>
+            </div>
+            <div id="resultsList"></div>
+        </div>
+
     </div>
 </div>
 
-<div id="bookingModal" class="modal-overlay">
-    <div class="modal-content">
-        <button class="close-btn" onclick="closeModal()">&times;</button>
-        <h3 style="margin: 0 0 8px 0; font-size: 1.5rem; color: var(--primary); font-weight: 700;">Đặt lịch thuê</h3>
-        <p id="modalCameraName" style="color: var(--accent); font-weight: 600; margin-top: 0; margin-bottom: 24px; font-size: 1.1rem;"></p>
-        
-        <form method="POST" action="/rent">
-            <input type="hidden" name="camera_id" id="modalCameraId">
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Họ và tên</label>
-                    <input type="text" name="customer_name" required placeholder="Nhập tên" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label>Số điện thoại</label>
-                    <input type="tel" name="phone" required placeholder="09xxxxxxxxx" class="form-input" pattern="[0-9]{10,11}" title="Vui lòng nhập số điện thoại hợp lệ">
-                </div>
+<!-- ══════════════════════════════════════════════════
+     UNIFIED BOOKING MODAL
+     Step 1 (camera flow only): select rental dates
+     Step 2: enter customer info and confirm
+══════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="bookingModal" onclick="handleOverlayClick(event)">
+    <div class="modal-box">
+
+        <!-- Header -->
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modalTitle">Đặt lịch thuê</div>
+                <div class="modal-sub" id="modalSubtitle"></div>
             </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Thời gian nhận</label>
-                    <input type="datetime-local" id="start_date" name="start_date" required class="form-input">
-                </div>
-                
-                <div class="form-group">
-                    <label>Thời gian trả</label>
-                    <input type="datetime-local" id="end_date" name="end_date" required class="form-input">
-                </div>
+            <button class="modal-close" onclick="closeModal()" aria-label="Đóng">&times;</button>
+        </div>
+
+        <div class="modal-body">
+
+            <!-- Step progress dots -->
+            <div class="step-indicator" id="stepIndicator">
+                <div class="step-dot done" id="dot1"></div>
+                <div class="step-dot" id="dot2"></div>
             </div>
 
-            <div class="form-group">
-                <label>Ghi chú (Tùy chọn)</label>
-                <textarea name="notes" rows="2" placeholder="Yêu cầu thêm về thiết bị, phụ kiện..." class="form-input" style="resize: vertical;"></textarea>
+            <!-- ── STEP 1: Date selection (camera flow only) ── -->
+            <div id="stepDates">
+
+                <!-- Shows all existing booked periods for this camera -->
+                <div class="booked-list">
+                    <div class="booked-list-label">Lịch đã được đặt</div>
+                    <div id="bookedPeriods">
+                        <div class="all-free">⏳ Đang tải lịch...</div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:6px;">
+                    <div class="modal-form-field" style="margin-bottom:0;">
+                        <label class="modal-label" for="selectStart">Thời gian nhận</label>
+                        <input type="datetime-local" id="selectStart" class="form-input"
+                               onchange="onModalDateChange()">
+                    </div>
+                    <div class="modal-form-field" style="margin-bottom:0;">
+                        <label class="modal-label" for="selectEnd">Thời gian trả</label>
+                        <input type="datetime-local" id="selectEnd" class="form-input"
+                               onchange="onModalDateChange()">
+                    </div>
+                </div>
+
+                <div class="inline-error" id="modalDateError"></div>
+
+                <button class="btn-next" onclick="proceedToForm()">
+                    Tiếp theo &nbsp;→
+                </button>
             </div>
-            
-            <button type="submit" style="width: 100%; margin-top: 8px; padding: 14px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: 600; font-size: 1.05rem; cursor: pointer; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.3);">
-                Xác nhận đặt thuê
-            </button>
-        </form>
+
+            <!-- ── STEP 2: Booking form ── -->
+            <div id="stepForm" style="display:none;">
+
+                <!-- Summary of what they're booking -->
+                <div class="booking-summary" id="bookingSummary"></div>
+
+                <form method="POST" action="/rent" id="bookingForm">
+                    <input type="hidden" name="camera_id" id="formCameraId">
+                    <input type="hidden" name="start_date" id="formStartDate">
+                    <input type="hidden" name="end_date"   id="formEndDate">
+
+                    <div class="modal-form-row">
+                        <div class="modal-form-field">
+                            <label class="modal-label" for="custName">Họ và tên</label>
+                            <input type="text" id="custName" name="customer_name" required
+                                   placeholder="Nhập tên" class="form-input">
+                        </div>
+                        <div class="modal-form-field">
+                            <label class="modal-label" for="custPhone">Số điện thoại</label>
+                            <input type="tel" id="custPhone" name="phone" required
+                                   placeholder="09xxxxxxxx" class="form-input"
+                                   pattern="[0-9]{10,11}">
+                        </div>
+                    </div>
+
+                    <div class="modal-form-field">
+                        <label class="modal-label" for="custNotes">Ghi chú (tuỳ chọn)</label>
+                        <textarea id="custNotes" name="notes" rows="2"
+                                  placeholder="Yêu cầu thêm về phụ kiện, cách nhận máy..."
+                                  class="form-input"></textarea>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-back" id="backBtn" onclick="backToStep1()">
+                            ← Quay lại
+                        </button>
+                        <button type="submit" class="btn-confirm">
+                            Xác nhận đặt thuê
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
     </div>
 </div>
 
 <script>
-    // --- Date/Time Validation Logic ---
-    function getLocalIsoString() {
-        const now = new Date();
-        // Adjust for local timezone offset to get correct format for HTML input
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        return now.toISOString().slice(0, 16); 
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+let state = {
+    cameraId:   null,
+    cameraName: null,
+    cameraPrice: null,
+    startDate:  null,  // ISO string "YYYY-MM-DDTHH:MM"
+    endDate:    null,
+    fromDateFlow: false   // true when modal was opened from the date flow
+};
+
+// ═══════════════════════════════════════════════════
+//  FLOW TAB SWITCHING
+// ═══════════════════════════════════════════════════
+function switchFlow(flow) {
+    document.getElementById('panel-camera').classList.toggle('active', flow === 'camera');
+    document.getElementById('panel-date').classList.toggle('active', flow === 'date');
+    document.getElementById('tab-camera').classList.toggle('active', flow === 'camera');
+    document.getElementById('tab-date').classList.toggle('active', flow === 'date');
+    document.getElementById('tab-camera').setAttribute('aria-selected', flow === 'camera');
+    document.getElementById('tab-date').setAttribute('aria-selected', flow === 'date');
+
+    // Update URL so the tab survives a page refresh / back button
+    const url = new URL(window.location);
+    url.searchParams.set('flow', flow);
+    window.history.replaceState({}, '', url);
+}
+
+// ═══════════════════════════════════════════════════
+//  DATE FLOW — validation + camera search
+// ═══════════════════════════════════════════════════
+function localIso() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+}
+
+function validateDateRange() {
+    const start = document.getElementById('dateStart').value;
+    const end   = document.getElementById('dateEnd').value;
+    const err   = document.getElementById('dateFlowError');
+    const btn   = document.getElementById('searchBtn');
+
+    if (!start || !end) {
+        err.textContent = '';
+        btn.disabled = true;
+        return false;
+    }
+    if (new Date(end) <= new Date(start)) {
+        err.textContent = '⚠ Thời gian trả phải sau thời gian nhận.';
+        btn.disabled = true;
+        return false;
+    }
+    err.textContent = '';
+    btn.disabled = false;
+    return true;
+}
+
+async function searchCameras() {
+    if (!validateDateRange()) return;
+
+    const start = document.getElementById('dateStart').value;
+    const end   = document.getElementById('dateEnd').value;
+    const btn   = document.getElementById('searchBtn');
+
+    state.startDate = start;
+    state.endDate   = end;
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 0.8s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Đang tìm...';
+
+    try {
+        const res = await fetch(
+            `/api/available-cameras?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+        );
+        const cameras = await res.json();
+        renderResults(cameras);
+    } catch {
+        document.getElementById('resultsList').innerHTML =
+            '<div class="no-results">Có lỗi xảy ra. Vui lòng thử lại.</div>';
+        document.getElementById('resultsSection').classList.add('visible');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Tìm máy trống';
+    }
+}
+
+function renderResults(cameras) {
+    const list    = document.getElementById('resultsList');
+    const count   = document.getElementById('resultsCount');
+    const section = document.getElementById('resultsSection');
+
+    count.textContent = cameras.length + ' máy';
+
+    if (cameras.length === 0) {
+        list.innerHTML =
+            '<div class="no-results">' +
+            '<div style="font-size:2.5rem;margin-bottom:12px;">😔</div>' +
+            '<strong>Không có máy nào trống</strong>' +
+            '<p style="margin-top:8px;font-size:0.875rem;">Thử chọn khoảng thời gian khác.</p>' +
+            '</div>';
+    } else {
+        // Use data-* attributes to avoid encoding issues when camera names contain quotes
+        list.innerHTML = cameras.map(function(c) {
+            return '<div class="result-card"' +
+                ' data-cam-id="' + c.id + '"' +
+                ' data-cam-name="' + escHtml(c.name) + '"' +
+                ' data-cam-price="' + c.price + '"' +
+                ' onclick="handleResultClick(this)">' +
+                '<div class="result-icon">📷</div>' +
+                '<div class="result-details">' +
+                '<div class="result-name">' + escHtml(c.name) + '</div>' +
+                '<div class="result-price">' + Math.round(c.price).toLocaleString('vi-VN') + 'đ/ngày</div>' +
+                '</div>' +
+                '<button class="btn-book-result">Đặt thuê</button>' +
+                '</div>';
+        }).join('');
     }
 
-    function setupDateValidation() {
-        const startInput = document.getElementById('start_date');
-        const endInput = document.getElementById('end_date');
-        const currentDateTime = getLocalIsoString();
+    section.classList.add('visible');
+    section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
-        // 1. Prevent selecting times in the past
-        startInput.min = currentDateTime;
-        endInput.min = currentDateTime;
+// Reads data attributes set by renderResults — avoids passing strings through onclick params
+function handleResultClick(el) {
+    openDateFlow(
+        parseInt(el.dataset.camId, 10),
+        el.dataset.camName,
+        parseFloat(el.dataset.camPrice)
+    );
+}
 
-        // 2. Ensure end_date is always AFTER start_date
-        startInput.addEventListener('change', function() {
-            endInput.min = this.value;
-            // If the user previously selected an end_date that is now earlier than the new start_date, clear it
-            if (endInput.value && endInput.value < this.value) {
-                endInput.value = this.value; 
-            }
-        });
+// ═══════════════════════════════════════════════════
+//  MODAL — open helpers
+// ═══════════════════════════════════════════════════
+
+// Called from camera cards in the camera flow — shows date-picker step first
+async function openCameraFlow(id, name, price) {
+    state.cameraId   = id;
+    state.cameraName = name;
+    state.cameraPrice = price;
+    state.fromDateFlow = false;
+
+    document.getElementById('modalTitle').textContent    = 'Chọn ngày thuê';
+    document.getElementById('modalSubtitle').textContent = name;
+    document.getElementById('dot1').classList.add('done');
+    document.getElementById('dot2').classList.remove('done');
+    document.getElementById('stepIndicator').style.display = 'flex';
+
+    // Reset date pickers
+    const minDate = localIso();
+    const s = document.getElementById('selectStart');
+    const e = document.getElementById('selectEnd');
+    s.min = minDate;
+    e.min = minDate;
+    s.value = '';
+    e.value = '';
+    document.getElementById('modalDateError').textContent = '';
+
+    showStep(1);
+    openModal();
+
+    // Fetch & display booked periods for this camera
+    document.getElementById('bookedPeriods').innerHTML =
+        '<div class="all-free">⏳ Đang tải lịch...</div>';
+    try {
+        const res      = await fetch(`/api/camera-bookings/${id}`);
+        const bookings = await res.json();
+        renderBookedPeriods(bookings);
+    } catch {
+        document.getElementById('bookedPeriods').innerHTML =
+            '<div style="color:var(--muted); font-size:0.82rem;">Không thể tải lịch đặt.</div>';
+    }
+}
+
+// Called from date-flow result cards — skips date step, goes straight to form
+function openDateFlow(id, name, price) {
+    state.cameraId    = id;
+    state.cameraName  = name;
+    state.cameraPrice = price;
+    state.fromDateFlow = true;
+
+    // Dates are already selected by the user in the date flow
+    document.getElementById('modalTitle').textContent    = 'Xác nhận đặt thuê';
+    document.getElementById('modalSubtitle').textContent = name;
+    document.getElementById('stepIndicator').style.display = 'none';
+
+    fillFormStep();
+    showStep(2);
+    openModal();
+}
+
+// ═══════════════════════════════════════════════════
+//  MODAL — step logic
+// ═══════════════════════════════════════════════════
+function onModalDateChange() {
+    const s = document.getElementById('selectStart').value;
+    const e = document.getElementById('selectEnd').value;
+    if (s && e && new Date(e) <= new Date(s)) {
+        // Auto-advance end date to match start
+        document.getElementById('selectEnd').value = s;
+    }
+}
+
+function proceedToForm() {
+    const start = document.getElementById('selectStart').value;
+    const end   = document.getElementById('selectEnd').value;
+    const err   = document.getElementById('modalDateError');
+
+    if (!start || !end) {
+        err.textContent = 'Vui lòng chọn thời gian nhận và trả.';
+        return;
+    }
+    if (new Date(end) <= new Date(start)) {
+        err.textContent = 'Thời gian trả phải sau thời gian nhận.';
+        return;
     }
 
-    // --- Modal Logic ---
-    function openModal(id, name) {
-        document.getElementById('modalCameraId').value = id;
-        document.getElementById('modalCameraName').innerText = name;
-        setupDateValidation(); // Refresh the current time block every time the modal opens
-        document.getElementById('bookingModal').classList.add('active');
-    }
+    state.startDate = start;
+    state.endDate   = end;
+    err.textContent = '';
 
-    function closeModal() {
-        document.getElementById('bookingModal').classList.remove('active');
-    }
+    document.getElementById('dot2').classList.add('done');
+    fillFormStep();
+    showStep(2);
+}
 
-    window.onclick = function(event) {
-        const modal = document.getElementById('bookingModal');
-        if (event.target == modal) {
-            closeModal();
-        }
+function fillFormStep() {
+    const start = state.startDate;
+    const end   = state.endDate;
+    const days  = Math.max(1, Math.ceil(
+        (new Date(end) - new Date(start)) / 86_400_000
+    ));
+    const total = Math.round(days * state.cameraPrice).toLocaleString('vi-VN');
+
+    document.getElementById('formCameraId').value  = state.cameraId;
+    document.getElementById('formStartDate').value = start;
+    document.getElementById('formEndDate').value   = end;
+
+    document.getElementById('bookingSummary').innerHTML = `
+        <strong>${escHtml(state.cameraName)}</strong><br>
+        🕐 ${fmtDate(start)} &nbsp;→&nbsp; ${fmtDate(end)}<br>
+        Thời gian: <strong>${days} ngày</strong> &nbsp;|&nbsp;
+        Dự kiến: <span class="total">${total}đ</span>
+    `;
+
+    // In date flow, hide the back button (user came from the results panel)
+    document.getElementById('backBtn').style.display = state.fromDateFlow ? 'none' : 'block';
+}
+
+function backToStep1() {
+    document.getElementById('dot2').classList.remove('done');
+    showStep(1);
+}
+
+function showStep(n) {
+    document.getElementById('stepDates').style.display = n === 1 ? 'block' : 'none';
+    document.getElementById('stepForm').style.display  = n === 2 ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════════════════
+//  MODAL — open / close
+// ═══════════════════════════════════════════════════
+function openModal()  { document.getElementById('bookingModal').classList.add('open'); }
+function closeModal() {
+    document.getElementById('bookingModal').classList.remove('open');
+    // Reset form fields for next use
+    document.getElementById('custName').value   = '';
+    document.getElementById('custPhone').value  = '';
+    document.getElementById('custNotes').value  = '';
+}
+
+function handleOverlayClick(e) {
+    if (e.target === document.getElementById('bookingModal')) closeModal();
+}
+
+// ═══════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════
+function renderBookedPeriods(bookings) {
+    const el = document.getElementById('bookedPeriods');
+    if (bookings.length === 0) {
+        el.innerHTML = '<div class="all-free">✓ Chưa có lịch đặt — máy đang hoàn toàn trống!</div>';
+    } else {
+        el.innerHTML = bookings.map(b => `
+            <div class="booked-period">
+                <span>🔴</span>
+                ${fmtDate(b.start)} &nbsp;→&nbsp; ${fmtDate(b.end)}
+            </div>
+        `).join('');
     }
+}
+
+function fmtDate(iso) {
+    return new Date(iso).toLocaleString('vi-VN', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+}
+
+// Minimal HTML escaping so injected camera names can't break the DOM
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT — activate the correct tab on page load
+// ═══════════════════════════════════════════════════
+(function init() {
+    // Set date picker minimums
+    const minDate = localIso();
+    document.getElementById('dateStart').min = minDate;
+    document.getElementById('dateEnd').min   = minDate;
+
+    // Read the active flow from the server-injected variable
+    const flow = "{{ active_flow }}";
+    switchFlow(flow === 'date' ? 'date' : 'camera');
+})();
 </script>
+
+<!-- Spinner keyframe for the search button loading state -->
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 {% endblock %}

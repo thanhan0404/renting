@@ -2,7 +2,7 @@ import os
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 
 # Import thêm PurchaseOrder
 from models import db, Camera, RentalBooking, PurchaseOrder
@@ -98,6 +98,48 @@ def checkout():
 
 # --- CHỨC NĂNG THUÊ MÁY (Giữ nguyên) ---
 
+@app.route('/api/camera-bookings/<int:camera_id>')
+def camera_bookings_api(camera_id):
+    """Return booked date ranges for a camera so the frontend can display unavailable periods."""
+    bookings = RentalBooking.query.filter_by(camera_id=camera_id).all()
+    return jsonify([{
+        'start': b.start_date.isoformat(),
+        'end': b.end_date.isoformat()
+    } for b in bookings])
+
+
+@app.route('/api/available-cameras')
+def available_cameras_api():
+    """Return cameras with no overlapping booking for the requested date range."""
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+
+    if not start_str or not end_str:
+        return jsonify({'error': 'Missing start or end date'}), 400
+
+    try:
+        start = datetime.strptime(start_str, '%Y-%m-%dT%H:%M')
+        end = datetime.strptime(end_str, '%Y-%m-%dT%H:%M')
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
+    if end <= start:
+        return jsonify({'error': 'End date must be after start date'}), 400
+
+    # Camera IDs that already have a booking overlapping [start, end)
+    busy_ids = [r[0] for r in db.session.query(RentalBooking.camera_id).filter(
+        RentalBooking.start_date < end,
+        RentalBooking.end_date > start
+    ).distinct().all()]
+
+    if busy_ids:
+        cameras = Camera.query.filter_by(type='Rent').filter(~Camera.id.in_(busy_ids)).all()
+    else:
+        cameras = Camera.query.filter_by(type='Rent').all()
+
+    return jsonify([{'id': c.id, 'name': c.name, 'price': c.price} for c in cameras])
+
+
 @app.route('/rent', methods=['GET', 'POST'])
 def rent():
     message = None
@@ -135,7 +177,8 @@ def rent():
         message = f"Thành công! Bạn đã đặt thuê {camera.name}. Tổng tiền dự kiến: ${total_price}"
     
     rent_cameras = Camera.query.filter_by(type='Rent').all()
-    return render_template('rent.html', cameras=rent_cameras, message=message)
+    active_flow = request.args.get('flow', 'camera')
+    return render_template('rent.html', cameras=rent_cameras, message=message, active_flow=active_flow)
 
 if __name__ == '__main__':
     with app.app_context():
