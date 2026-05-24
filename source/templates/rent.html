@@ -245,6 +245,8 @@
     }
 
     .form-input {
+        width: 100%;
+        min-width: 0;
         padding: 12px 14px;
         background: var(--surface);
         border: 1px solid var(--border);
@@ -401,6 +403,7 @@
         width: 100%;
         max-width: 520px;
         max-height: 90vh;
+        overflow-x: hidden;
         overflow-y: auto;
         position: relative;
         animation: slideUp 0.25s ease;
@@ -436,13 +439,13 @@
 
     .modal-close:hover { color: var(--text); }
 
-    .modal-body { padding: 24px 28px 28px; }
+    .modal-body { padding: 18px 28px 20px; }
 
     /* Step indicator */
     .step-indicator {
         display: flex;
         gap: 8px;
-        margin-bottom: 24px;
+        margin-bottom: 14px;
     }
 
     .step-dot {
@@ -502,7 +505,7 @@
         gap: 14px;
     }
 
-    .modal-form-field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+    .modal-form-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 
     .modal-label {
         font-size: 0.78rem;
@@ -512,17 +515,17 @@
         letter-spacing: 0.07em;
     }
 
-    textarea.form-input { resize: vertical; min-height: 72px; }
+    textarea.form-input { resize: vertical; min-height: 52px; }
 
     /* Booking summary box */
     .booking-summary {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 10px;
-        padding: 14px 16px;
-        margin-bottom: 18px;
+        padding: 10px 14px;
+        margin-bottom: 12px;
         font-size: 0.875rem;
-        line-height: 1.6;
+        line-height: 1.5;
         color: var(--muted);
     }
 
@@ -745,12 +748,12 @@
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:6px;">
-                    <div class="modal-form-field" style="margin-bottom:0;">
+                    <div class="modal-form-field" style="margin-bottom:0; min-width:0;">
                         <label class="modal-label" for="selectStart">Thời gian nhận</label>
                         <input type="datetime-local" id="selectStart" class="form-input"
                                onchange="onModalDateChange()">
                     </div>
-                    <div class="modal-form-field" style="margin-bottom:0;">
+                    <div class="modal-form-field" style="margin-bottom:0; min-width:0;">
                         <label class="modal-label" for="selectEnd">Thời gian trả</label>
                         <input type="datetime-local" id="selectEnd" class="form-input"
                                onchange="onModalDateChange()">
@@ -1012,8 +1015,10 @@ function onModalDateChange() {
     const s = document.getElementById('selectStart').value;
     const e = document.getElementById('selectEnd').value;
     if (s && e && new Date(e) <= new Date(s)) {
-        // Auto-advance end date to match start
-        document.getElementById('selectEnd').value = s;
+        // Push end forward by 1 day so validation can pass
+        const next = new Date(new Date(s).getTime() + 86_400_000);
+        next.setMinutes(next.getMinutes() - next.getTimezoneOffset());
+        document.getElementById('selectEnd').value = next.toISOString().slice(0, 16);
     }
 }
 
