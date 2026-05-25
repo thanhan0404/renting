@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tintus.digicam — Thuê Máy Ảnh Chuyên Nghiệp</title>
+    <title>Thuê Máy Ảnh HCM - tintus.digicam</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* ── Global reset & design tokens ── */
+        /* ── Global reset & Light Theme Tokens ── */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         input, button, textarea, select { font-family: inherit; font-size: inherit; }
 
         :root {
-            --bg:        #0a0a0a;
-            --surface:   #141414;
-            --card:      #1a1a1a;
-            --border:    #2a2a2a;
-            --text:      #ffffff;
-            --muted:     #888888;
-            --red:       #e63946;
-            --red-dark:  #c1121f;
+            --bg:        #ffffff;       /* Nền trắng */
+            --surface:   #f5f5f5;       /* Nền xám nhạt cho các section */
+            --card:      #ffffff;
+            --border:    #e0e0e0;
+            --text:      #333333;       /* Chữ đen/xám đậm */
+            --muted:     #666666;
+            --red:       #c1121f;       /* Đỏ chủ đạo giống 2saigon */
+            --red-dark:  #780000;
         }
 
         html { scroll-behavior: smooth; }
@@ -32,7 +32,19 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Sticky navigation ── */
+        /* ── Top Bar (Địa chỉ) ── */
+        .top-bar {
+            background-color: var(--red-dark);
+            color: white;
+            font-size: 0.85rem;
+            padding: 8px 6%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ── Navigation ── */
         nav {
             position: sticky;
             top: 0;
@@ -41,13 +53,13 @@
             justify-content: space-between;
             align-items: center;
             padding: 0 6%;
-            height: 68px;
-            background: rgba(10, 10, 10, 0.92);
-            backdrop-filter: blur(14px);
+            height: 80px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
             border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
 
-        /* Logo */
         .nav-logo {
             display: flex;
             align-items: center;
@@ -57,143 +69,122 @@
         }
 
         .nav-logo-badge {
-            width: 38px;
-            height: 38px;
+            width: 45px;
+            height: 45px;
             background: var(--red);
-            border-radius: 9px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.1rem;
-            flex-shrink: 0;
+            font-size: 1.5rem;
+            color: white;
         }
 
-        .nav-logo-name {
-            font-size: 1.1rem;
-            font-weight: 800;
-            letter-spacing: -0.02em;
-            line-height: 1.2;
-        }
-
-        .nav-logo-sub {
-            font-size: 0.65rem;
-            font-weight: 600;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-
-        /* Right side */
-        .nav-right {
-            display: flex;
-            align-items: center;
-            gap: 36px;
-        }
-
-        .nav-phone {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            color: var(--muted);
-            font-size: 0.875rem;
-            font-weight: 500;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .nav-phone:hover { color: var(--text); }
+        .nav-logo-name { font-size: 1.3rem; font-weight: 800; color: var(--red); }
+        .nav-logo-sub { font-size: 0.7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; }
 
         .nav-links {
             display: flex;
-            gap: 28px;
+            gap: 25px;
             list-style: none;
         }
 
         .nav-links a {
             text-decoration: none;
-            color: var(--muted);
-            font-weight: 600;
+            color: var(--text);
+            font-weight: 700;
             font-size: 0.9rem;
-            letter-spacing: 0.02em;
+            text-transform: uppercase;
             transition: color 0.2s;
         }
 
-        .nav-links a:hover,
-        .nav-links a.active { color: var(--text); }
+        .nav-links a:hover, .nav-links a.active { color: var(--red); }
 
-        /* ── Shared utility classes used across pages ── */
+        .nav-contact {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .nav-contact span { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+        .nav-contact strong { color: var(--red); font-size: 1.1rem; }
+
+        /* ── Shared utility classes ── */
         .btn-primary {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
-            padding: 14px 32px;
-            background: #ffffff;
-            color: #0a0a0a;
+            padding: 12px 24px;
+            background: var(--red);
+            color: #ffffff;
             border: none;
-            border-radius: 8px;
-            font-weight: 800;
+            border-radius: 6px;
+            font-weight: 700;
             font-size: 0.95rem;
-            letter-spacing: 0.04em;
             text-decoration: none;
             cursor: pointer;
-            transition: background 0.2s, transform 0.15s;
+            transition: background 0.2s;
         }
 
-        .btn-primary:hover {
-            background: #e8e8e8;
-            transform: translateY(-1px);
-        }
-
-        .btn-secondary {
+        .btn-primary:hover { background: var(--red-dark); }
+        
+        .btn-outline {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 14px 32px;
+            justify-content: center;
+            padding: 10px 20px;
             background: transparent;
-            color: #ffffff;
-            border: 2px solid rgba(255,255,255,0.35);
-            border-radius: 8px;
-            font-weight: 800;
-            font-size: 0.95rem;
-            letter-spacing: 0.04em;
-            text-decoration: none;
+            color: var(--red);
+            border: 2px solid var(--red);
+            border-radius: 6px;
+            font-weight: 700;
             cursor: pointer;
-            transition: border-color 0.2s, background 0.2s, transform 0.15s;
+            transition: all 0.2s;
         }
+        .btn-outline:hover { background: var(--red); color: white; }
 
-        .btn-secondary:hover {
-            border-color: rgba(255,255,255,0.75);
-            background: rgba(255,255,255,0.06);
-            transform: translateY(-1px);
+        .section-title {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 40px;
+            text-transform: uppercase;
         }
-
-        .red { color: var(--red); }
     </style>
 </head>
 <body>
+    <div class="top-bar">
+        📍 Địa chỉ: 74/1/45 Đường số 9, Phường 16, Quận Gò Vấp, TP.HCM
+    </div>
     <nav>
         <a href="/" class="nav-logo">
             <div class="nav-logo-badge">📷</div>
             <div>
                 <div class="nav-logo-name">tintus.digicam</div>
-                <div class="nav-logo-sub">Rental Studio</div>
+                <div class="nav-logo-sub">Shop máy tận nơi</div>
             </div>
         </a>
 
-        <div class="nav-right">
-            <a href="tel:0345765217" class="nav-phone">
-                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.21 11.9 19.79 19.79 0 0 1 1.14 3.3 2 2 0 0 1 3.11 1.1h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
-                </svg>
-                0345 765 217
-            </a>
-            <ul class="nav-links">
-                <li><a href="/" {% if request.path == '/' %}class="active"{% endif %}>Trang chủ</a></li>
-                <li><a href="/rent" {% if request.path == '/rent' %}class="active"{% endif %}>Thuê máy</a></li>
-            </ul>
+        <ul class="nav-links">
+            <li><a href="/" {% if request.path == '/' %}class="active"{% endif %}>Trang chủ</a></li>
+            <li><a href="/store" {% if request.path == '/store' %}class="active"{% endif %}>Các loại máy</a></li>
+            <li><a href="/rent" {% if request.path == '/rent' %}class="active"{% endif %}>Bảng giá thuê</a></li>
+            <li><a href="#">Góc chia sẻ</a></li>
+        </ul>
+
+        <div class="nav-contact">
+            <span>Hotline tư vấn:</span>
+            <strong>0345.765.217</strong>
         </div>
     </nav>
 
     <main>{% block content %}{% endblock %}</main>
+
+    <footer style="background: var(--surface); padding: 40px 6%; margin-top: 60px; border-top: 1px solid var(--border);">
+        <div style="max-width: 1200px; margin: 0 auto; text-align: center; color: var(--muted); font-size: 0.9rem;">
+            <strong>tintus.digicam - Dịch vụ thuê máy ảnh chuyên nghiệp tại TP.HCM</strong><br>
+            © 2026 Bản quyền thuộc về Nguyễn Lê Thanh An.
+        </div>
+    </footer>
 </body>
 </html>
