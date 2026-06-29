@@ -40,6 +40,7 @@ class Camera(db.Model):
     sold_to     = db.Column(db.String(100), default='')       # người mua
     sold_phone  = db.Column(db.String(20),  default='')
     sold_source = db.Column(db.String(30),  default='')       # nguồn khách: Facebook/Instagram/Threads/TikTok…
+    gift_json   = db.Column(db.Text,        default='')       # JSON list of gifted accessories [{id,name,cost}]
 
     @property
     def specs(self):
@@ -81,12 +82,31 @@ class Camera(db.Model):
     def revenue(self):
         return self.rental_revenue + self.sale_revenue
 
+    # ── Gifted accessories (bundled free with a camera sale) ─────────────────
+    @property
+    def gifts(self):
+        if self.gift_json:
+            try:
+                return json.loads(self.gift_json)
+            except (ValueError, TypeError):
+                return []
+        return []
+
+    @property
+    def gift_cost(self):
+        """Total cost of accessories given away with this camera (eats profit)."""
+        return int(sum(int(g.get('cost') or 0) for g in self.gifts))
+
+    @property
+    def gift_label(self):
+        return ', '.join(g.get('name', '') for g in self.gifts if g.get('name'))
+
     @property
     def cost(self):
-        """Sale: acquisition + repair. Rental: repairs only (gear is an owned
-        asset — its purchase price is not expensed against rental income)."""
+        """Sale: acquisition + repair + gifted accessories. Rental: repairs only
+        (gear is an owned asset — its purchase price is not expensed)."""
         if self.type == 'Sale':
-            return int((self.import_cost or 0) + (self.repair_cost or 0))
+            return int((self.import_cost or 0) + (self.repair_cost or 0) + self.gift_cost)
         return int(self.repair_cost or 0)
 
     @property
@@ -273,6 +293,45 @@ class StoreCost(db.Model):
     amount     = db.Column(db.Integer, default=0)             # VND
     cost_date  = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Accessory(db.Model):
+    """A non-camera item sold by the quantity — lens, pin, thẻ nhớ, sạc…"""
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(120), nullable=False)
+    category   = db.Column(db.String(40),  default='')        # Lens / Pin / Thẻ nhớ…
+    cost       = db.Column(db.Integer, default=0)             # giá nhập (also the gift deduction)
+    price      = db.Column(db.Integer, default=0)             # giá bán mặc định
+    stock      = db.Column(db.Integer, default=0)             # số lượng tồn kho
+    note       = db.Column(db.String(200), default='')
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    @property
+    def stock_value(self):
+        return int((self.stock or 0) * (self.cost or 0))
+
+
+class AccessorySale(db.Model):
+    """A logged sale of N units of an accessory (feeds Finance)."""
+    id           = db.Column(db.Integer, primary_key=True)
+    accessory_id = db.Column(db.Integer, db.ForeignKey('accessory.id'), nullable=True)
+    name         = db.Column(db.String(120), default='')      # snapshot of the name at sale time
+    quantity     = db.Column(db.Integer, default=1)
+    unit_price   = db.Column(db.Integer, default=0)
+    unit_cost    = db.Column(db.Integer, default=0)           # cost snapshot (COGS)
+    sale_date    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    @property
+    def revenue(self):
+        return int((self.quantity or 0) * (self.unit_price or 0))
+
+    @property
+    def cost_total(self):
+        return int((self.quantity or 0) * (self.unit_cost or 0))
+
+    @property
+    def profit(self):
+        return self.revenue - self.cost_total
 
 
 class PurchaseOrder(db.Model):

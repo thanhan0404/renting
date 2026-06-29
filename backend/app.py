@@ -4,12 +4,14 @@ import math
 import json
 from datetime import datetime, timedelta, timezone
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
-from flask_admin import Admin, BaseView, expose
+from flask_admin import Admin, BaseView, expose, AdminIndexView
 from flask_admin.contrib.sqla import ModelView
 from sqlalchemy import inspect as sa_inspect, text
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import (db, Camera, RentalBooking, PurchaseOrder, Sheet,
-                    CameraVariant, SaleRecord, Supplier, StockReceipt, StoreCost)
+                    CameraVariant, SaleRecord, Supplier, StockReceipt, StoreCost,
+                    Accessory, AccessorySale)
 from seed import seed as seed_db, backfill_costs
 
 try:
@@ -25,6 +27,10 @@ CAMERA_CATEGORIES = ['Mirrorless', 'Compact', 'DSLR', 'Máy phim', 'Action Cam',
 
 # Where a buying customer came from (sale popup dropdown).
 SALE_SOURCES = ['Facebook', 'Instagram', 'Threads', 'TikTok', 'Tại shop', 'Khác']
+
+# Accessory / other-goods categories (Phụ kiện tab).
+ACCESSORY_CATEGORIES = ['Lens', 'Pin', 'Thẻ nhớ', 'Sạc', 'Túi/Bao', 'Dây đeo',
+                        'Tripod', 'Filter', 'Khác']
 
 # Column order of the Excel import template (mirrors the shop's spreadsheet).
 IMPORT_COLUMNS = ['Tên máy', 'Màu', 'Dòng máy', 'Nơi (N/V)', 'Phụ kiện',
@@ -77,15 +83,84 @@ static_dir   = os.path.join(frontend_dir, 'static')
 app = Flask(__name__, template_folder=template_dir,
             static_folder=static_dir, static_url_path='/static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///camerashop.db'
-app.config['SECRET_KEY'] = 'a_secure_secret_key'
+# Session-signing key. MUST be set via env in production (a leaked/default key
+# lets anyone forge an admin session cookie).
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-insecure-change-me')
 app.config['TEMPLATES_AUTO_RELOAD'] = True   # pick up template edits without a restart
 app.jinja_env.auto_reload = True
+
+# ── Admin security ───────────────────────────────────────────────────────────
+# The whole admin panel lives behind a secret, hard-to-guess URL prefix AND a
+# login. Both are configurable via environment variables (see SECURITY.md).
+ADMIN_URL_PREFIX = '/' + os.environ.get('ADMIN_URL_PREFIX', 'quan-tri-tintus').strip('/')
+ADMIN_USERNAME   = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD_HASH = generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'tintus@2026'))
+LOGIN_PATH  = ADMIN_URL_PREFIX + '/login'
+LOGOUT_PATH = ADMIN_URL_PREFIX + '/logout'
+
+# Harden the session cookie. Set SESSION_COOKIE_SECURE=1 once you only serve
+# the admin over HTTPS (e.g. behind Cloudflare) — leave 0 for plain-HTTP LAN access.
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=(os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+)
+
 db.init_app(app)
 
-admin = Admin(app, name='Camera Shop Admin')
+
+class RedirectIndexView(AdminIndexView):
+    """The default Flask-Admin home is unused → send it straight to Cameras."""
+    @expose('/')
+    def index(self):
+        return redirect(url_for('cameras.index'))
+
+
+admin = Admin(app, name='tintus.digicam Admin',
+              index_view=RedirectIndexView(url=ADMIN_URL_PREFIX, endpoint='admin'))
 admin.add_view(ModelView(Camera, db.session))
 admin.add_view(ModelView(RentalBooking, db.session))
 admin.add_view(ModelView(PurchaseOrder, db.session))
+
+
+# ── Gate every admin request behind the login ────────────────────────────────
+@app.before_request
+def _require_admin_login():
+    p = request.path
+    if not (p == ADMIN_URL_PREFIX or p.startswith(ADMIN_URL_PREFIX + '/')):
+        return                                  # public site → no gate
+    if p in (LOGIN_PATH, LOGOUT_PATH):
+        return                                  # auth endpoints stay reachable
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login', next=p))
+
+
+@app.route(LOGIN_PATH, methods=['GET', 'POST'])
+def admin_login():
+    if session.get('is_admin'):
+        return redirect(url_for('cameras.index'))
+    error = None
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
+            session.clear()
+            session['is_admin'] = True
+            session['admin_user'] = username
+            session.permanent = True
+            nxt = request.args.get('next') or url_for('cameras.index')
+            if not nxt.startswith(ADMIN_URL_PREFIX):     # block open-redirects
+                nxt = url_for('cameras.index')
+            return redirect(nxt)
+        error = 'Sai tài khoản hoặc mật khẩu.'
+    return render_template('admin_login.html', error=error, login_action=LOGIN_PATH)
+
+
+@app.route(LOGOUT_PATH)
+def admin_logout():
+    session.clear()
+    return redirect(LOGIN_PATH)
 
 
 # ── Jinja2 filter: 280000 → "280K" ─────────────────────────────────────────
@@ -615,6 +690,7 @@ def serialize_unit(cam):
         'sold_to': cam.sold_to or '', 'sold_phone': cam.sold_phone or '', 'sold_source': cam.sold_source or '',
         'sold_at': cam.sold_date.strftime('%Y-%m-%dT%H:%M') if cam.sold_date else '',
         'sold_month': cam.sold_date.strftime('%Y-%m') if cam.sold_date else '',
+        'gift_cost': cam.gift_cost, 'gift_label': cam.gift_label,
     }
 
 
@@ -622,6 +698,12 @@ def serialize_cost(c):
     return {'id': c.id, 'category': c.category or 'Khác', 'note': c.note or '',
             'amount': c.amount or 0,
             'date': c.cost_date.strftime('%Y-%m-%d') if c.cost_date else ''}
+
+
+def serialize_accessory(a):
+    return {'id': a.id, 'name': a.name, 'category': a.category or '',
+            'cost': a.cost or 0, 'price': a.price or 0, 'stock': a.stock or 0,
+            'note': a.note or '', 'stock_value': a.stock_value}
 
 
 def camera_pnl(cam):
@@ -665,11 +747,14 @@ class CamerasView(BaseView):
                 .order_by(Camera.sold_date.desc(), Camera.id.desc()).all())
         color_map = color_map_for(rent_cameras_ordered())   # rental colors match the grid
         brands = sorted({c.brand for c in (rent + sale + sold) if c.brand})
+        gift_options = (Accessory.query.filter(Accessory.stock > 0)
+                        .order_by(Accessory.category, Accessory.name).all())
         return self.render('admin/cameras.html',
                            rent_cameras=rent, sale_cameras=sale, sold_cameras=sold,
                            cameras=rent + sale + sold, color_map=color_map,
                            categories=CAMERA_CATEGORIES, brands=brands,
-                           sale_sources=SALE_SOURCES)
+                           sale_sources=SALE_SOURCES,
+                           gift_options=[serialize_accessory(a) for a in gift_options])
 
     @expose('/update', methods=['POST'])
     def update(self):
@@ -698,6 +783,12 @@ class CamerasView(BaseView):
             else:                                  # reverting out of "sold" clears the sale
                 cam.sold_date = None
                 if value == 'stock':
+                    # put any gifted accessories back into stock
+                    for g in cam.gifts:
+                        acc = db.session.get(Accessory, g.get('id'))
+                        if acc:
+                            acc.stock = (acc.stock or 0) + 1
+                    cam.gift_json = ''
                     cam.sold_price = 0
                     cam.sold_to = cam.sold_phone = cam.sold_source = ''
             db.session.commit()
@@ -741,6 +832,15 @@ class CamerasView(BaseView):
         cam.sold_phone = (d.get('phone') or '').strip()
         cam.sold_source = (d.get('source') or '').strip()
         cam.sold_date = datetime.now()
+        # gifted accessories: deduct each from stock, record cost (eats profit)
+        gift_ids = d.get('gifts') or []
+        gifts = []
+        for aid in gift_ids:
+            acc = db.session.get(Accessory, aid)
+            if acc and (acc.stock or 0) > 0:
+                acc.stock -= 1
+                gifts.append({'id': acc.id, 'name': acc.name, 'cost': int(acc.cost or 0)})
+        cam.gift_json = json.dumps(gifts, ensure_ascii=False) if gifts else ''
         db.session.commit()
         return jsonify({'ok': True, 'pnl': camera_pnl(cam), 'unit': serialize_unit(cam)})
 
@@ -1157,6 +1257,7 @@ class FinanceView(BaseView):
         bookings  = RentalBooking.query.all()
         sold_cams = [c for c in sale_cameras if c.sale_state == 'sold' and c.sold_date]
         store_costs = StoreCost.query.all()
+        acc_sales = AccessorySale.query.all()
 
         def window(start, end):
             """All money flows whose own date falls inside [start, end)."""
@@ -1165,8 +1266,12 @@ class FinanceView(BaseView):
             srev  = sum(int(c.sold_price or 0) for c in sold)
             scogs = sum(int(c.cost) for c in sold)
             scost = sum(int(x.amount or 0) for x in store_costs if x.cost_date and start <= x.cost_date < end)
+            asales = [s for s in acc_sales if s.sale_date and start <= s.sale_date < end]
+            arev  = sum(s.revenue for s in asales)
+            acogs = sum(s.cost_total for s in asales)
             return {'rrev': rrev, 'srev': srev, 'scogs': scogs, 'sprof': srev - scogs,
-                    'scost': scost, 'sold': sold}
+                    'scost': scost, 'sold': sold,
+                    'arev': arev, 'acogs': acogs, 'aprof': arev - acogs}
 
         # ── trailing buckets for the trend charts (ending at the anchor) ──
         counts = {'day': 14, 'month': 12, 'year': 5}[period]
@@ -1192,11 +1297,14 @@ class FinanceView(BaseView):
         sale_revenue   = int(w['srev'])
         sale_cost      = int(w['scogs'])
         sale_profit    = int(w['sprof'])
+        accessory_revenue = int(w['arev'])
+        accessory_cost    = int(w['acogs'])
+        accessory_profit  = int(w['aprof'])
         store_cost_total = int(w['scost'])
 
-        total_revenue = rental_revenue + sale_revenue
-        total_profit  = rental_profit + sale_profit
-        total_cost    = rental_cost + sale_cost
+        total_revenue = rental_revenue + sale_revenue + accessory_revenue
+        total_profit  = rental_profit + sale_profit + accessory_profit
+        total_cost    = rental_cost + sale_cost + accessory_cost
         net_profit    = total_profit - store_cost_total
 
         # ── inventory snapshot (current state, not date-scoped) ──
@@ -1213,6 +1321,7 @@ class FinanceView(BaseView):
         summary = {
             'rental_revenue': rental_revenue, 'rental_cost': rental_cost, 'rental_profit': rental_profit,
             'sale_revenue': sale_revenue, 'sale_cost': sale_cost, 'sale_profit': sale_profit,
+            'accessory_revenue': accessory_revenue, 'accessory_cost': accessory_cost, 'accessory_profit': accessory_profit,
             'total_revenue': total_revenue, 'total_cost': total_cost, 'total_profit': total_profit,
             'inventory_value': inventory_value,
             'store_cost_total': store_cost_total, 'net_profit': net_profit,
@@ -1314,6 +1423,99 @@ class StoreCostView(BaseView):
         return jsonify({'ok': True})
 
 
+class AccessoriesView(BaseView):
+    """Phụ kiện / hàng hoá khác — sold by quantity (lens, pin, thẻ nhớ…)."""
+
+    EDITABLE = {'name': str, 'category': str, 'note': str,
+                'cost': int, 'price': int, 'stock': int}
+
+    @expose('/')
+    def index(self):
+        items = Accessory.query.order_by(Accessory.category, Accessory.name).all()
+        total_stock  = int(sum(a.stock or 0 for a in items))
+        stock_value  = int(sum(a.stock_value for a in items))
+        now = datetime.now()
+        month_sales = [s for s in AccessorySale.query.all()
+                       if s.sale_date and s.sale_date.year == now.year and s.sale_date.month == now.month]
+        month_rev = int(sum(s.revenue for s in month_sales))
+        return self.render('admin/phukien.html',
+                           accessories=[serialize_accessory(a) for a in items],
+                           categories=ACCESSORY_CATEGORIES,
+                           total_stock=total_stock, stock_value=stock_value,
+                           item_count=len(items), month_rev=month_rev,
+                           today=now.strftime('%Y-%m-%d'))
+
+    @expose('/add', methods=['POST'])
+    def add(self):
+        d = request.get_json(silent=True) or {}
+        name = (d.get('name') or '').strip()
+        if not name:
+            return jsonify({'ok': False, 'error': 'Tên phụ kiện bắt buộc'}), 400
+        try:
+            a = Accessory(name=name, category=(d.get('category') or '').strip(),
+                          cost=max(0, int(d.get('cost') or 0)),
+                          price=max(0, int(d.get('price') or 0)),
+                          stock=max(0, int(d.get('stock') or 0)),
+                          note=(d.get('note') or '').strip())
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Giá trị không hợp lệ'}), 400
+        db.session.add(a)
+        db.session.commit()
+        return jsonify({'ok': True, 'accessory': serialize_accessory(a)})
+
+    @expose('/update', methods=['POST'])
+    def update(self):
+        d = request.get_json(silent=True) or {}
+        a = db.session.get(Accessory, d.get('id'))
+        if not a:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy'}), 404
+        field, value = d.get('field'), d.get('value')
+        if field not in self.EDITABLE:
+            return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
+        caster = self.EDITABLE[field]
+        try:
+            cast = max(0, int(value or 0)) if caster is int else (str(value) if value is not None else '').strip()
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Giá trị không hợp lệ'}), 400
+        setattr(a, field, cast)
+        db.session.commit()
+        return jsonify({'ok': True, 'accessory': serialize_accessory(a)})
+
+    @expose('/sell', methods=['POST'])
+    def sell(self):
+        """Sell N units at a price → decrement stock, log the sale."""
+        d = request.get_json(silent=True) or {}
+        a = db.session.get(Accessory, d.get('id'))
+        if not a:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy'}), 404
+        try:
+            qty   = int(d.get('quantity') or 0)
+            price = max(0, int(d.get('price') or 0))
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Số lượng / giá không hợp lệ'}), 400
+        if qty < 1:
+            return jsonify({'ok': False, 'error': 'Số lượng phải ≥ 1'}), 400
+        if qty > (a.stock or 0):
+            return jsonify({'ok': False, 'error': f'Chỉ còn {a.stock or 0} cái trong kho'}), 400
+        a.stock -= qty
+        rec = AccessorySale(accessory_id=a.id, name=a.name, quantity=qty,
+                            unit_price=price, unit_cost=int(a.cost or 0), sale_date=datetime.now())
+        db.session.add(rec)
+        db.session.commit()
+        return jsonify({'ok': True, 'accessory': serialize_accessory(a),
+                        'sold': qty, 'revenue': rec.revenue})
+
+    @expose('/delete', methods=['POST'])
+    def delete(self):
+        d = request.get_json(silent=True) or {}
+        a = db.session.get(Accessory, d.get('id'))
+        if not a:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy'}), 404
+        db.session.delete(a)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+
 class SheetView(BaseView):
     """A free-form Google-Sheets-style scratch sheet."""
 
@@ -1356,6 +1558,7 @@ class SheetView(BaseView):
 admin.add_view(BookingGridView(name='Lịch thuê (Sheet)', endpoint='bookinggrid'))
 admin.add_view(CalendarView(name='Lịch (Calendar)',     endpoint='calendar'))
 admin.add_view(CamerasView(name='Quản lý máy',          endpoint='cameras'))
+admin.add_view(AccessoriesView(name='Phụ kiện',         endpoint='phukien'))
 admin.add_view(FinanceView(name='Tài chính',            endpoint='finance'))
 admin.add_view(StoreCostView(name='Chi phí tiệm',       endpoint='chiphi'))
 admin.add_view(SheetView(name='Sổ tay',                 endpoint='sheet'))
@@ -1385,6 +1588,7 @@ def ensure_schema():
             'sold_to':       "VARCHAR(100) DEFAULT ''",
             'sold_phone':    "VARCHAR(20) DEFAULT ''",
             'sold_source':   "VARCHAR(30) DEFAULT ''",
+            'gift_json':     "TEXT DEFAULT ''",
         }
         for name, ddl in new_cols.items():
             if name not in cols:

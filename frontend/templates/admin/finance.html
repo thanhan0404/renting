@@ -68,7 +68,8 @@
     <p class="text-3xl font-black text-gray-900 leading-none">{{ summary.total_revenue|money }}<span class="text-xl">đ</span></p>
     <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-gray-500">
       <span>Thuê: <span class="text-gray-800">{{ summary.rental_revenue|money }}đ</span></span>
-      <span>Bán: <span class="text-gray-800">{{ summary.sale_revenue|money }}đ</span></span>
+      <span>Bán máy: <span class="text-gray-800">{{ summary.sale_revenue|money }}đ</span></span>
+      <span>Phụ kiện: <span class="text-gray-800">{{ summary.accessory_revenue|money }}đ</span></span>
     </div>
   </div>
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm p-5">
@@ -161,6 +162,19 @@
       {% else %}<p class="text-sm text-gray-400">Không có hàng tồn đọng.</p>{% endif %}
     </div>
   </div>
+</div>
+
+<!-- ════════ PHỤ KIỆN ════════ -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
+  <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <h2 class="text-lg font-black text-gray-900">🔧 Phụ kiện</h2>
+    <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold">
+      <span class="text-gray-500">Doanh thu <b class="text-gray-900">{{ summary.accessory_revenue|money }}đ</b></span>
+      <span class="text-gray-500">Vốn <b class="text-gray-900">{{ summary.accessory_cost|money }}đ</b></span>
+      <span class="text-gray-500">Lợi nhuận <b class="{% if summary.accessory_profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ summary.accessory_profit|money }}đ</b></span>
+    </div>
+  </div>
+  <p class="text-xs text-gray-400 mt-2">Doanh thu bán lens, pin, thẻ nhớ… trong {{ anchor_label|lower }}. Quản lý kho ở tab “Phụ kiện”.</p>
 </div>
 
 <!-- ── Per-camera P&L tables ── -->

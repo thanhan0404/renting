@@ -283,7 +283,10 @@
               data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}" data-state="{{ c.sale_state or 'sold' }}"
               data-category="{{ c.category or '' }}" data-soldmonth="{{ c.sold_date.strftime('%Y-%m') if c.sold_date else '' }}"
               data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
-            <td class="cam-sticky-cell px-3 py-1.5"><input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy"></td>
+            <td class="cam-sticky-cell px-3 py-1.5">
+              <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
+              {% if c.gift_label %}<div class="text-[10px] font-bold text-brand-700 pl-2 mt-0.5" title="Phụ kiện tặng kèm — đã trừ {{ c.gift_cost|money }}đ khỏi lợi nhuận">🎁 {{ c.gift_label }}</div>{% endif %}
+            </td>
             <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="color" value="{{ c.color or '' }}" placeholder="—"></td>
             <td class="px-3 py-1.5 text-center">
               <select class="cam-sel" data-field="category">
@@ -388,6 +391,25 @@
           <option value="">— Chọn nguồn —</option>
           {% for s in sale_sources %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
         </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tặng kèm phụ kiện <span class="normal-case font-semibold text-gray-400">(trừ vào lợi nhuận)</span></label>
+        {% if gift_options %}
+        <div id="sell_gifts" class="max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2 space-y-1">
+          {% for g in gift_options %}
+          <label class="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+            <span class="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" class="sell-gift" value="{{ g.id }}" data-cost="{{ g.cost }}" style="width:16px;height:16px;accent-color:#b91c1c">
+              {{ g.name }}{% if g.category %} <span class="text-gray-400 text-xs">· {{ g.category }}</span>{% endif %}
+            </span>
+            <span class="text-xs font-bold text-brand-700 whitespace-nowrap">−{{ g.cost|money }}đ</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p id="sell_gift_sum" class="text-xs font-bold text-gray-500 mt-1.5 hidden"></p>
+        {% else %}
+        <p class="text-xs text-gray-400">Chưa có phụ kiện nào trong kho. Thêm ở tab <b>Phụ kiện</b>.</p>
+        {% endif %}
       </div>
     </div>
     <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
@@ -628,8 +650,18 @@
     const sp = rowEl.querySelector('[data-field="sold_price"]');
     $('sell_price').value = group(sp ? sp.dataset.raw : 0);
     $('sell_customer').value = ''; $('sell_phone').value = ''; $('sell_source').value = '';
+    document.querySelectorAll('.sell-gift').forEach(cb => { cb.checked = false; });
+    updateGiftSum();
     sellModal.style.display = 'flex'; $('sell_price').focus();
   }
+  function updateGiftSum() {
+    const el = $('sell_gift_sum'); if (!el) return;
+    let sum = 0, n = 0;
+    document.querySelectorAll('.sell-gift:checked').forEach(cb => { sum += Number(cb.dataset.cost) || 0; n++; });
+    if (n > 0) { el.textContent = 'Tặng ' + n + ' phụ kiện · trừ ' + fmt(sum) + ' khỏi lợi nhuận'; el.classList.remove('hidden'); }
+    else { el.classList.add('hidden'); }
+  }
+  document.querySelectorAll('.sell-gift').forEach(cb => cb.addEventListener('change', updateGiftSum));
   function closeSellModal(revert) {
     if (revert && sellSel) sellSel.value = sellSel.dataset.prev || 'stock';
     sellModal.style.display = 'none'; sellRow = null; sellSel = null;
@@ -640,11 +672,12 @@
   $('sellSave').addEventListener('click', async () => {
     if (!sellRow) return;
     const price = num($('sell_price').value);
+    const gifts = Array.from(document.querySelectorAll('.sell-gift:checked')).map(cb => Number(cb.value));
     try {
       await TINTUS.api(SELL_URL, {
         id: Number(sellRow.dataset.id), sold_price: price,
         customer_name: $('sell_customer').value.trim(), phone: $('sell_phone').value.trim(),
-        source: $('sell_source').value });
+        source: $('sell_source').value, gifts: gifts });
       TINTUS.toast('Đã bán máy', 'ok');
       // unit moves out of "Để bán" into "Đã bán" → reload onto the sold tab
       sessionStorage.setItem('camTab', 'sold');

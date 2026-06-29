@@ -3,6 +3,12 @@ services:
     build: .
     container_name: camerashop_web
     # REMOVED the 'ports' section here so it is not exposed directly
+    environment:
+      - SECRET_KEY=${RANDOM_STRING}          # signs the login cookie
+      - ADMIN_URL_PREFIX=quanly-tintus         # → /mySecretPath9f3a
+      - ADMIN_USERNAME=tintus
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SESSION_COOKIE_SECURE=1                    # set when served over HTTPS only
     volumes:
       - ./backend/instance:/app/backend/instance
     restart: unless-stopped

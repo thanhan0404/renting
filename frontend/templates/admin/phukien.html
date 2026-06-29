@@ -1,0 +1,248 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Phụ kiện</h1>
+    <p class="text-sm text-gray-500">Bán theo số lượng — lens, pin, thẻ nhớ, sạc… Nhập số lượng tồn, khi bán chọn số lượng & giá, hệ thống tự trừ kho.</p>
+  </div>
+</div>
+
+<!-- stat cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Loại phụ kiện</div>
+    <div id="acCount" class="text-lg font-black text-gray-900 mt-0.5">{{ item_count }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-emerald-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng tồn kho</div>
+    <div id="acStock" class="text-lg font-black text-gray-900 mt-0.5">{{ total_stock }} <span class="text-xs font-bold text-gray-400">cái</span></div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Vốn tồn kho</div>
+    <div id="acValue" class="text-lg font-black text-gray-900 mt-0.5">{{ stock_value|money }}đ</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Doanh thu tháng này</div>
+    <div class="text-lg font-black text-gray-900 mt-0.5">{{ month_rev|money }}đ</div>
+  </div>
+</div>
+
+<!-- quick add -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
+    <div class="md:col-span-3">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Tên phụ kiện *</label>
+      <input id="ac_name" type="text" placeholder="VD: Lens Fujifilm 35mm" class="ac-in w-full">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Loại</label>
+      <select id="ac_cat" class="ac-in w-full">
+        {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Giá nhập</label>
+      <input id="ac_cost" type="text" inputmode="numeric" placeholder="0" class="ac-in money-live w-full text-right tabular-nums">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Giá bán</label>
+      <input id="ac_price" type="text" inputmode="numeric" placeholder="0" class="ac-in money-live w-full text-right tabular-nums">
+    </div>
+    <div class="md:col-span-1">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Tồn</label>
+      <input id="ac_stock" type="text" inputmode="numeric" placeholder="0" class="ac-in w-full text-right tabular-nums">
+    </div>
+    <div class="md:col-span-2">
+      <button id="ac_add" class="w-full bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold py-2.5 rounded-xl">+ Thêm</button>
+    </div>
+  </div>
+</div>
+
+<!-- table -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:860px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3" style="min-width:200px">Tên</th>
+          <th class="text-center px-4 py-3" style="min-width:120px">Loại</th>
+          <th class="text-right px-4 py-3" style="min-width:120px">Giá nhập</th>
+          <th class="text-right px-4 py-3" style="min-width:120px">Giá bán</th>
+          <th class="text-right px-4 py-3" style="min-width:90px">Tồn kho</th>
+          <th class="text-left px-4 py-3" style="min-width:160px">Ghi chú</th>
+          <th class="text-center px-4 py-3" style="min-width:150px"></th>
+        </tr>
+      </thead>
+      <tbody id="acBody">
+        {% for a in accessories %}
+        <tr class="ac-row border-t border-gray-100 hover:bg-gray-50/60" data-id="{{ a.id }}" data-name="{{ a.name }}" data-price="{{ a.price }}">
+          <td class="px-4 py-1.5"><input class="ac-cell font-semibold text-gray-900" type="text" data-field="name" value="{{ a.name }}" placeholder="Tên"></td>
+          <td class="px-4 py-1.5 text-center">
+            <select class="ac-cell ac-sel" data-field="category">
+              <option value="" {% if not a.category %}selected{% endif %}>—</option>
+              {% for cat in categories %}<option value="{{ cat }}" {% if a.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+              {% if a.category and a.category not in categories %}<option value="{{ a.category }}" selected>{{ a.category }}</option>{% endif %}
+            </select>
+          </td>
+          <td class="px-4 py-1.5"><input class="ac-cell ac-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="cost" data-raw="{{ a.cost }}"></td>
+          <td class="px-4 py-1.5"><input class="ac-cell ac-money text-right tabular-nums text-gray-900" inputmode="numeric" data-field="price" data-raw="{{ a.price }}"></td>
+          <td class="px-4 py-1.5"><input class="ac-cell ac-stock text-right tabular-nums font-black {% if a.stock <= 0 %}text-brand-700{% else %}text-gray-900{% endif %}" inputmode="numeric" data-field="stock" value="{{ a.stock }}"></td>
+          <td class="px-4 py-1.5"><input class="ac-cell text-gray-700" type="text" data-field="note" value="{{ a.note }}" placeholder="—"></td>
+          <td class="px-4 py-1.5 text-center whitespace-nowrap">
+            <button class="ac-sell bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">🛒 Bán</button>
+            <button class="ac-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 align-middle" title="Xoá">🗑</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not accessories %}<div id="acEmpty" class="px-6 py-10 text-center text-gray-400">Chưa có phụ kiện nào. Thêm ở trên ↑</div>{% endif %}
+</div>
+
+<!-- sell popup -->
+<div id="acSellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Bán phụ kiện</h3>
+      <button id="acSellClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <p class="text-sm text-gray-500">Phụ kiện: <b id="acSellName" class="text-gray-900"></b> · còn <b id="acSellStock" class="text-gray-900"></b> cái</p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số lượng bán</label>
+          <input id="acSellQty" type="number" min="1" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá bán / cái</label>
+          <input id="acSellPrice" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <p class="text-sm text-gray-500">Thành tiền: <b id="acSellTotal" class="text-gray-900">0đ</b></p>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="acSellCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="acSellDo" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận bán</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ac-in { border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; background:#fff; }
+  .ac-in:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .ac-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:5px 8px; font-size:13px; outline:none; background:transparent; }
+  .ac-cell:hover { background:#f3f4f6; }
+  .ac-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .ac-sel { font-weight:700; color:#374151; cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const ADD_URL  = "{{ url_for('phukien.add') }}";
+  const UPD_URL  = "{{ url_for('phukien.update') }}";
+  const SELL_URL = "{{ url_for('phukien.sell') }}";
+  const DEL_URL  = "{{ url_for('phukien.delete') }}";
+  const fmt = TINTUS.fmtVND, num = TINTUS.parseMoney, group = TINTUS.group;
+  const $ = id => document.getElementById(id);
+
+  document.querySelectorAll('.ac-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
+
+  function recalcCards() {
+    let count = 0, stock = 0, value = 0;
+    document.querySelectorAll('#acBody .ac-row').forEach(r => {
+      count++;
+      const st = num(r.querySelector('[data-field="stock"]').value);
+      const cost = num(r.querySelector('[data-field="cost"]').dataset.raw);
+      stock += st; value += st * cost;
+    });
+    $('acCount').textContent = count;
+    $('acStock').innerHTML = stock + ' <span class="text-xs font-bold text-gray-400">cái</span>';
+    $('acValue').textContent = fmt(value);
+  }
+
+  function wireRow(tr) {
+    tr.querySelectorAll('.ac-cell').forEach(inp => {
+      const money = inp.classList.contains('ac-money');
+      if (money) {
+        inp.value = fmt(num(inp.dataset.raw));
+        inp.addEventListener('focus', () => { inp.value = group(inp.dataset.raw); inp.select(); });
+      }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', async () => {
+        let value = inp.value;
+        if (money) { const raw = num(inp.value); inp.dataset.raw = raw; inp.value = fmt(raw); value = raw; }
+        else if (inp.dataset.field === 'stock') { value = num(inp.value); inp.value = value; }
+        try {
+          const res = await TINTUS.api(UPD_URL, { id: Number(tr.dataset.id), field: inp.dataset.field, value });
+          if (inp.dataset.field === 'price') tr.dataset.price = res.accessory.price;
+          if (inp.dataset.field === 'name')  tr.dataset.name  = res.accessory.name;
+          recalcCards(); TINTUS.toast('Đã lưu', 'ok');
+        } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+      });
+    });
+    tr.querySelector('.ac-sell').addEventListener('click', () => openSell(tr));
+    tr.querySelector('.ac-del').addEventListener('click', async () => {
+      if (!confirm('Xoá phụ kiện này?')) return;
+      try { await TINTUS.api(DEL_URL, { id: Number(tr.dataset.id) }); tr.remove(); recalcCards(); TINTUS.toast('Đã xoá', 'ok'); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  }
+  document.querySelectorAll('#acBody .ac-row').forEach(wireRow);
+
+  // ── add ──
+  $('ac_add').addEventListener('click', async () => {
+    const name = $('ac_name').value.trim();
+    if (!name) { TINTUS.toast('Nhập tên phụ kiện', 'warn'); return; }
+    const payload = { name, category: $('ac_cat').value,
+      cost: num($('ac_cost').value), price: num($('ac_price').value), stock: num($('ac_stock').value) };
+    try { await TINTUS.api(ADD_URL, payload); TINTUS.toast('Đã thêm', 'ok'); location.reload(); }
+    catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+  ['ac_name', 'ac_cost', 'ac_price', 'ac_stock'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('ac_add').click(); }));
+
+  // ── sell popup ──
+  const modal = $('acSellModal');
+  let sellTr = null, sellMax = 0;
+  function recalcTotal() {
+    const qty = parseInt($('acSellQty').value, 10) || 0;
+    $('acSellTotal').textContent = fmt(qty * num($('acSellPrice').value));
+  }
+  function openSell(tr) {
+    sellTr = tr;
+    sellMax = num(tr.querySelector('[data-field="stock"]').value);
+    if (sellMax <= 0) { TINTUS.toast('Hết hàng', 'warn'); return; }
+    $('acSellName').textContent = tr.dataset.name;
+    $('acSellStock').textContent = sellMax;
+    $('acSellQty').value = 1; $('acSellQty').max = sellMax;
+    $('acSellPrice').value = group(tr.dataset.price);
+    recalcTotal();
+    modal.style.display = 'flex'; $('acSellQty').focus();
+  }
+  function closeSell() { modal.style.display = 'none'; sellTr = null; }
+  $('acSellClose').addEventListener('click', closeSell);
+  $('acSellCancel').addEventListener('click', closeSell);
+  modal.addEventListener('click', e => { if (e.target === modal) closeSell(); });
+  $('acSellQty').addEventListener('input', recalcTotal);
+  $('acSellPrice').addEventListener('input', recalcTotal);
+  $('acSellDo').addEventListener('click', async () => {
+    if (!sellTr) return;
+    const qty = parseInt($('acSellQty').value, 10) || 0;
+    if (qty < 1) { TINTUS.toast('Số lượng ≥ 1', 'warn'); return; }
+    if (qty > sellMax) { TINTUS.toast('Vượt quá tồn kho', 'warn'); return; }
+    try {
+      const res = await TINTUS.api(SELL_URL, { id: Number(sellTr.dataset.id), quantity: qty, price: num($('acSellPrice').value) });
+      const stockCell = sellTr.querySelector('[data-field="stock"]');
+      stockCell.value = res.accessory.stock;
+      stockCell.classList.toggle('text-brand-700', res.accessory.stock <= 0);
+      stockCell.classList.toggle('text-gray-900', res.accessory.stock > 0);
+      recalcCards(); closeSell();
+      TINTUS.toast('Đã bán ' + res.sold + ' cái (' + fmt(res.revenue) + ')', 'ok');
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+})();
+</script>
+{% endblock %}
