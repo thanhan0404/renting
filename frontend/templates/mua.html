@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Máy Ảnh Đang Bán – tintus.digicam{% endblock %}
+
+{% block content %}
+
+{% set keepq = ('&q=' ~ keyword) if keyword else '' %}
+
+<!-- Page Header -->
+<div class="bg-gray-950 text-white py-12">
+    <div class="max-w-7xl mx-auto px-6">
+        <nav class="text-sm text-gray-400 mb-4 flex items-center gap-2">
+            <a href="/" class="hover:text-white transition-colors">Trang chủ</a>
+            <span>/</span>
+            <span class="text-white">Máy đang bán</span>
+        </nav>
+        <h1 class="text-4xl font-black tracking-tight">Máy ảnh đang bán</h1>
+        <p class="text-gray-400 mt-2 text-sm">Máy mới &amp; đã qua sử dụng · Bảo hành · Giao tận nơi</p>
+        {% if keyword %}
+        <p class="text-gray-300 mt-3 text-sm">Kết quả cho: <span class="font-bold text-red-400">“{{ keyword }}”</span></p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-6 py-10 pb-28">
+    <div class="flex flex-col lg:flex-row gap-8">
+
+        <!-- Sidebar: brand filter -->
+        <aside class="lg:w-60 shrink-0">
+            <div class="bg-white rounded-2xl border border-gray-100 p-5 sticky top-24 ring-soft">
+                <h3 class="font-black text-gray-900 text-sm uppercase tracking-wider mb-4">Thương hiệu</h3>
+                <ul class="space-y-1">
+                    <li>
+                        <a href="/mua{{ '?q='~keyword if keyword else '' }}" class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-bold transition-colors {% if not current_brand %}bg-red-700 text-white{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            <span>Tất cả</span>
+                        </a>
+                    </li>
+                    {% for b in brands %}
+                    <li>
+                        <a href="/mua?brand={{ b|lower }}{{ keepq }}" class="flex items-center px-3 py-2 rounded-xl text-sm font-bold transition-colors {% if current_brand|lower == b|lower %}bg-red-700 text-white{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {{ b }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <div class="bg-red-50 rounded-xl p-4 mt-5">
+                    <p class="text-xs text-gray-600 mb-2 font-semibold">Cần tư vấn mua máy?</p>
+                    <a href="tel:0969577012" class="flex items-center gap-2 text-red-700 font-black text-sm hover:underline">📞 0969.577.012</a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Grid -->
+        <div class="flex-1">
+            <p class="text-sm text-gray-500 mb-6">Hiển thị <strong class="text-gray-800">{{ cameras | length }} sản phẩm</strong></p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+                {% for cam in cameras %}
+                {% set avail = cam.total_available %}
+                <div class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group flex flex-col ring-soft">
+                    <div class="h-44 {{ brand_bg.get(cam.brand, 'bg-gray-50') }} flex items-center justify-center relative">
+                        <span class="text-6xl group-hover:scale-110 transition-transform duration-300">📷</span>
+                        {% if avail > 0 %}
+                        <span class="pill pill-available absolute top-3 left-3">● Còn {{ avail }}</span>
+                        {% else %}
+                        <span class="pill pill-out absolute top-3 left-3">Hết hàng</span>
+                        {% endif %}
+                        {% if cam.category %}
+                        <span class="absolute top-3 right-3 bg-white/80 backdrop-blur text-gray-600 text-[0.65rem] font-bold px-2.5 py-1 rounded-full uppercase">{{ cam.category }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="p-4 flex flex-col flex-1">
+                        <div class="text-[0.7rem] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{{ cam.brand }}</div>
+                        <h3 class="font-black text-gray-900 text-sm mb-2 line-clamp-1">{{ cam.name }}</h3>
+                        <div class="flex items-baseline gap-1 mb-3">
+                            <span class="text-red-700 font-black text-lg">{{ cam.price | money }}đ</span>
+                        </div>
+                        {% if cam.description %}
+                        <p class="text-xs text-gray-500 mb-4 line-clamp-2">{{ cam.description }}</p>
+                        {% endif %}
+                        <div class="mt-auto">
+                            {% if avail > 0 %}
+                            <a href="/add_to_cart/{{ cam.id }}" class="block w-full text-center py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-xl font-bold text-xs transition-colors uppercase tracking-wide">
+                                🛒 Thêm vào giỏ
+                            </a>
+                            {% else %}
+                            <span class="block w-full text-center py-2.5 bg-gray-100 text-gray-400 rounded-xl font-bold text-xs cursor-not-allowed">Tạm hết hàng</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if not cameras %}
+            <div class="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                <div class="text-6xl mb-4">🏷️</div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Chưa có máy đang bán</h3>
+                <p class="text-gray-500 text-sm mb-6">Vui lòng quay lại sau hoặc liên hệ để được tư vấn.</p>
+                <a href="/store" class="inline-flex items-center gap-2 bg-red-700 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-red-800 transition-colors">Xem máy cho thuê</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Floating cart bar -->
+{% if cart_count %}
+<div class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl">
+    <div class="bg-gray-950 text-white rounded-full shadow-2xl flex items-center justify-between gap-4 pl-3 pr-3 py-3">
+        <div class="flex items-center gap-3">
+            <span class="w-9 h-9 bg-red-700 rounded-full flex items-center justify-center font-black text-sm">{{ cart_count }}</span>
+            <span class="text-sm font-semibold text-gray-200">sản phẩm trong giỏ</span>
+        </div>
+        <a href="/cart" class="bg-white text-gray-900 font-bold text-sm px-6 py-2.5 rounded-full hover:bg-gray-100 transition-colors">Thanh toán →</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

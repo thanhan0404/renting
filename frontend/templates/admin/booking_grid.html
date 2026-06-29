@@ -1,0 +1,321 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Lịch thuê máy</h1>
+    <p class="text-sm text-gray-500" id="rangeLabel">—</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <div class="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <button id="prevBtn"  class="px-3 py-2 text-gray-600 hover:bg-gray-50 font-bold">‹</button>
+      <button id="todayBtn" class="px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 border-x border-gray-200">Hôm nay</button>
+      <button id="nextBtn"  class="px-3 py-2 text-gray-600 hover:bg-gray-50 font-bold">›</button>
+    </div>
+    <select id="daysSel" class="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700">
+      <option value="7">7 ngày</option>
+      <option value="14" selected>14 ngày</option>
+      <option value="30">30 ngày</option>
+    </select>
+    <button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Đơn mới</button>
+  </div>
+</div>
+
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div id="gridWrap" class="overflow-x-auto overflow-y-auto" style="max-height:calc(100vh - 240px)">
+    <div id="grid" class="relative select-none"></div>
+  </div>
+</div>
+
+<p class="text-xs text-gray-400 mt-3">
+  Mẹo: bấm vào ô trống để tạo đơn mới · bấm vào thanh đơn để sửa hoặc xoá · giá tính lũy kế theo ngày.
+</p>
+
+<!-- ── Modal ── -->
+<div id="modal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw] max-h-[92vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 id="modalTitle" class="font-black text-gray-900">Đơn thuê mới</h3>
+      <button id="modalClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <input type="hidden" id="f_id">
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Máy ảnh</label>
+        <select id="f_camera" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-brand-500">
+          {% for cam in cameras %}
+          <option value="{{ cam.id }}">{{ cam.name }} — {{ cam.brand }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Khách hàng</label>
+          <input id="f_name" type="text" placeholder="Tên khách" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Điện thoại</label>
+          <input id="f_phone" type="tel" placeholder="09xx..." class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nhận máy</label>
+          <input id="f_start" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Trả máy</label>
+          <input id="f_end" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú</label>
+        <textarea id="f_notes" rows="2" placeholder="Ghi chú thêm..." class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500"></textarea>
+      </div>
+      <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+        <span class="text-sm font-semibold text-gray-500" id="daysPreview">— ngày</span>
+        <span class="text-lg font-black text-brand-700" id="totalPreview">0đ</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="deleteBtn" class="text-red-600 hover:bg-red-50 font-bold text-sm px-3 py-2.5 rounded-xl hidden">Xoá</button>
+      <div class="ml-auto flex gap-2">
+        <button id="cancelBtn" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+        <button id="saveBtn" class="bg-brand-700 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Lưu</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+// ── Camera pricing (for live total preview; server recomputes on save) ──
+const CAM_PRICES = {
+  {% for cam in cameras %}
+  {{ cam.id }}: {name:{{ cam.name|tojson }}, color:{{ color_map[cam.id]|tojson }},
+                 price:{{ cam.price or 0 }}, d2:{{ cam.price_d2 or 0 }}, d3:{{ cam.price_d3 or 0 }}, d4:{{ cam.price_d4 or 0 }}}{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+
+// ── Layout constants ──
+const LABEL_W = 190, COL_W = 132, HEAD_H = 40, BAR_H = 26, BAR_GAP = 4, ROW_PAD = 8;
+const WD = ['CN','Th 2','Th 3','Th 4','Th 5','Th 6','Th 7'];
+
+const State = { start: startOfDay(new Date()), days: 14, bookings: [], cameras: [] };
+
+function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function ymd(d){ const x=new Date(d); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); }
+function dayIndex(dateStr){ return Math.floor((startOfDay(new Date(dateStr)) - State.start) / 86400000); }
+function dayDiff(a,b){ return Math.round((startOfDay(new Date(b)) - startOfDay(new Date(a))) / 86400000); }
+
+function calcTotal(camId, startStr, endStr){
+  const c = CAM_PRICES[camId]; if(!c) return {days:0,total:0};
+  let days = dayDiff(startStr, endStr); if(days < 1) days = 1;
+  let total = c.price;
+  if(days>=2) total += c.d2;
+  if(days>=3) total += c.d3;
+  if(days>3)  total += c.d4*(days-3);
+  return {days, total};
+}
+
+// ── Render grid ──
+async function loadGrid(){
+  const data = await TINTUS.api(`{{ url_for('bookinggrid.data') }}?start=${ymd(State.start)}&days=${State.days}`);
+  State.bookings = data.bookings;
+  State.cameras  = data.cameras;
+  renderGrid();
+  const end = addDays(State.start, State.days-1);
+  document.getElementById('rangeLabel').textContent =
+    `${ymd(State.start)} → ${ymd(end)} · ${State.cameras.length} máy`;
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  const N = State.days;
+  const totalW = LABEL_W + N*COL_W;
+  grid.style.width = totalW + 'px';
+  grid.innerHTML = '';
+
+  // group bookings by camera
+  const byCam = {};
+  State.bookings.forEach(b => { (byCam[b.camera_id] = byCam[b.camera_id] || []).push(b); });
+
+  // ── Header row ──
+  const head = document.createElement('div');
+  head.style.cssText = `display:flex; position:sticky; top:0; z-index:20; background:#f9fafb; border-bottom:1px solid #e5e7eb; height:${HEAD_H}px`;
+  const corner = document.createElement('div');
+  corner.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:21; background:#f9fafb; border-right:1px solid #e5e7eb; display:flex; align-items:center; padding:0 14px; font-weight:800; font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em`;
+  corner.textContent = 'Máy ảnh';
+  head.appendChild(corner);
+  const today = ymd(new Date());
+  for(let i=0;i<N;i++){
+    const d = addDays(State.start, i);
+    const isToday = ymd(d) === today;
+    const cell = document.createElement('div');
+    cell.style.cssText = `width:${COL_W}px; flex:0 0 ${COL_W}px; border-right:1px solid #f3f4f6; display:flex; flex-direction:column; align-items:center; justify-content:center; ${isToday?'background:#fff7ed':''}`;
+    cell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${isToday?'#b91c1c':'#9ca3af'}">${WD[d.getDay()]}</span>
+                      <span style="font-size:13px;font-weight:800;color:${isToday?'#b91c1c':'#374151'}">${d.getDate()}/${d.getMonth()+1}</span>`;
+    head.appendChild(cell);
+  }
+  grid.appendChild(head);
+
+  // ── Camera rows ──
+  State.cameras.forEach(cam => {
+    const list = (byCam[cam.id] || []).slice().sort((a,b)=> new Date(a.start)-new Date(b.start));
+    // lane assignment for overlaps
+    const laneEnds = [];
+    list.forEach(b => {
+      let lane = 0;
+      while(lane < laneEnds.length && laneEnds[lane] > new Date(b.start)) lane++;
+      b._lane = lane;
+      laneEnds[lane] = new Date(b.end);
+    });
+    const lanes = Math.max(1, laneEnds.length);
+    const height = ROW_PAD*2 + lanes*BAR_H + (lanes-1)*BAR_GAP;
+
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex; position:relative; border-bottom:1px solid #f3f4f6; min-height:${Math.max(48,height)}px`;
+
+    // label
+    const label = document.createElement('div');
+    label.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:10; background:#fff; border-right:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; padding:0 14px`;
+    label.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${cam.color};flex:0 0 10px"></span>
+                       <span style="font-size:13px;font-weight:700;color:#1f2937;line-height:1.2">${cam.name}</span>`;
+    row.appendChild(label);
+
+    // day cells (clickable empty area)
+    for(let i=0;i<N;i++){
+      const d = addDays(State.start,i);
+      const isToday = ymd(d)===today;
+      const cell = document.createElement('div');
+      cell.className = 'day-cell';
+      cell.dataset.cam = cam.id; cell.dataset.date = ymd(d);
+      cell.style.cssText = `width:${COL_W}px; flex:0 0 ${COL_W}px; border-right:1px solid #f3f4f6; cursor:pointer; ${isToday?'background:#fff7ed':''}`;
+      cell.addEventListener('mouseenter', ()=> cell.style.background = isToday?'#ffedd5':'#f9fafb');
+      cell.addEventListener('mouseleave', ()=> cell.style.background = isToday?'#fff7ed':'');
+      cell.addEventListener('click', ()=> openCreate(cam.id, ymd(d)));
+      row.appendChild(cell);
+    }
+
+    // booking bars (absolute)
+    list.forEach(b => {
+      let s = dayIndex(b.start_date);
+      let e = dayIndex(b.end_date);           // end date inclusive-ish
+      let endIdx = e; if(endIdx <= s) endIdx = s + 1;  // at least 1 day wide
+      const visStart = Math.max(0, s);
+      const visEnd   = Math.min(N, endIdx);
+      if(visEnd <= 0 || visStart >= N) return;  // out of range
+      const left = LABEL_W + visStart*COL_W + 3;
+      const width = (visEnd - visStart)*COL_W - 6;
+      const top = ROW_PAD + b._lane*(BAR_H+BAR_GAP);
+      const bar = document.createElement('div');
+      bar.title = `${b.customer} · ${b.phone}`;
+      bar.style.cssText = `position:absolute; left:${left}px; top:${top}px; width:${width}px; height:${BAR_H}px;
+        background:${b.color}; color:#fff; border-radius:7px; padding:0 8px; display:flex; align-items:center;
+        font-size:12px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.15); z-index:5`;
+      bar.textContent = `${b.customer || 'Khách'} · ${TINTUS.fmtK(b.total)}`;
+      bar.addEventListener('click', ev => { ev.stopPropagation(); openEdit(b); });
+      row.appendChild(bar);
+    });
+
+    grid.appendChild(row);
+  });
+
+  if(State.cameras.length===0){
+    grid.innerHTML = '<div style="padding:40px;text-align:center;color:#9ca3af">Chưa có máy ảnh nào.</div>';
+  }
+}
+
+// ── Modal logic ──
+const modal = document.getElementById('modal');
+function openModal(){ modal.style.display='flex'; }
+function closeModal(){ modal.style.display='none'; }
+
+function refreshPreview(){
+  const camId = document.getElementById('f_camera').value;
+  const s = document.getElementById('f_start').value;
+  const e = document.getElementById('f_end').value;
+  if(camId && s && e){
+    const {days,total} = calcTotal(camId, s, e);
+    document.getElementById('daysPreview').textContent = days + ' ngày';
+    document.getElementById('totalPreview').textContent = TINTUS.fmtVND(total);
+  } else {
+    document.getElementById('daysPreview').textContent = '— ngày';
+    document.getElementById('totalPreview').textContent = '0đ';
+  }
+}
+
+function openCreate(camId, dateStr){
+  document.getElementById('modalTitle').textContent = 'Đơn thuê mới';
+  document.getElementById('f_id').value = '';
+  document.getElementById('f_camera').value = camId;
+  document.getElementById('f_name').value = '';
+  document.getElementById('f_phone').value = '';
+  document.getElementById('f_notes').value = '';
+  document.getElementById('f_start').value = dateStr;
+  document.getElementById('f_end').value = ymd(addDays(new Date(dateStr),1));
+  document.getElementById('deleteBtn').classList.add('hidden');
+  refreshPreview(); openModal();
+}
+
+function openEdit(b){
+  document.getElementById('modalTitle').textContent = 'Sửa đơn thuê';
+  document.getElementById('f_id').value = b.id;
+  document.getElementById('f_camera').value = b.camera_id;
+  document.getElementById('f_name').value = b.customer || '';
+  document.getElementById('f_phone').value = b.phone || '';
+  document.getElementById('f_notes').value = b.notes || '';
+  document.getElementById('f_start').value = b.start_date;
+  document.getElementById('f_end').value = b.end_date;
+  document.getElementById('deleteBtn').classList.remove('hidden');
+  refreshPreview(); openModal();
+}
+
+async function saveBooking(){
+  const payload = {
+    id: document.getElementById('f_id').value || null,
+    camera_id: parseInt(document.getElementById('f_camera').value,10),
+    customer_name: document.getElementById('f_name').value.trim(),
+    phone: document.getElementById('f_phone').value.trim(),
+    notes: document.getElementById('f_notes').value.trim(),
+    start_date: document.getElementById('f_start').value,
+    end_date: document.getElementById('f_end').value,
+  };
+  if(!payload.customer_name){ TINTUS.toast('Nhập tên khách hàng', 'warn'); return; }
+  try {
+    const res = await TINTUS.api(`{{ url_for('bookinggrid.save') }}`, payload);
+    closeModal();
+    if(res.warning) TINTUS.toast(res.warning, 'warn');
+    else TINTUS.toast('Đã lưu đơn thuê', 'ok');
+    loadGrid();
+  } catch(e){ TINTUS.toast(e.message, 'err'); }
+}
+
+async function deleteBooking(){
+  const id = document.getElementById('f_id').value;
+  if(!id) return;
+  if(!confirm('Xoá đơn thuê này?')) return;
+  try {
+    await TINTUS.api(`{{ url_for('bookinggrid.delete') }}`, {id: parseInt(id,10)});
+    closeModal(); TINTUS.toast('Đã xoá', 'ok'); loadGrid();
+  } catch(e){ TINTUS.toast(e.message, 'err'); }
+}
+
+// ── Wire up ──
+document.getElementById('prevBtn').addEventListener('click', ()=>{ State.start = addDays(State.start, -State.days); loadGrid(); });
+document.getElementById('nextBtn').addEventListener('click', ()=>{ State.start = addDays(State.start,  State.days); loadGrid(); });
+document.getElementById('todayBtn').addEventListener('click', ()=>{ State.start = startOfDay(new Date()); loadGrid(); });
+document.getElementById('daysSel').addEventListener('change', e=>{ State.days = parseInt(e.target.value,10); loadGrid(); });
+document.getElementById('addBtn').addEventListener('click', ()=> openCreate(State.cameras[0] ? State.cameras[0].id : Object.keys(CAM_PRICES)[0], ymd(State.start)));
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+document.getElementById('saveBtn').addEventListener('click', saveBooking);
+document.getElementById('deleteBtn').addEventListener('click', deleteBooking);
+['f_camera','f_start','f_end'].forEach(id => document.getElementById(id).addEventListener('change', refreshPreview));
+modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
+
+loadGrid();
+</script>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} – Thuê Máy Ảnh HCM | tintus.digicam{% endblock %}
+
+{% block content %}
+
+<div class="bg-white border-b border-gray-100 py-3">
+    <div class="max-w-7xl mx-auto px-6 flex items-center gap-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-red-700 transition-colors">Trang chủ</a>
+        <span>/</span>
+        <a href="/store" class="hover:text-red-700 transition-colors">Các loại máy</a>
+        <span>/</span>
+        <span class="text-gray-800 font-semibold">{{ product.name }}</span>
+    </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-6 py-10 pb-28 lg:pb-10">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+
+        <!-- Left: Product Image -->
+        <div>
+            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+            <div class="{{ brand_bg.get(product.brand, 'bg-gray-50') }} rounded-3xl h-80 flex items-center justify-center mb-4 border border-gray-100 relative">
+                <span class="text-9xl">📷</span>
+                {% if product.stock > 0 %}
+                <span class="pill pill-available absolute top-4 left-4">● Còn {{ product.stock }} máy</span>
+                {% else %}
+                <span class="pill pill-out absolute top-4 left-4">Hết máy</span>
+                {% endif %}
+            </div>
+            <div class="grid grid-cols-4 gap-3">
+                {% for i in range(4) %}
+                <div class="bg-white rounded-xl h-20 flex items-center justify-center border-2 {% if i == 0 %}border-red-700{% else %}border-gray-100{% endif %} cursor-pointer hover:border-red-300 transition-colors">
+                    <span class="text-2xl">📷</span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="flex flex-wrap gap-2 mt-5">
+                <span class="brand-badge bg-red-100 text-red-700">{{ product.brand }}</span>
+                <span class="brand-badge bg-blue-100 text-blue-700">Ship tận nơi</span>
+                {% if product.badge %}
+                <span class="brand-badge bg-orange-100 text-orange-700">{{ product.badge }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right: Product Info -->
+        <div>
+            <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{{ product.brand }}</div>
+            <h1 class="text-3xl font-black text-gray-900 mb-2">{{ product.name }}</h1>
+            <p class="text-gray-500 text-sm mb-6 leading-relaxed">{{ product.description }}</p>
+
+            <!-- Pricing Table -->
+            <div class="bg-gray-50 rounded-2xl p-5 mb-6 border border-gray-100">
+                <h3 class="font-black text-gray-900 mb-4 text-sm uppercase tracking-wide">Giá thuê theo ngày</h3>
+                <div class="grid grid-cols-4 gap-3">
+                    <div class="text-center bg-red-700 text-white rounded-xl p-3">
+                        <div class="text-xs font-bold mb-1 opacity-80">Ngày 1</div>
+                        <div class="font-black text-lg leading-tight">{{ product.price | vnd }}K</div>
+                    </div>
+                    <div class="text-center bg-white border border-gray-200 rounded-xl p-3">
+                        <div class="text-xs font-bold text-gray-500 mb-1">Ngày 2</div>
+                        <div class="font-black text-gray-800 text-lg leading-tight">{{ product.price_d2 | vnd }}K</div>
+                    </div>
+                    <div class="text-center bg-white border border-gray-200 rounded-xl p-3">
+                        <div class="text-xs font-bold text-gray-500 mb-1">Ngày 3</div>
+                        <div class="font-black text-gray-800 text-lg leading-tight">{{ product.price_d3 | vnd }}K</div>
+                    </div>
+                    <div class="text-center bg-white border border-gray-200 rounded-xl p-3">
+                        <div class="text-xs font-bold text-gray-500 mb-1">Ngày 4+</div>
+                        <div class="font-black text-gray-600 text-sm leading-tight">+{{ product.price_d4 | vnd }}K/ngày</div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3">* Giá tính lũy kế theo ngày. Tối thiểu 1 ngày (24 giờ).</p>
+            </div>
+
+            <!-- What's Included -->
+            <div class="mb-6">
+                <h3 class="font-black text-gray-900 mb-3 text-sm uppercase tracking-wide">Bao gồm khi thuê</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    {% for item in ['Clip hướng dẫn sử dụng', '2 viên pin dự phòng', 'Thẻ nhớ', 'Bộ sạc', 'Dây đeo máy', 'Túi / Balo máy ảnh', 'Hỗ trợ kỹ thuật 24/7', 'Set màu / Film simulation'] %}
+                    <div class="flex items-center gap-2 text-sm text-gray-600">
+                        <svg class="w-4 h-4 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        <span>{{ item }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- CTA Buttons -->
+            <div class="space-y-3">
+                <a href="/rent?camera={{ product.slug }}" class="w-full flex items-center justify-center gap-2 bg-red-700 hover:bg-red-800 text-white font-black py-4 rounded-2xl transition-colors text-sm uppercase tracking-wide">
+                    📅 Đặt lịch thuê ngay
+                </a>
+                <div class="grid grid-cols-2 gap-3">
+                    {% if product.stock > 0 %}
+                    <a href="/add_to_cart/{{ product.id }}" class="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-700 hover:border-red-700 hover:text-red-700 font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                        🛒 Thêm vào giỏ
+                    </a>
+                    {% else %}
+                    <span class="flex items-center justify-center gap-2 bg-gray-100 text-gray-400 font-bold py-3.5 rounded-2xl text-sm cursor-not-allowed">Hết máy</span>
+                    {% endif %}
+                    <a href="tel:0969577012" class="flex items-center justify-center gap-2 border-2 border-red-700 text-red-700 hover:bg-red-50 font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                        📞 Gọi tư vấn
+                    </a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 mt-5">
+                <div class="text-center p-3 bg-gray-50 rounded-xl">
+                    <div class="text-2xl mb-1">🚚</div>
+                    <p class="text-xs text-gray-600 font-semibold">Ship tận nơi</p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 rounded-xl">
+                    <div class="text-2xl mb-1">🛡️</div>
+                    <p class="text-xs text-gray-600 font-semibold">Phụ kiện đầy đủ</p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 rounded-xl">
+                    <div class="text-2xl mb-1">💬</div>
+                    <p class="text-xs text-gray-600 font-semibold">Hỗ trợ 24/7</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Specs -->
+    {% if product.specs %}
+    <div class="mt-14">
+        <h2 class="text-2xl font-black text-gray-900 mb-6 uppercase">Thông Số Kỹ Thuật</h2>
+        <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden ring-soft">
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-100">
+                    {% for key, val in product.specs.items() %}
+                    <tr class="{% if loop.even %}bg-gray-50{% endif %}">
+                        <td class="px-6 py-3.5 font-bold text-gray-700 w-1/3">{{ key }}</td>
+                        <td class="px-6 py-3.5 text-gray-600">{{ val }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Related Products -->
+    <div class="mt-14">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-black text-gray-900 uppercase">Sản Phẩm Liên Quan</h2>
+            <a href="/store" class="text-red-700 font-bold text-sm hover:underline">Xem tất cả →</a>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+            {% for rel in related %}
+            <a href="/product/{{ rel.slug }}" class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group block ring-soft">
+                <div class="h-36 {{ brand_bg.get(rel.brand, 'bg-gray-50') }} flex items-center justify-center">
+                    <span class="text-5xl group-hover:scale-110 transition-transform duration-300">📷</span>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-black text-gray-900 text-xs mb-1 group-hover:text-red-700 transition-colors line-clamp-2">{{ rel.name }}</h3>
+                    <span class="text-red-700 font-black text-sm">{{ rel.price | vnd }}K</span>
+                    <span class="text-gray-400 text-xs">/ngày</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Sticky Bottom Bar (mobile) -->
+<div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex gap-3 lg:hidden z-50">
+    <a href="tel:0969577012" class="flex-1 flex items-center justify-center gap-2 border-2 border-red-700 text-red-700 font-bold py-3 rounded-xl text-sm">
+        📞 Gọi ngay
+    </a>
+    <a href="/rent?camera={{ product.slug }}" class="flex-1 flex items-center justify-center gap-2 bg-red-700 text-white font-bold py-3 rounded-xl text-sm">
+        📅 Đặt lịch
+    </a>
+</div>
+
+{% endblock %}

@@ -1,0 +1,852 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Quản lý máy</h1>
+    <p class="text-sm text-gray-500">Cho thuê: bảng sửa nhanh. Để bán: sổ nhập – bán theo từng máy (như file Excel). Máy đã bán chuyển sang tab “Đã bán”.</p>
+  </div>
+  <button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Thêm máy cho thuê</button>
+</div>
+
+<!-- ── Stat cards ── -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng số máy</div>
+    <div class="text-lg font-black text-gray-900 mt-0.5">{{ (rent_cameras|length) + (sale_cameras|length) + (sold_cameras|length) }} <span class="text-xs font-bold text-gray-400">máy</span></div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-emerald-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng doanh thu</div>
+    <div id="sumRevenue" class="text-lg font-black text-gray-900 mt-0.5">—</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng chi phí</div>
+    <div id="sumCost" class="text-lg font-black text-gray-900 mt-0.5">—</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng lợi nhuận</div>
+    <div id="sumProfit" class="text-lg font-black mt-0.5">—</div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ── -->
+<div class="flex items-center gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-max">
+  <button id="tabBtnRent" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
+    🎬 Cho thuê <span class="opacity-60">({{ rent_cameras|length }})</span>
+  </button>
+  <button id="tabBtnSale" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
+    🏷️ Để bán <span class="opacity-60">({{ sale_cameras|length }})</span>
+  </button>
+  <button id="tabBtnSold" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
+    ✅ Đã bán <span class="opacity-60">({{ sold_cameras|length }})</span>
+  </button>
+</div>
+
+<!-- ── Toolbar ── -->
+<div class="flex flex-wrap items-center gap-2 mb-4">
+  <div class="relative">
+    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+    <input id="searchInput" type="text" placeholder="Tìm theo tên / hãng..."
+           class="border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm w-64 focus:outline-none focus:border-brand-500">
+  </div>
+  <select id="brandFilter" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500">
+    <option value="">Tất cả hãng</option>
+    {% for b in brands %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+  </select>
+  <select id="categoryFilter" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500 hidden">
+    <option value="">Tất cả dòng máy</option>
+    {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+  </select>
+  <select id="stateFilter" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500 hidden">
+    <option value="">Tất cả trạng thái</option>
+    <option value="stock">Còn hàng</option>
+    <option value="fixing">Cần sửa</option>
+    <option value="unfixable">Không sửa được</option>
+  </select>
+  <input id="soldMonth" type="month" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500 hidden">
+  <button id="clearFilter" class="text-xs font-bold text-gray-400 hover:text-brand-700 px-2 py-2">Xoá lọc</button>
+  <span id="filterCount" class="text-xs text-gray-400 ml-auto"></span>
+</div>
+
+<!-- ════════════════ RENTING TAB ════════════════ -->
+<div id="tabRent">
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto" style="max-height:calc(100vh - 360px)">
+      <table class="inv-table w-full text-sm" style="min-width:1280px">
+        <thead>
+          <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+            <th class="cam-sticky-head text-left px-3 py-3" style="min-width:230px">Tên máy</th>
+            <th class="text-left px-3 py-3" style="min-width:120px">Hãng</th>
+            <th class="text-center px-3 py-3" style="min-width:104px">Loại</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá ngày 1</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
+            <th class="text-center px-3 py-3" style="min-width:80px">Đã bán?</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
+            <th class="text-right px-3 py-3 bg-gray-100" style="min-width:130px">Doanh thu thuê</th>
+            <th class="text-right px-3 py-3 bg-gray-100" style="min-width:130px">Tổng doanh thu</th>
+            <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Chi phí</th>
+            <th class="text-right px-3 py-3 bg-gray-100" style="min-width:130px">Lợi nhuận</th>
+            <th class="text-center px-3 py-3" style="min-width:56px"></th>
+          </tr>
+        </thead>
+        <tbody id="rentBody">
+          {% for c in rent_cameras %}
+          {% set dot = color_map.get(c.id, '#6b7280') %}
+          <tr class="cam-row border-t border-gray-100 hover:bg-gray-50/60 {% if c.is_sold %}cam-row-sold{% endif %}"
+              data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}"
+              data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
+            <td class="cam-sticky-cell px-3 py-1.5">
+              <div class="flex items-center gap-1.5">
+                <button class="rent-toggle w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold shrink-0 transition-transform" title="Sửa chi tiết: giá ngày 2/3/4, mô tả, nhãn…">▸</button>
+                <span class="shrink-0 rounded-full" style="width:11px;height:11px;background:{{ dot }}"></span>
+                <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
+                {% if c.is_sold %}<span class="cam-tag">đã bán</span>{% endif %}
+              </div>
+            </td>
+            <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="brand" value="{{ c.brand or '' }}" placeholder="Hãng"></td>
+            <td class="px-3 py-1.5 text-center">
+              <select class="cam-type" data-field="type">
+                <option value="Rent" {% if c.type == 'Rent' %}selected{% endif %}>Thuê</option>
+                <option value="Sale" {% if c.type == 'Sale' %}selected{% endif %}>Bán</option>
+              </select>
+            </td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="price" data-raw="{{ c.price or 0 }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
+            <td class="px-3 py-1.5 text-center"><input class="cam-check cam-sold-chk" type="checkbox" data-field="is_sold" {% if c.is_sold %}checked{% endif %}></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="sold_price" data-raw="{{ c.sold_price or 0 }}"></td>
+            <td class="cam-calc cell-rental px-3 py-1.5 text-right tabular-nums font-semibold text-gray-700 bg-gray-50/70">{{ c.rental_revenue|money }}đ</td>
+            <td class="cam-calc cell-revenue px-3 py-1.5 text-right tabular-nums font-semibold text-gray-900 bg-gray-50/70">{{ c.revenue|money }}đ</td>
+            <td class="cam-calc cell-cost px-3 py-1.5 text-right tabular-nums font-semibold text-gray-700 bg-gray-50/70">{{ c.cost|money }}đ</td>
+            <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
+            <td class="px-3 py-1.5 text-center"><button class="cam-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors" title="Xoá máy">🗑</button></td>
+          </tr>
+          <tr class="rent-detail-row hidden" data-id="{{ c.id }}">
+            <td colspan="12" class="bg-gray-50/60 px-5 py-4 border-t border-gray-100">
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-3">
+                <div><label class="rd-lbl">Giá ngày 2</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d2" data-raw="{{ c.price_d2 or 0 }}"></div>
+                <div><label class="rd-lbl">Giá ngày 3</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d3" data-raw="{{ c.price_d3 or 0 }}"></div>
+                <div><label class="rd-lbl">Giá ngày 4+ / ngày</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d4" data-raw="{{ c.price_d4 or 0 }}"></div>
+                <div><label class="rd-lbl">Số lượng trong kho</label><input class="rd-field rd-num text-right tabular-nums" inputmode="numeric" data-field="stock" value="{{ c.stock or 0 }}"></div>
+                <div><label class="rd-lbl">Phí sửa chữa (luỹ kế)</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></div>
+                <div><label class="rd-lbl">Nhãn (badge)</label><input class="rd-field rd-text" type="text" data-field="badge" value="{{ c.badge or '' }}" placeholder="VD: HOT, MỚI…"></div>
+                <div class="flex items-end gap-4 pb-1"><label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer"><input class="rd-check" type="checkbox" data-field="featured" {% if c.featured %}checked{% endif %}> Nổi bật (trang chủ)</label></div>
+                <div class="flex items-end gap-4 pb-1"><label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer"><input class="rd-check" type="checkbox" data-field="is_broken" {% if c.is_broken %}checked{% endif %}> Đang hỏng</label></div>
+                <div class="col-span-2 md:col-span-4"><label class="rd-lbl">Mô tả (hiển thị trên trang sản phẩm)</label><textarea class="rd-field rd-area" rows="2" data-field="description" placeholder="Mô tả ngắn về máy…">{{ c.description or '' }}</textarea></div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not rent_cameras %}<div class="px-6 py-10 text-center text-gray-400">Chưa có máy cho thuê nào.</div>{% endif %}
+    <div id="rentEmpty" class="px-6 py-10 text-center text-gray-400 hidden">Không tìm thấy máy phù hợp.</div>
+  </div>
+  <p class="text-xs text-gray-400 mt-2">Mẹo: bấm vào ô để sửa, nhấn Enter hoặc rời ô để lưu · bấm ▸ để mở chi tiết.</p>
+</div>
+
+<!-- ════════════════ SELLING TAB (per-unit ledger) ════════════════ -->
+<div id="tabSale" class="hidden">
+  <!-- quick add (fast import = type a row) + Excel import -->
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-3 mb-3">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+      <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Nhập máy mới</span>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('cameras.import_template') }}" class="text-xs font-bold text-gray-500 hover:text-brand-700 border border-gray-200 rounded-lg px-3 py-1.5">⬇ Tải mẫu Excel</a>
+        <button id="importBtn" class="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-3 py-1.5">⬆ Nhập từ Excel</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
+      <div class="md:col-span-3">
+        <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Tên máy *</label>
+        <input id="qa_name" type="text" placeholder="VD: LUMIX FX60 BẠC" class="qa-in w-full">
+      </div>
+      <div class="md:col-span-1">
+        <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Nơi</label>
+        <select id="qa_origin" class="qa-in w-full">
+          <option value="">—</option>
+          <option value="Nhật">Nhật (N)</option>
+          <option value="Việt">Việt (V)</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Phụ kiện</label>
+        <input id="qa_acc" type="text" placeholder="VD: Flash, pin…" class="qa-in w-full">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Ngày về</label>
+        <input id="qa_date" type="date" class="qa-in w-full">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Giá nhập</label>
+        <input id="qa_cost" type="text" inputmode="numeric" placeholder="0" class="qa-in money-live w-full text-right tabular-nums">
+      </div>
+      <div class="md:col-span-2">
+        <button id="qa_add" class="w-full bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold py-2.5 rounded-xl">📥 Nhập máy</button>
+      </div>
+    </div>
+    <p class="text-[11px] text-gray-400 mt-2">Nhập nhanh: gõ tên + giá nhập rồi Enter. Mặc định trạng thái <b>“Còn hàng”</b>. Khi bán: đổi trạng thái sang <b>“Đã bán”</b> rồi điền giá bán & thông tin khách.</p>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto" style="max-height:calc(100vh - 420px)">
+      <table class="inv-table w-full text-sm" style="min-width:1180px">
+        <thead>
+          <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+            <th class="cam-sticky-head text-left px-3 py-3" style="min-width:220px">Tên máy</th>
+            <th class="text-left px-3 py-3" style="min-width:100px">Màu</th>
+            <th class="text-center px-3 py-3" style="min-width:120px">Dòng máy</th>
+            <th class="text-center px-3 py-3" style="min-width:80px">Nơi</th>
+            <th class="text-left px-3 py-3" style="min-width:120px">Phụ kiện</th>
+            <th class="text-center px-3 py-3" style="min-width:140px">Ngày về</th>
+            <th class="text-left px-3 py-3" style="min-width:160px">Ghi chú</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
+            <th class="text-right px-3 py-3" style="min-width:110px">Phí sửa</th>
+            <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Lợi nhuận</th>
+            <th class="text-center px-3 py-3" style="min-width:150px">Trạng thái</th>
+            <th class="text-center px-3 py-3" style="min-width:56px"></th>
+          </tr>
+        </thead>
+        <tbody id="saleBody">
+          {% for c in sale_cameras %}
+          <tr class="cam-row sale-unit border-t border-gray-100 hover:bg-gray-50/60"
+              data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}" data-state="{{ c.sale_state or 'stock' }}" data-category="{{ c.category or '' }}"
+              data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
+            <td class="cam-sticky-cell px-3 py-1.5"><input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy"></td>
+            <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="color" value="{{ c.color or '' }}" placeholder="VD: Đen"></td>
+            <td class="px-3 py-1.5 text-center">
+              <select class="cam-sel" data-field="category">
+                <option value="" {% if not c.category %}selected{% endif %}>—</option>
+                {% for cat in categories %}<option value="{{ cat }}" {% if c.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+              </select>
+            </td>
+            <td class="px-3 py-1.5 text-center">
+              <select class="cam-sel" data-field="origin">
+                <option value="" {% if not c.origin %}selected{% endif %}>—</option>
+                <option value="Nhật" {% if c.origin == 'Nhật' %}selected{% endif %}>N</option>
+                <option value="Việt" {% if c.origin == 'Việt' %}selected{% endif %}>V</option>
+              </select>
+            </td>
+            <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="accessory" value="{{ c.accessory or '' }}" placeholder="—"></td>
+            <td class="px-3 py-1.5 text-center"><input class="cam-date" type="date" data-field="date_in" value="{{ c.date_in.strftime('%Y-%m-%d') if c.date_in else '' }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="description" value="{{ c.description or '' }}" placeholder="Ghi chú / cần sửa…"></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="sold_price" data-raw="{{ c.sold_price or 0 }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money cam-repair text-right tabular-nums text-amber-700" type="text" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></td>
+            <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
+            <td class="px-3 py-1.5 text-center">
+              <select class="cam-state" data-field="sale_state">
+                <option value="stock" {% if c.sale_state == 'stock' %}selected{% endif %}>● Còn hàng</option>
+                <option value="sold" {% if c.sale_state == 'sold' %}selected{% endif %}>✓ Đã bán</option>
+                <option value="fixing" {% if c.sale_state == 'fixing' %}selected{% endif %}>⚠ Cần sửa</option>
+                <option value="unfixable" {% if c.sale_state == 'unfixable' %}selected{% endif %}>✕ Không sửa được</option>
+              </select>
+            </td>
+            <td class="px-3 py-1.5 text-center"><button class="cam-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors" title="Xoá máy">🗑</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not sale_cameras %}<div id="saleEmptySeed" class="px-6 py-12 text-center text-gray-400">Chưa có máy để bán. Dùng ô “Nhập máy” ở trên để thêm.</div>{% endif %}
+    <div id="saleEmpty" class="px-6 py-10 text-center text-gray-400 hidden">Không tìm thấy máy phù hợp.</div>
+  </div>
+  <p class="text-xs text-gray-400 mt-2">Mỗi dòng = một máy. Màu dòng theo trạng thái: trắng = còn hàng · cam = cần sửa · đỏ = không sửa được.</p>
+</div>
+
+<!-- ════════════════ SOLD TAB (đã bán) ════════════════ -->
+<div id="tabSold" class="hidden">
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto" style="max-height:calc(100vh - 360px)">
+      <table class="inv-table w-full text-sm" style="min-width:1420px">
+        <thead>
+          <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+            <th class="cam-sticky-head text-left px-3 py-3" style="min-width:200px">Tên máy</th>
+            <th class="text-left px-3 py-3" style="min-width:90px">Màu</th>
+            <th class="text-center px-3 py-3" style="min-width:110px">Dòng máy</th>
+            <th class="text-center px-3 py-3" style="min-width:200px">Ngày bán</th>
+            <th class="text-left px-3 py-3" style="min-width:140px">Khách</th>
+            <th class="text-left px-3 py-3" style="min-width:120px">SĐT</th>
+            <th class="text-center px-3 py-3" style="min-width:130px">Nguồn khách</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
+            <th class="text-right px-3 py-3" style="min-width:110px">Phí sửa</th>
+            <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Lợi nhuận</th>
+            <th class="text-center px-3 py-3" style="min-width:150px">Trạng thái</th>
+            <th class="text-center px-3 py-3" style="min-width:56px"></th>
+          </tr>
+        </thead>
+        <tbody id="soldBody">
+          {% for c in sold_cameras %}
+          <tr class="cam-row sold-unit border-t border-gray-100 hover:bg-gray-50/60"
+              data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}" data-state="{{ c.sale_state or 'sold' }}"
+              data-category="{{ c.category or '' }}" data-soldmonth="{{ c.sold_date.strftime('%Y-%m') if c.sold_date else '' }}"
+              data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
+            <td class="cam-sticky-cell px-3 py-1.5"><input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy"></td>
+            <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="color" value="{{ c.color or '' }}" placeholder="—"></td>
+            <td class="px-3 py-1.5 text-center">
+              <select class="cam-sel" data-field="category">
+                <option value="" {% if not c.category %}selected{% endif %}>—</option>
+                {% for cat in categories %}<option value="{{ cat }}" {% if c.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+              </select>
+            </td>
+            <td class="px-3 py-1.5 text-center"><input class="cam-date" type="datetime-local" data-field="sold_date" value="{{ c.sold_date.strftime('%Y-%m-%dT%H:%M') if c.sold_date else '' }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="sold_to" value="{{ c.sold_to or '' }}" placeholder="Tên khách"></td>
+            <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="sold_phone" value="{{ c.sold_phone or '' }}" placeholder="09…"></td>
+            <td class="px-3 py-1.5 text-center">
+              <select class="cam-sel" data-field="sold_source">
+                <option value="" {% if not c.sold_source %}selected{% endif %}>—</option>
+                {% for s in sale_sources %}<option value="{{ s }}" {% if c.sold_source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                {% if c.sold_source and c.sold_source not in sale_sources %}<option value="{{ c.sold_source }}" selected>{{ c.sold_source }}</option>{% endif %}
+              </select>
+            </td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="sold_price" data-raw="{{ c.sold_price or 0 }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money cam-repair text-right tabular-nums text-amber-700" type="text" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></td>
+            <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
+            <td class="px-3 py-1.5 text-center">
+              <select class="cam-state" data-field="sale_state">
+                <option value="stock" {% if c.sale_state == 'stock' %}selected{% endif %}>● Còn hàng</option>
+                <option value="sold" {% if c.sale_state == 'sold' %}selected{% endif %}>✓ Đã bán</option>
+                <option value="fixing" {% if c.sale_state == 'fixing' %}selected{% endif %}>⚠ Cần sửa</option>
+                <option value="unfixable" {% if c.sale_state == 'unfixable' %}selected{% endif %}>✕ Không sửa được</option>
+              </select>
+            </td>
+            <td class="px-3 py-1.5 text-center"><button class="cam-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors" title="Xoá máy">🗑</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not sold_cameras %}<div id="soldEmptySeed" class="px-6 py-12 text-center text-gray-400">Chưa bán máy nào. Khi bán một máy ở tab “Để bán”, máy sẽ chuyển sang đây.</div>{% endif %}
+    <div id="soldEmpty" class="px-6 py-10 text-center text-gray-400 hidden">Không tìm thấy máy phù hợp.</div>
+  </div>
+  <p class="text-xs text-gray-400 mt-2">Mỗi dòng = một máy đã bán. Sửa được ngày bán, thông tin khách, giá bán. Đổi trạng thái về “Còn hàng” để trả máy lại kho.</p>
+</div>
+
+<!-- ── Add-camera modal (Cho thuê) ── -->
+<div id="modal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw] max-h-[92vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Thêm máy cho thuê</h3>
+      <button id="modalClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên máy</label>
+        <input id="a_name" type="text" placeholder="VD: Sony A7 III" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Hãng</label>
+        <input id="a_brand" type="text" placeholder="VD: Sony" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá ngày 1</label>
+          <input id="a_price" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá nhập</label>
+          <input id="a_import" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="cancelBtn" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="createBtn" class="bg-brand-700 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Thêm máy</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sell modal (customer info) ── -->
+<div id="sellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[460px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Bán máy</h3>
+      <button id="sellClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <p class="text-sm text-gray-500">Máy: <b id="sell_name" class="text-gray-900"></b></p>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá bán</label>
+        <input id="sell_price" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên khách</label>
+          <input id="sell_customer" type="text" placeholder="Tên khách hàng" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số điện thoại</label>
+          <input id="sell_phone" type="text" placeholder="09…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Khách đến từ</label>
+        <select id="sell_source" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+          <option value="">— Chọn nguồn —</option>
+          {% for s in sale_sources %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="sellCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="sellSave" class="bg-brand-700 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận bán</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Import Excel modal ── -->
+<div id="importModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[480px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Nhập máy từ Excel</h3>
+      <button id="importClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <p class="text-sm text-gray-500">Tải file <b>.xlsx</b> theo đúng mẫu (các cột: Tên máy, Màu, Dòng máy, Nơi, Phụ kiện, Ngày về, Ghi chú, Giá nhập, Giá bán, Trạng thái). Mỗi dòng = một máy.</p>
+      <a href="{{ url_for('cameras.import_template') }}" class="inline-block text-xs font-bold text-brand-700 hover:underline">⬇ Tải file mẫu</a>
+      <input id="importFile" type="file" accept=".xlsx" class="block w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-700 file:text-white file:font-bold file:px-3 file:py-1.5">
+      <div id="importStatus" class="text-sm text-gray-500 hidden"></div>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="importCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="importDo" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Nhập</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .inv-table .cam-input { width:100%; background:transparent; border:1px solid transparent; outline:none; padding:5px 8px; border-radius:8px; font-size:13px; transition:background .12s, border-color .12s; }
+  .cam-input:hover  { background:#f3f4f6; }
+  .cam-input:focus  { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .cam-check { width:17px; height:17px; accent-color:#b91c1c; cursor:pointer; }
+  .cam-type, .cam-sel, .cam-state { border:1px solid #e5e7eb; border-radius:8px; padding:4px 8px; font-size:12px; font-weight:700; color:#374151; background:#fff; cursor:pointer; outline:none; }
+  .cam-type:focus, .cam-sel:focus, .cam-state:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .cam-date { border:1px solid transparent; border-radius:8px; padding:4px 6px; font-size:12px; color:#374151; background:transparent; outline:none; }
+  .cam-date:hover { background:#f3f4f6; }
+  .cam-date:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .inv-table .cam-row-sold .cam-sticky-cell, .inv-table .cam-row-sold td:not(.cam-calc) { opacity:.78; }
+  .cam-tag { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; background:#fee2e2; color:#b91c1c; padding:1px 7px; border-radius:999px; white-space:nowrap; }
+  .inv-table thead th { position:sticky; top:0; z-index:20; background:#f9fafb; border-bottom:1px solid #e5e7eb; }
+  .inv-table thead th.cam-sticky-head { left:0; z-index:30; }
+  .inv-table td.cam-sticky-cell { position:sticky; left:0; z-index:10; background:#fff; border-right:1px solid #e5e7eb; }
+  .inv-table tr:hover td.cam-sticky-cell { background:#f9fafb; }
+  .subtab { color:#6b7280; }
+  .subtab.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .cam-row.open .rent-toggle { transform:rotate(90deg); }
+  .rd-field { width:100%; border:1px solid #e5e7eb; border-radius:8px; padding:6px 9px; font-size:13px; outline:none; background:#fff; color:#1f2937; }
+  .rd-field:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .rd-area { resize:vertical; min-height:38px; }
+  .rd-lbl { display:block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:#9ca3af; margin-bottom:3px; }
+  .rd-check { width:17px; height:17px; accent-color:#b91c1c; cursor:pointer; }
+  .qa-in { border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; background:#fff; }
+  .qa-in:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  /* per-unit state row colors */
+  .sale-unit.st-stock, .sold-unit.st-sold td.cam-sticky-cell { }
+  .sale-unit.st-fixing, .sale-unit.st-fixing td.cam-sticky-cell { background:#fff7ed; }
+  .sale-unit.st-unfixable, .sale-unit.st-unfixable td.cam-sticky-cell { background:#fef2f2; }
+  .sale-unit.st-unfixable .cam-input { color:#6b7280; }
+  .sold-unit, .sold-unit td.cam-sticky-cell { background:#fefce8; }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const UPDATE_URL = "{{ url_for('cameras.update') }}";
+  const ADD_URL    = "{{ url_for('cameras.add') }}";
+  const DELETE_URL = "{{ url_for('cameras.delete') }}";
+  const SELL_URL   = "{{ url_for('cameras.sell') }}";
+  const IMPORT_URL = "{{ url_for('cameras.import_excel') }}";
+
+  const fmt = TINTUS.fmtVND;
+  const num = TINTUS.parseMoney;
+  const group = TINTUS.group;
+  const $ = id => document.getElementById(id);
+
+  document.querySelectorAll('.cam-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
+
+  // ── top financial summary (all tabs) ──
+  function recompute() {
+    let revenue = 0, cost = 0, profit = 0;
+    document.querySelectorAll('.cam-row').forEach(row => {
+      revenue += Number(row.dataset.revenue) || 0;
+      cost    += Number(row.dataset.cost)    || 0;
+      profit  += Number(row.dataset.profit)  || 0;
+    });
+    $('sumRevenue').textContent = fmt(revenue);
+    $('sumCost').textContent    = fmt(cost);
+    const pEl = $('sumProfit');
+    pEl.textContent = fmt(profit);
+    pEl.className = 'text-lg font-black mt-0.5 ' + (profit >= 0 ? 'text-emerald-600' : 'text-brand-700');
+  }
+
+  function applyPnl(row, pnl) {
+    if (!pnl) return;
+    row.dataset.revenue = pnl.revenue; row.dataset.cost = pnl.cost; row.dataset.profit = pnl.profit;
+    const set = (sel, val) => { const el = row.querySelector(sel); if (el) el.textContent = fmt(val); };
+    set('.cell-rental', pnl.rental_revenue); set('.cell-revenue', pnl.revenue); set('.cell-cost', pnl.cost);
+    const pc = row.querySelector('.cell-profit');
+    if (pc) {
+      pc.textContent = fmt(pnl.profit);
+      const base = pc.classList.contains('bg-gray-50/70') ? 'cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 ' : 'cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black ';
+      pc.className = base + (Number(pnl.profit) >= 0 ? 'text-emerald-600' : 'text-brand-700');
+    }
+    recompute();
+  }
+
+  async function saveField(rowEl, field, value, onErr) {
+    try {
+      const res = await TINTUS.api(UPDATE_URL, { id: Number(rowEl.dataset.id), field, value });
+      applyPnl(rowEl, res && res.pnl);
+      TINTUS.toast('Đã lưu', 'ok');
+      return res;
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi khi lưu', 'err'); if (onErr) onErr(); }
+  }
+
+  // ── inline text/money inputs (all tabs) ──
+  document.querySelectorAll('.cam-input').forEach(inp => {
+    const isMoney = inp.classList.contains('cam-money');
+    const rowEl = inp.closest('.cam-row');
+    const field = inp.dataset.field;
+    if (isMoney) inp.addEventListener('focus', () => { inp.value = group(inp.dataset.raw); inp.select(); });
+    inp.addEventListener('focus', () => { inp.dataset.prev = inp.value; });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+      if (e.key === 'Escape') { inp.value = isMoney ? fmt(num(inp.dataset.raw)) : (inp.dataset.prev || inp.defaultValue); inp.blur(); }
+    });
+    inp.addEventListener('change', async () => {
+      if (isMoney) {
+        const raw = num(inp.value);
+        if (String(raw) === String(inp.dataset.raw)) { inp.value = fmt(raw); return; }
+        const prev = inp.dataset.raw; inp.dataset.raw = raw; inp.value = fmt(raw);
+        const res = await saveField(rowEl, field, raw, () => { inp.dataset.raw = prev; inp.value = fmt(num(prev)); });
+        // convenience: filling "Giá bán" on a still-in-stock unit marks it sold
+        if (res && field === 'sold_price' && raw > 0 && rowEl.classList.contains('sale-unit') && rowEl.dataset.state === 'stock') {
+          const st = rowEl.querySelector('.cam-state'); if (st) { st.value = 'sold'; st.dispatchEvent(new Event('change')); }
+        }
+      } else {
+        const val = inp.value.trim(), prev = inp.dataset.prev !== undefined ? inp.dataset.prev : inp.defaultValue;
+        if (val === prev) return;
+        inp.defaultValue = val; inp.dataset.prev = val;
+        if (field === 'name') rowEl.dataset.name = val;
+        if (field === 'brand') rowEl.dataset.brand = val;
+        saveField(rowEl, field, val, () => { inp.value = prev; inp.defaultValue = prev; inp.dataset.prev = prev; });
+      }
+    });
+  });
+
+  // ── type select (Rent↔Sale): reloads to move tabs ──
+  document.querySelectorAll('.cam-type').forEach(sel => {
+    const rowEl = sel.closest('.cam-row');
+    sel.dataset.prev = sel.value;
+    sel.addEventListener('change', async () => {
+      try {
+        await TINTUS.api(UPDATE_URL, { id: Number(rowEl.dataset.id), field: 'type', value: sel.value });
+        TINTUS.toast(sel.value === 'Sale' ? 'Đã chuyển sang Để bán' : 'Đã chuyển sang Cho thuê', 'ok');
+        setTimeout(() => location.reload(), 350);
+      } catch (e) { sel.value = sel.dataset.prev; TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  });
+
+  // ── checkboxes (rent is_sold) ──
+  document.querySelectorAll('.cam-check').forEach(chk => {
+    const rowEl = chk.closest('.cam-row');
+    chk.addEventListener('change', () => {
+      const value = chk.checked;
+      saveField(rowEl, chk.dataset.field, value, () => { chk.checked = !value; });
+    });
+  });
+
+  // ── delete (all tabs) ──
+  document.querySelectorAll('.cam-del').forEach(btn => {
+    const rowEl = btn.closest('.cam-row');
+    btn.addEventListener('click', async () => {
+      const nameInp = rowEl.querySelector('[data-field="name"]');
+      const label = nameInp ? nameInp.value : 'máy này';
+      if (!confirm('Xoá "' + label + '"? Các dữ liệu liên quan cũng sẽ bị xoá.')) return;
+      try {
+        await TINTUS.api(DELETE_URL, { id: Number(rowEl.dataset.id) });
+        const det = rowEl.nextElementSibling;
+        if (det && det.classList.contains('rent-detail-row')) det.remove();
+        rowEl.remove();
+        recompute(); applyFilter();
+        TINTUS.toast('Đã xoá máy', 'ok');
+      } catch (e) { TINTUS.toast(e.message || 'Lỗi khi xoá', 'err'); }
+    });
+  });
+
+  // ════════════ per-unit: color rows / selects / dates / state ════════════
+  function colorSaleRow(tr) {
+    tr.classList.remove('st-stock', 'st-sold', 'st-fixing', 'st-unfixable');
+    tr.classList.add('st-' + (tr.dataset.state || 'stock'));
+  }
+  document.querySelectorAll('#saleBody .sale-unit').forEach(colorSaleRow);
+
+  document.querySelectorAll('.cam-sel').forEach(sel => {
+    const rowEl = sel.closest('.cam-row');
+    sel.addEventListener('change', () => {
+      if (sel.dataset.field === 'category') { rowEl.dataset.category = sel.value; applyFilter(); }
+      saveField(rowEl, sel.dataset.field, sel.value);
+    });
+  });
+  document.querySelectorAll('.cam-date').forEach(inp => {
+    const rowEl = inp.closest('.cam-row');
+    inp.addEventListener('change', () => {
+      saveField(rowEl, inp.dataset.field, inp.value);
+      if (inp.dataset.field === 'sold_date') rowEl.dataset.soldmonth = (inp.value || '').slice(0, 7);
+    });
+  });
+  document.querySelectorAll('.cam-state').forEach(sel => {
+    const rowEl = sel.closest('.cam-row');
+    sel.dataset.prev = sel.value;
+    sel.addEventListener('change', async () => {
+      const prev = sel.dataset.prev, val = sel.value;
+      const inSold = !!rowEl.closest('#soldBody');
+      // new sale from the selling tab → capture customer info first
+      if (val === 'sold' && !inSold) { openSellModal(rowEl, sel); return; }
+      try {
+        const res = await TINTUS.api(UPDATE_URL, { id: Number(rowEl.dataset.id), field: 'sale_state', value: val });
+        rowEl.dataset.state = val; sel.dataset.prev = val;
+        // moving in/out of "sold" changes which tab the row belongs to → reload
+        if (inSold || val === 'sold') { TINTUS.toast('Đã cập nhật', 'ok'); setTimeout(() => location.reload(), 300); return; }
+        colorSaleRow(rowEl); applyPnl(rowEl, res.pnl);
+        if (val === 'fixing') { const rc = rowEl.querySelector('.cam-repair'); if (rc) { rc.focus(); rc.select(); } }
+        TINTUS.toast('Đã cập nhật trạng thái', 'ok');
+      } catch (e) { sel.value = prev; TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  });
+
+  // ── sell modal (customer capture) ──
+  const sellModal = $('sellModal');
+  let sellRow = null, sellSel = null;
+  function openSellModal(rowEl, sel) {
+    sellRow = rowEl; sellSel = sel;
+    $('sell_name').textContent = rowEl.querySelector('[data-field="name"]').value;
+    const sp = rowEl.querySelector('[data-field="sold_price"]');
+    $('sell_price').value = group(sp ? sp.dataset.raw : 0);
+    $('sell_customer').value = ''; $('sell_phone').value = ''; $('sell_source').value = '';
+    sellModal.style.display = 'flex'; $('sell_price').focus();
+  }
+  function closeSellModal(revert) {
+    if (revert && sellSel) sellSel.value = sellSel.dataset.prev || 'stock';
+    sellModal.style.display = 'none'; sellRow = null; sellSel = null;
+  }
+  $('sellClose').addEventListener('click', () => closeSellModal(true));
+  $('sellCancel').addEventListener('click', () => closeSellModal(true));
+  sellModal.addEventListener('click', e => { if (e.target === sellModal) closeSellModal(true); });
+  $('sellSave').addEventListener('click', async () => {
+    if (!sellRow) return;
+    const price = num($('sell_price').value);
+    try {
+      await TINTUS.api(SELL_URL, {
+        id: Number(sellRow.dataset.id), sold_price: price,
+        customer_name: $('sell_customer').value.trim(), phone: $('sell_phone').value.trim(),
+        source: $('sell_source').value });
+      TINTUS.toast('Đã bán máy', 'ok');
+      // unit moves out of "Để bán" into "Đã bán" → reload onto the sold tab
+      sessionStorage.setItem('camTab', 'sold');
+      setTimeout(() => location.reload(), 350);
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+
+  // ── quick add (fast import) → reload to show the saved row ──
+  function quickAdd() {
+    const name = $('qa_name').value.trim();
+    if (!name) { TINTUS.toast('Nhập tên máy', 'warn'); return; }
+    const payload = {
+      name, type: 'Sale', origin: $('qa_origin').value,
+      accessory: $('qa_acc').value.trim(), date_in: $('qa_date').value || null,
+      import_cost: num($('qa_cost').value),
+    };
+    TINTUS.api(ADD_URL, payload).then(() => {
+      sessionStorage.setItem('camTab', 'sale');
+      sessionStorage.setItem('focusQuickAdd', '1');
+      location.reload();
+    }).catch(e => TINTUS.toast(e.message || 'Lỗi khi thêm', 'err'));
+  }
+  $('qa_add').addEventListener('click', quickAdd);
+  ['qa_name', 'qa_acc', 'qa_cost'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') quickAdd(); }));
+
+  // ── Excel import modal ──
+  const importModal = $('importModal');
+  $('importBtn').addEventListener('click', () => { $('importFile').value = ''; $('importStatus').classList.add('hidden'); importModal.style.display = 'flex'; });
+  function closeImport() { importModal.style.display = 'none'; }
+  $('importClose').addEventListener('click', closeImport);
+  $('importCancel').addEventListener('click', closeImport);
+  importModal.addEventListener('click', e => { if (e.target === importModal) closeImport(); });
+  $('importDo').addEventListener('click', async () => {
+    const file = $('importFile').files[0];
+    if (!file) { TINTUS.toast('Chọn file .xlsx', 'warn'); return; }
+    const status = $('importStatus');
+    status.classList.remove('hidden'); status.textContent = 'Đang nhập…';
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const r = await fetch(IMPORT_URL, { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error(data && data.error ? data.error : 'Lỗi nhập file');
+      status.textContent = 'Đã nhập ' + data.added + ' máy.' + (data.errors && data.errors.length ? ' Một số dòng lỗi.' : '');
+      TINTUS.toast('Đã nhập ' + data.added + ' máy', 'ok');
+      sessionStorage.setItem('camTab', 'sale');
+      setTimeout(() => location.reload(), 700);
+    } catch (e) { status.textContent = e.message || 'Lỗi'; TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+
+  // ── rent detail editor (expandable) ──
+  document.querySelectorAll('#rentBody .rent-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const head = btn.closest('.cam-row');
+      const det = head.nextElementSibling;
+      if (!det || !det.classList.contains('rent-detail-row')) return;
+      const open = !det.classList.contains('hidden');
+      det.classList.toggle('hidden', open);
+      head.classList.toggle('open', !open);
+    });
+  });
+  document.querySelectorAll('.rent-detail-row').forEach(det => {
+    const head = det.previousElementSibling;
+    if (!head || !head.classList.contains('cam-row')) return;
+    det.querySelectorAll('.rd-money').forEach(inp => {
+      inp.value = fmt(num(inp.dataset.raw));
+      inp.addEventListener('focus', () => { inp.value = group(inp.dataset.raw); inp.select(); });
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+        if (e.key === 'Escape') { inp.value = fmt(num(inp.dataset.raw)); inp.blur(); }
+      });
+      inp.addEventListener('change', () => {
+        const raw = num(inp.value);
+        if (String(raw) === String(inp.dataset.raw)) { inp.value = fmt(raw); return; }
+        const prev = inp.dataset.raw; inp.dataset.raw = raw; inp.value = fmt(raw);
+        saveField(head, inp.dataset.field, raw, () => { inp.dataset.raw = prev; inp.value = fmt(num(prev)); });
+      });
+    });
+    det.querySelectorAll('.rd-text, .rd-num, .rd-area').forEach(inp => {
+      inp.dataset.prev = inp.value;
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && inp.tagName !== 'TEXTAREA') { e.preventDefault(); inp.blur(); }
+        if (e.key === 'Escape') { inp.value = inp.dataset.prev; inp.blur(); }
+      });
+      inp.addEventListener('change', () => {
+        const val = inp.value.trim();
+        if (val === inp.dataset.prev) return;
+        const prev = inp.dataset.prev; inp.dataset.prev = val;
+        saveField(head, inp.dataset.field, val, () => { inp.value = prev; inp.dataset.prev = prev; });
+      });
+    });
+    det.querySelectorAll('.rd-check').forEach(chk => {
+      chk.addEventListener('change', () => {
+        const v = chk.checked;
+        saveField(head, chk.dataset.field, v, () => { chk.checked = !v; });
+      });
+    });
+  });
+
+  // ════════════ tabs ════════════
+  const tabRent = $('tabRent'), tabSale = $('tabSale'), tabSold = $('tabSold');
+  const btnRent = $('tabBtnRent'), btnSale = $('tabBtnSale'), btnSold = $('tabBtnSold');
+  const stateFilter = $('stateFilter'), categoryFilter = $('categoryFilter');
+  const brandFilter = $('brandFilter'), soldMonth = $('soldMonth'), addBtn = $('addBtn');
+  function setTab(which) {
+    const sale = which === 'sale', sold = which === 'sold', rent = which === 'rent';
+    tabRent.classList.toggle('hidden', !rent);
+    tabSale.classList.toggle('hidden', !sale);
+    tabSold.classList.toggle('hidden', !sold);
+    btnRent.classList.toggle('active', rent);
+    btnSale.classList.toggle('active', sale);
+    btnSold.classList.toggle('active', sold);
+    brandFilter.classList.toggle('hidden', !rent);          // brand filter: rent only
+    stateFilter.classList.toggle('hidden', !sale);          // state filter: selling only
+    categoryFilter.classList.toggle('hidden', rent);        // dòng máy: sale + sold
+    soldMonth.classList.toggle('hidden', !sold);            // month filter: sold only
+    addBtn.classList.toggle('hidden', !rent);               // add button: rent only
+    sessionStorage.setItem('camTab', which);
+    applyFilter();
+  }
+  btnRent.addEventListener('click', () => setTab('rent'));
+  btnSale.addEventListener('click', () => setTab('sale'));
+  btnSold.addEventListener('click', () => setTab('sold'));
+
+  // ════════════ search + filter ════════════
+  const searchInput = $('searchInput');
+  function activeTab() {
+    if (!tabSale.classList.contains('hidden')) return 'sale';
+    if (!tabSold.classList.contains('hidden')) return 'sold';
+    return 'rent';
+  }
+  function applyFilter() {
+    const q = searchInput.value.trim().toLowerCase();
+    const brand = brandFilter.value, state = stateFilter.value, cat = categoryFilter.value, mon = soldMonth.value;
+    const tab = activeTab();
+    let shown = 0;
+    document.querySelectorAll('#rentBody .cam-row').forEach(row => {
+      const ok = (!q || (row.dataset.name + ' ' + row.dataset.brand).toLowerCase().includes(q)) && (!brand || row.dataset.brand === brand);
+      row.style.display = ok ? '' : 'none';
+      const det = row.nextElementSibling;
+      if (det && det.classList.contains('rent-detail-row')) {
+        det.style.display = ok ? '' : 'none';
+        if (!ok) { det.classList.add('hidden'); row.classList.remove('open'); }
+      }
+      if (ok && tab === 'rent') shown++;
+    });
+    document.querySelectorAll('#saleBody .sale-unit').forEach(row => {
+      const ok = (!q || (row.dataset.name + ' ' + (row.dataset.brand || '')).toLowerCase().includes(q))
+                 && (!state || row.dataset.state === state)
+                 && (!cat || row.dataset.category === cat);
+      row.style.display = ok ? '' : 'none';
+      if (ok && tab === 'sale') shown++;
+    });
+    document.querySelectorAll('#soldBody .sold-unit').forEach(row => {
+      const ok = (!q || (row.dataset.name + ' ' + (row.dataset.brand || '')).toLowerCase().includes(q))
+                 && (!cat || row.dataset.category === cat)
+                 && (!mon || row.dataset.soldmonth === mon);
+      row.style.display = ok ? '' : 'none';
+      if (ok && tab === 'sold') shown++;
+    });
+    const rentEmpty = $('rentEmpty'), saleEmpty = $('saleEmpty'), soldEmpty = $('soldEmpty');
+    if (rentEmpty) rentEmpty.classList.toggle('hidden', tab !== 'rent' || shown > 0);
+    if (saleEmpty) saleEmpty.classList.toggle('hidden', tab !== 'sale' || shown > 0);
+    if (soldEmpty) soldEmpty.classList.toggle('hidden', tab !== 'sold' || shown > 0);
+    $('filterCount').textContent = (q || brand || state || cat || mon) ? (shown + ' kết quả') : '';
+  }
+  searchInput.addEventListener('input', applyFilter);
+  brandFilter.addEventListener('change', applyFilter);
+  stateFilter.addEventListener('change', applyFilter);
+  categoryFilter.addEventListener('change', applyFilter);
+  soldMonth.addEventListener('change', applyFilter);
+  $('clearFilter').addEventListener('click', () => {
+    searchInput.value = ''; brandFilter.value = ''; stateFilter.value = ''; categoryFilter.value = ''; soldMonth.value = ''; applyFilter();
+  });
+
+  // ════════════ add-camera modal (rent) ════════════
+  const modal = $('modal');
+  function openModal() {
+    ['a_name', 'a_brand', 'a_price', 'a_import'].forEach(id => $(id).value = '');
+    modal.style.display = 'flex'; $('a_name').focus();
+  }
+  function closeModal() { modal.style.display = 'none'; }
+  addBtn.addEventListener('click', openModal);
+  $('modalClose').addEventListener('click', closeModal);
+  $('cancelBtn').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  $('createBtn').addEventListener('click', async () => {
+    const name = $('a_name').value.trim();
+    if (!name) { TINTUS.toast('Nhập tên máy', 'warn'); return; }
+    const payload = { name, type: 'Rent', brand: $('a_brand').value.trim(),
+      price: num($('a_price').value), import_cost: num($('a_import').value) };
+    try { await TINTUS.api(ADD_URL, payload); TINTUS.toast('Đã thêm máy', 'ok'); location.reload(); }
+    catch (e) { TINTUS.toast(e.message || 'Lỗi khi thêm', 'err'); }
+  });
+
+  // ════════════ init ════════════
+  recompute();
+  const saved = sessionStorage.getItem('camTab');
+  setTab(saved === 'sale' ? 'sale' : (saved === 'sold' ? 'sold' : 'rent'));
+  if (sessionStorage.getItem('focusQuickAdd')) {
+    sessionStorage.removeItem('focusQuickAdd');
+    setTab('sale'); $('qa_name').focus();
+  }
+})();
+</script>
+{% endblock %}

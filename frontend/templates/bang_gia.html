@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Bảng Giá Thuê Máy Ảnh HCM – tintus.digicam{% endblock %}
+
+{% block content %}
+
+<div class="bg-gray-950 text-white py-12">
+    <div class="max-w-7xl mx-auto px-6">
+        <nav class="text-sm text-gray-400 mb-4 flex items-center gap-2">
+            <a href="/" class="hover:text-white transition-colors">Trang chủ</a>
+            <span>/</span>
+            <span class="text-white">Bảng giá thuê</span>
+        </nav>
+        <h1 class="text-4xl font-black tracking-tight">Bảng giá cho thuê máy ảnh</h1>
+        <p class="text-gray-400 mt-2 text-sm">Giá thuê theo ngày · Giảm giá thuê dài ngày · Minh bạch – không phát sinh phí ẩn</p>
+    </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-6 py-10">
+
+    <!-- Pricing model note -->
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-10 flex items-start gap-4">
+        <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-xl shrink-0">💡</div>
+        <div>
+            <h3 class="font-black text-amber-800 mb-1 text-sm">Cách tính giá thuê</h3>
+            <p class="text-amber-700 text-sm leading-relaxed">
+                Giá thuê tính <strong>lũy kế theo ngày</strong>. Ngày đầu giá cao nhất, các ngày tiếp theo giảm dần.
+                Ví dụ: Thuê 3 ngày = Ngày 1 + Ngày 2 + Ngày 3. Thời gian tính là <strong>24 giờ/ngày</strong>.
+            </p>
+        </div>
+    </div>
+
+    <!-- Per-brand pricing tables -->
+    {% for brand, cams in grouped.items() %}
+    {% set cfg = brand_config.get(brand, {'header': 'bg-gray-700', 'hover': 'hover:bg-gray-50', 'text': 'text-gray-700', 'icon': 'bg-gray-100', 'emoji': '📷'}) %}
+    <div class="mb-10">
+        <div class="flex items-center gap-3 mb-5">
+            <div class="w-10 h-10 {{ cfg.icon }} rounded-xl flex items-center justify-center text-xl">{{ cfg.emoji }}</div>
+            <h2 class="text-xl font-black text-gray-900 uppercase">{{ brand }}</h2>
+        </div>
+        <div class="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="{{ cfg.header }} text-white">
+                        <th class="px-5 py-4 text-left font-black">Dòng máy</th>
+                        <th class="px-4 py-4 text-center font-bold">Ngày 1</th>
+                        <th class="px-4 py-4 text-center font-bold">Ngày 2</th>
+                        <th class="px-4 py-4 text-center font-bold">Ngày 3</th>
+                        <th class="px-4 py-4 text-center font-bold">Ngày 4+</th>
+                        <th class="px-4 py-4 text-center font-bold">Đặt lịch</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for cam in cams %}
+                    <tr class="{{ cfg.hover }} transition-colors {% if loop.even %}bg-gray-50/50{% else %}bg-white{% endif %}">
+                        <td class="px-5 py-4">
+                            <a href="/product/{{ cam.slug }}" class="font-bold text-gray-900 hover:{{ cfg.text }} transition-colors">{{ cam.name }}</a>
+                        </td>
+                        <td class="px-4 py-4 text-center">
+                            <span class="font-black {{ cfg.text }}">{{ cam.price | vnd }}K</span>
+                        </td>
+                        <td class="px-4 py-4 text-center text-gray-700 font-semibold">{{ cam.price_d2 | vnd }}K</td>
+                        <td class="px-4 py-4 text-center text-gray-700 font-semibold">{{ cam.price_d3 | vnd }}K</td>
+                        <td class="px-4 py-4 text-center text-gray-500">+{{ cam.price_d4 | vnd }}K/ngày</td>
+                        <td class="px-4 py-4 text-center">
+                            <a href="/product/{{ cam.slug }}" class="inline-block {{ cfg.header }} text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">Đặt lịch</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Conditions & Inclusions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
+        <div class="bg-gray-50 rounded-2xl p-6">
+            <h3 class="font-black text-gray-900 mb-4 flex items-center gap-2">
+                <span class="text-xl">📋</span> Điều kiện thuê máy
+            </h3>
+            <ul class="space-y-2.5 text-sm text-gray-600">
+                <li class="flex items-start gap-2.5"><span class="text-red-600 font-bold mt-0.5">→</span><span><strong>Hình thức 1:</strong> Phí thuê + CCCD chính chủ</span></li>
+                <li class="flex items-start gap-2.5"><span class="text-red-600 font-bold mt-0.5">→</span><span><strong>Hình thức 2:</strong> Phí thuê + Hộ chiếu/Bằng lái xe + Ảnh VNeID</span></li>
+                <li class="flex items-start gap-2.5"><span class="text-red-600 font-bold mt-0.5">→</span><span><strong>Hình thức 3:</strong> Đặt cọc 100% giá trị máy</span></li>
+                <li class="flex items-start gap-2.5"><span class="text-red-600 font-bold mt-0.5">→</span><span>Đặt lịch trước cần cọc <strong>100.000đ</strong></span></li>
+            </ul>
+        </div>
+        <div class="bg-gray-50 rounded-2xl p-6">
+            <h3 class="font-black text-gray-900 mb-4 flex items-center gap-2">
+                <span class="text-xl">✅</span> Bao gồm trong mỗi đơn thuê
+            </h3>
+            <ul class="space-y-2.5 text-sm text-gray-600">
+                <li class="flex items-center gap-2.5"><span class="text-green-500 font-bold">✓</span> Túi/Balo máy ảnh</li>
+                <li class="flex items-center gap-2.5"><span class="text-green-500 font-bold">✓</span> 2 viên pin + bộ sạc</li>
+                <li class="flex items-center gap-2.5"><span class="text-green-500 font-bold">✓</span> Thẻ nhớ + dây đeo + cáp</li>
+                <li class="flex items-center gap-2.5"><span class="text-green-500 font-bold">✓</span> Clip hướng dẫn sử dụng</li>
+                <li class="flex items-center gap-2.5"><span class="text-green-500 font-bold">✓</span> Set màu / Film simulation</li>
+                <li class="flex items-center gap-2.5"><span class="text-green-500 font-bold">✓</span> Hỗ trợ kỹ thuật 24/7</li>
+                <li class="flex items-center gap-2.5"><span class="text-green-500 font-bold">✓</span> Ship tận nơi (nội thành)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="mt-12 bg-red-700 rounded-2xl p-8 text-center text-white">
+        <h3 class="text-2xl font-black mb-2">Sẵn sàng đặt lịch?</h3>
+        <p class="text-red-200 text-sm mb-6">Để lại thông tin hoặc gọi ngay để chúng tôi hỗ trợ bạn chọn máy phù hợp!</p>
+        <div class="flex flex-wrap justify-center gap-4">
+            <a href="tel:0969577012" class="inline-flex items-center gap-2 bg-white text-red-700 font-black px-7 py-3.5 rounded-xl hover:bg-gray-100 transition-colors text-sm">
+                📞 Gọi ngay: 0969.577.012
+            </a>
+            <a href="/rent" class="inline-flex items-center gap-2 border-2 border-white text-white font-bold px-7 py-3.5 rounded-xl hover:bg-white hover:text-red-700 transition-all text-sm">
+                Đặt lịch online →
+            </a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
