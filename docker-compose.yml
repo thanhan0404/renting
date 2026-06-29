@@ -11,9 +11,19 @@ services:
     image: nginx:alpine
     container_name: camerashop_nginx
     ports:
-      - "80:80"
+      - "80:80" # Optional: You can remove this line to force ALL traffic to go through Cloudflare. Leave it if you want to access the site via Tailscale IP directly.
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - web
     restart: unless-stopped
+
+  # --- ADD THIS NEW SECTION BELOW ---
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      # Paste the very long token from the Cloudflare Dashboard here
+      - TUNNEL_TOKEN=your_very_long_token_here
