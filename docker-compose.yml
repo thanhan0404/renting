@@ -19,11 +19,10 @@ services:
     restart: unless-stopped
 
   # --- ADD THIS NEW SECTION BELOW ---
-  cloudflared:
+cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
     command: tunnel run
     environment:
-      # Paste the very long token from the Cloudflare Dashboard here
-      - TUNNEL_TOKEN=your_very_long_token_here
+      - TUNNEL_TOKEN=${CLOUDFLARE_TOKEN} # This tells Docker to look for a secret
