@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: camerashop_web
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount the instance folder so your SQLite DB (camerashop.db) is saved permanently on the host server
+      - ./backend/instance:/app/backend/instance
+    # This ensures the app runs 24/7 and restarts automatically if the server reboots
+    restart: unless-stopped
