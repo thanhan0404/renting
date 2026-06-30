@@ -92,7 +92,7 @@ app.jinja_env.auto_reload = True
 # ── Admin security ───────────────────────────────────────────────────────────
 # The whole admin panel lives behind a secret, hard-to-guess URL prefix AND a
 # login. Both are configurable via environment variables (see SECURITY.md).
-ADMIN_URL_PREFIX = '/' + os.environ.get('ADMIN_URL_PREFIX', 'quan-tri-tintus').strip('/')
+ADMIN_URL_PREFIX = '/' + os.environ.get('ADMIN_URL_PREFIX', 'quanly-tintus').strip('/')
 ADMIN_USERNAME   = os.environ.get('ADMIN_USERNAME', 'admin')
 ADMIN_PASSWORD_HASH = generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'tintus@2026'))
 LOGIN_PATH  = ADMIN_URL_PREFIX + '/login'

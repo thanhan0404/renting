@@ -9,14 +9,14 @@ The admin panel is no longer public. It is protected by **two layers in the app*
 
 | Setting        | Default value             | Env var to change   |
 |----------------|---------------------------|---------------------|
-| Admin URL      | `/quan-tri-tintus`        | `ADMIN_URL_PREFIX`  |
+| Admin URL      | `/quanly-tintus`        | `ADMIN_URL_PREFIX`  |
 | Username       | `admin`                   | `ADMIN_USERNAME`    |
 | Password       | `tintus@2026`             | `ADMIN_PASSWORD`    |
 
 So locally the admin lives at:
 
 ```
-http://127.0.0.1:5000/quan-tri-tintus/
+http://127.0.0.1:5000/quanly-tintus/
 ```
 
 Visiting it (or any admin page) when not logged in shows a **login screen**.
@@ -65,7 +65,7 @@ If you change `ADMIN_URL_PREFIX`, also update the `location /<prefix>/` block in
 - `autoindex off` — **disables directory listing** (no folder browsing anywhere).
 - Security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`).
 
-Inside the `location /quan-tri-tintus/` block there are two commented options:
+Inside the `location /quanly-tintus/` block there are two commented options:
 
 - **IP allow-list** (`allow` / `deny all`) — only listed IPs can reach the admin.
 - **Edge HTTP Basic Auth** — a second password before the app login even loads
@@ -83,7 +83,7 @@ You already route traffic through a Cloudflare Tunnel. The cleanest "authenticat
 at the edge" + IP control is **Cloudflare Zero Trust → Access**:
 
 1. Zero Trust dashboard → **Access → Applications → Add application** (Self-hosted).
-2. Application domain = `yourdomain.com`, path = `/quan-tri-tintus`.
+2. Application domain = `yourdomain.com`, path = `/quanly-tintus`.
 3. Add a policy: allow only specific emails (one-time PIN / Google login) or IP ranges.
 
 Visitors must pass Cloudflare's login *before the request ever reaches your server* —
