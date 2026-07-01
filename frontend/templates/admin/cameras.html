@@ -64,6 +64,12 @@
     <option value="unfixable">Không sửa được</option>
   </select>
   <input id="soldMonth" type="month" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500 hidden">
+  <div id="importFilter" class="hidden flex items-center gap-1.5 border border-gray-200 rounded-xl pl-3 pr-1.5 py-1">
+    <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">Giá nhập</span>
+    <input id="importMin" type="text" inputmode="numeric" placeholder="từ" class="money-live w-24 text-sm text-right tabular-nums border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-brand-500">
+    <span class="text-gray-300">–</span>
+    <input id="importMax" type="text" inputmode="numeric" placeholder="đến" class="money-live w-24 text-sm text-right tabular-nums border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-brand-500">
+  </div>
   <button id="clearFilter" class="text-xs font-bold text-gray-400 hover:text-brand-700 px-2 py-2">Xoá lọc</button>
   <span id="filterCount" class="text-xs text-gray-400 ml-auto"></span>
 </div>
@@ -98,7 +104,7 @@
             <td class="cam-sticky-cell px-3 py-1.5">
               <div class="flex items-center gap-1.5">
                 <button class="rent-toggle w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold shrink-0 transition-transform" title="Sửa chi tiết: giá ngày 2/3/4, mô tả, nhãn…">▸</button>
-                <span class="shrink-0 rounded-full" style="width:11px;height:11px;background:{{ dot }}"></span>
+                <span class="shrink-0 rounded-full inline-block w-3 h-3 cam-dot" data-dot="{{ dot }}"></span>
                 <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
                 {% if c.is_sold %}<span class="cam-tag">đã bán</span>{% endif %}
               </div>
@@ -212,6 +218,7 @@
           {% for c in sale_cameras %}
           <tr class="cam-row sale-unit border-t border-gray-100 hover:bg-gray-50/60"
               data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}" data-state="{{ c.sale_state or 'stock' }}" data-category="{{ c.category or '' }}"
+              data-import="{{ c.import_cost or 0 }}"
               data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
             <td class="cam-sticky-cell px-3 py-1.5"><input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy"></td>
             <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="color" value="{{ c.color or '' }}" placeholder="VD: Đen"></td>
@@ -544,7 +551,8 @@
         const raw = num(inp.value);
         if (String(raw) === String(inp.dataset.raw)) { inp.value = fmt(raw); return; }
         const prev = inp.dataset.raw; inp.dataset.raw = raw; inp.value = fmt(raw);
-        const res = await saveField(rowEl, field, raw, () => { inp.dataset.raw = prev; inp.value = fmt(num(prev)); });
+        if (field === 'import_cost') rowEl.dataset.import = raw;   // keep import-price filter accurate
+        const res = await saveField(rowEl, field, raw, () => { inp.dataset.raw = prev; inp.value = fmt(num(prev)); if (field === 'import_cost') rowEl.dataset.import = prev; });
         // convenience: filling "Giá bán" on a still-in-stock unit marks it sold
         if (res && field === 'sold_price' && raw > 0 && rowEl.classList.contains('sale-unit') && rowEl.dataset.state === 'stock') {
           const st = rowEl.querySelector('.cam-state'); if (st) { st.value = 'sold'; st.dispatchEvent(new Event('change')); }
@@ -781,6 +789,7 @@
   const btnRent = $('tabBtnRent'), btnSale = $('tabBtnSale'), btnSold = $('tabBtnSold');
   const stateFilter = $('stateFilter'), categoryFilter = $('categoryFilter');
   const brandFilter = $('brandFilter'), soldMonth = $('soldMonth'), addBtn = $('addBtn');
+  const importFilter = $('importFilter'), importMin = $('importMin'), importMax = $('importMax');
   function setTab(which) {
     const sale = which === 'sale', sold = which === 'sold', rent = which === 'rent';
     tabRent.classList.toggle('hidden', !rent);
@@ -791,6 +800,7 @@
     btnSold.classList.toggle('active', sold);
     brandFilter.classList.toggle('hidden', !rent);          // brand filter: rent only
     stateFilter.classList.toggle('hidden', !sale);          // state filter: selling only
+    importFilter.classList.toggle('hidden', !sale);         // import-price range: selling only
     categoryFilter.classList.toggle('hidden', rent);        // dòng máy: sale + sold
     soldMonth.classList.toggle('hidden', !sold);            // month filter: sold only
     addBtn.classList.toggle('hidden', !rent);               // add button: rent only
@@ -811,6 +821,8 @@
   function applyFilter() {
     const q = searchInput.value.trim().toLowerCase();
     const brand = brandFilter.value, state = stateFilter.value, cat = categoryFilter.value, mon = soldMonth.value;
+    const impMin = num(importMin.value);                                  // empty → 0
+    const impMax = importMax.value.trim() ? num(importMax.value) : Infinity;
     const tab = activeTab();
     let shown = 0;
     document.querySelectorAll('#rentBody .cam-row').forEach(row => {
@@ -824,9 +836,11 @@
       if (ok && tab === 'rent') shown++;
     });
     document.querySelectorAll('#saleBody .sale-unit').forEach(row => {
+      const imp = Number(row.dataset.import) || 0;
       const ok = (!q || (row.dataset.name + ' ' + (row.dataset.brand || '')).toLowerCase().includes(q))
                  && (!state || row.dataset.state === state)
-                 && (!cat || row.dataset.category === cat);
+                 && (!cat || row.dataset.category === cat)
+                 && imp >= impMin && imp <= impMax;
       row.style.display = ok ? '' : 'none';
       if (ok && tab === 'sale') shown++;
     });
@@ -841,15 +855,18 @@
     if (rentEmpty) rentEmpty.classList.toggle('hidden', tab !== 'rent' || shown > 0);
     if (saleEmpty) saleEmpty.classList.toggle('hidden', tab !== 'sale' || shown > 0);
     if (soldEmpty) soldEmpty.classList.toggle('hidden', tab !== 'sold' || shown > 0);
-    $('filterCount').textContent = (q || brand || state || cat || mon) ? (shown + ' kết quả') : '';
+    $('filterCount').textContent = (q || brand || state || cat || mon || importMin.value || importMax.value) ? (shown + ' kết quả') : '';
   }
   searchInput.addEventListener('input', applyFilter);
   brandFilter.addEventListener('change', applyFilter);
   stateFilter.addEventListener('change', applyFilter);
   categoryFilter.addEventListener('change', applyFilter);
   soldMonth.addEventListener('change', applyFilter);
+  importMin.addEventListener('input', applyFilter);
+  importMax.addEventListener('input', applyFilter);
   $('clearFilter').addEventListener('click', () => {
-    searchInput.value = ''; brandFilter.value = ''; stateFilter.value = ''; categoryFilter.value = ''; soldMonth.value = ''; applyFilter();
+    searchInput.value = ''; brandFilter.value = ''; stateFilter.value = ''; categoryFilter.value = '';
+    soldMonth.value = ''; importMin.value = ''; importMax.value = ''; applyFilter();
   });
 
   // ════════════ add-camera modal (rent) ════════════
