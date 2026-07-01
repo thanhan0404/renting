@@ -1738,6 +1738,34 @@ admin.add_view(SheetView(name='Sổ tay',                 endpoint='sheet'))
 
 # ── Schema migration (non-destructive) ─────────────────────────────────────────
 
+def _auto_add_missing_columns():
+    """Generic safety net: for every mapped table that already exists, add any column
+    present in the model but missing in the DB (as a nullable column — safe on SQLite,
+    never drops or rewrites data). Catches anything the explicit lists above miss."""
+    insp = sa_inspect(db.engine)
+    existing = set(insp.get_table_names())
+    for table in db.metadata.sorted_tables:
+        if table.name not in existing:
+            continue                      # brand-new tables are created in full by create_all
+        have = {c['name'] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in have:
+                continue
+            try:
+                coltype = col.type.compile(dialect=db.engine.dialect)
+            except Exception:
+                coltype = 'TEXT'
+            default = ''
+            d = getattr(col, 'default', None)
+            if d is not None and getattr(d, 'is_scalar', False):
+                v = d.arg
+                if isinstance(v, bool):            default = f' DEFAULT {1 if v else 0}'
+                elif isinstance(v, (int, float)):  default = f' DEFAULT {v}'
+                elif isinstance(v, str):           default = " DEFAULT '{}'".format(v.replace("'", "''"))
+            db.session.execute(text(f'ALTER TABLE {table.name} ADD COLUMN {col.name} {coltype}{default}'))
+    db.session.commit()
+
+
 def ensure_schema():
     """Add any new columns / tables without dropping existing data."""
     insp = sa_inspect(db.engine)
@@ -1788,16 +1816,25 @@ def ensure_schema():
                 db.session.execute(text(f'ALTER TABLE sale_record ADD COLUMN {name} {ddl}'))
         db.session.commit()
 
-    db.create_all()   # creates Sheet / Supplier / StockReceipt tables if missing
+    db.create_all()               # creates brand-new tables (Appointment, Sheet, Supplier…) in full
+    _auto_add_missing_columns()   # backfill any column added to an already-existing table
 
 
-# ── Startup ──────────────────────────────────────────────────────────────────
+# ── Auto-migrate on EVERY startup ──────────────────────────────────────────────
+# Runs under Gunicorn too (the __main__ block below never executes there). This is
+# non-destructive (only CREATE TABLE / ADD COLUMN) and never seeds, so the production
+# database on the server keeps all its data and just gains the new schema.
+with app.app_context():
+    try:
+        ensure_schema()
+    except Exception as exc:      # never let a migration hiccup take the whole app down
+        app.logger.warning(f'[schema] ensure_schema at startup failed: {exc}')
 
+
+# ── Startup (local dev only: `python app.py`) ──────────────────────────────────
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-        ensure_schema()
-        added = seed_db(db, Camera)
+        added  = seed_db(db, Camera)          # seeding is LOCAL ONLY — never runs on the server
         filled = backfill_costs(db, Camera)
         if added:
             print(f'[seed] Added {added} cameras to the database.')
