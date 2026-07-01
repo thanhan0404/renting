@@ -192,6 +192,21 @@ class RentalBooking(db.Model):
     camera        = db.relationship('Camera', backref='bookings')
 
 
+class Appointment(db.Model):
+    """A scheduled in-shop appointment for a client to come buy a camera."""
+    id            = db.Column(db.Integer, primary_key=True)
+    customer_name = db.Column(db.String(100))
+    phone         = db.Column(db.String(20))
+    start_time    = db.Column(db.DateTime, nullable=False)      # hẹn gặp lúc
+    end_time      = db.Column(db.DateTime)                      # optional
+    camera_id     = db.Column(db.Integer, db.ForeignKey('camera.id'), nullable=True)  # optional target unit
+    interest      = db.Column(db.String(200), default='')       # máy / nhu cầu muốn mua
+    notes         = db.Column(db.Text)
+    status        = db.Column(db.String(20), default='booked')  # booked | done | cancelled
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    camera        = db.relationship('Camera')
+
+
 class CameraVariant(db.Model):
     """A color variant of a (Selling) camera, with stock split by status."""
     id            = db.Column(db.Integer, primary_key=True)

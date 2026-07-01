@@ -1,37 +1,57 @@
 {% extends 'admin/tintus_base.html' %}
 
 {% block admin_content %}
-<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+
+<div class="flex flex-wrap items-start justify-between gap-3 mb-4">
   <div>
-    <h1 class="text-xl font-black text-gray-900">Lịch thuê máy</h1>
+    <h1 class="text-xl font-black text-gray-900">Lịch thuê &amp; hẹn mua</h1>
     <p class="text-sm text-gray-500" id="rangeLabel">—</p>
   </div>
-  <div class="flex items-center gap-2">
-    <div class="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <button id="prevBtn"  class="px-3 py-2 text-gray-600 hover:bg-gray-50 font-bold">‹</button>
-      <button id="todayBtn" class="px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 border-x border-gray-200">Hôm nay</button>
-      <button id="nextBtn"  class="px-3 py-2 text-gray-600 hover:bg-gray-50 font-bold">›</button>
+
+  <div class="flex flex-wrap items-center gap-2">
+    <!-- mode toggle -->
+    <div class="seg-group" id="modeGroup">
+      <button class="seg" data-mode="grid">▦ Lưới</button>
+      <button class="seg" data-mode="cal">🕐 Lịch giờ</button>
     </div>
-    <select id="daysSel" class="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700">
-      <option value="7">7 ngày</option>
-      <option value="14" selected>14 ngày</option>
-      <option value="30">30 ngày</option>
-    </select>
-    <button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Đơn mới</button>
+    <!-- show filter -->
+    <div class="seg-group" id="showGroup">
+      <button class="seg" data-show="both">Cả hai</button>
+      <button class="seg" data-show="rent">Thuê máy</button>
+      <button class="seg" data-show="appt">Hẹn mua</button>
+    </div>
+    <!-- shared navigation (both modes) -->
+    <div class="flex items-center gap-2">
+      <div class="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <button id="prevBtn"  class="px-3 py-2 text-gray-600 hover:bg-gray-50 font-bold">‹</button>
+        <button id="todayBtn" class="px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 border-x border-gray-200">Hôm nay</button>
+        <button id="nextBtn"  class="px-3 py-2 text-gray-600 hover:bg-gray-50 font-bold">›</button>
+      </div>
+      <select id="rangeSel" class="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700"></select>
+    </div>
+    <button id="addRentBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Thuê</button>
+    <button id="addApptBtn" class="text-white text-sm font-bold px-4 py-2 rounded-xl" style="background:#0e7490">+ Hẹn mua</button>
   </div>
 </div>
 
-<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-  <div id="gridWrap" class="overflow-x-auto overflow-y-auto" style="max-height:calc(100vh - 240px)">
+<!-- ── GRID MODE ── -->
+<div id="gridWrap" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto overflow-y-auto" style="max-height:calc(100vh - 240px)">
     <div id="grid" class="relative select-none"></div>
   </div>
 </div>
 
+<!-- ── CALENDAR MODE ── -->
+<div id="calWrap" class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 hidden">
+  <div id="tintus-fc"></div>
+</div>
+
 <p class="text-xs text-gray-400 mt-3">
-  Mẹo: bấm vào ô trống để tạo đơn mới · bấm vào thanh đơn để sửa hoặc xoá · giá tính lũy kế theo ngày.
+  Mẹo: ở chế độ Lưới, bấm ô trống trên hàng máy để tạo đơn thuê, bấm hàng “🛒 Hẹn mua” để đặt lịch hẹn · ở chế độ Lịch giờ, bấm vào khung giờ để tạo lịch hẹn.
 </p>
 
-<!-- ── Modal ── -->
+<!-- ── Rental modal ── -->
 <div id="modal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
   <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw] max-h-[92vh] overflow-y-auto">
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -61,11 +81,11 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nhận máy</label>
-          <input id="f_start" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+          <input id="f_start" type="datetime-local" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Trả máy</label>
-          <input id="f_end" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+          <input id="f_end" type="datetime-local" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
         </div>
       </div>
       <div>
@@ -86,11 +106,125 @@
     </div>
   </div>
 </div>
+
+<!-- ── Appointment modal ── -->
+<div id="apptModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw] max-h-[92vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 id="apptTitle" class="font-black text-gray-900">Lịch hẹn mua máy</h3>
+      <button id="apptClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <input type="hidden" id="ap_id">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Khách hàng</label>
+          <input id="ap_name" type="text" placeholder="Tên khách" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none" style="--tw-ring:0" onfocus="this.style.borderColor='#0e7490'" onblur="this.style.borderColor=''">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Điện thoại</label>
+          <input id="ap_phone" type="tel" placeholder="09xx..." class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none" onfocus="this.style.borderColor='#0e7490'" onblur="this.style.borderColor=''">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ngày hẹn</label>
+          <input id="ap_date" type="date" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none" onfocus="this.style.borderColor='#0e7490'" onblur="this.style.borderColor=''">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giờ hẹn</label>
+          <input id="ap_time" type="time" value="10:00" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none" onfocus="this.style.borderColor='#0e7490'" onblur="this.style.borderColor=''">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Máy / nhu cầu muốn mua</label>
+        <input id="ap_interest" type="text" placeholder="VD: Fujifilm X-T30, màu đen" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none" onfocus="this.style.borderColor='#0e7490'" onblur="this.style.borderColor=''">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giữ máy cụ thể (tuỳ chọn)</label>
+        <select id="ap_camera" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none">
+          <option value="">— Không giữ máy cụ thể —</option>
+          {% for c in appt_cameras %}<option value="{{ c.id }}">{{ c.name }} — {{ c.brand }}{% if c.type == 'Sale' %} · bán{% endif %}</option>{% endfor %}
+        </select>
+        <p class="text-[11px] text-gray-400 mt-1">Nếu chọn, máy này sẽ được giữ — không cho thuê hoặc hẹn khác trùng khung giờ.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Trạng thái</label>
+        <select id="ap_status" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none">
+          <option value="booked">Đã đặt lịch</option>
+          <option value="done">Đã đến / xong</option>
+          <option value="cancelled">Đã huỷ</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú</label>
+        <textarea id="ap_notes" rows="2" placeholder="Ghi chú thêm..." class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none"></textarea>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="apptDeleteBtn" class="text-red-600 hover:bg-red-50 font-bold text-sm px-3 py-2.5 rounded-xl hidden">Xoá</button>
+      <div class="ml-auto flex gap-2">
+        <button id="apptCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+        <button id="apptSave" class="text-white font-bold text-sm px-5 py-2.5 rounded-xl" style="background:#0e7490">Lưu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Chooser: rental or appointment (calendar click) ── -->
+<div id="pickModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[360px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Tạo mới lúc <span id="pick_when" class="text-brand-700"></span></h3>
+      <button id="pickClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 grid grid-cols-2 gap-3">
+      <button id="pickRent" class="flex flex-col items-center gap-2 border-2 border-brand-200 hover:border-brand-500 hover:bg-brand-50 rounded-2xl py-5 font-bold text-brand-700 transition-colors">
+        <span class="text-2xl">📷</span><span class="text-sm">Đơn thuê máy</span>
+      </button>
+      <button id="pickAppt" class="flex flex-col items-center gap-2 border-2 rounded-2xl py-5 font-bold transition-colors" style="border-color:#a5f3fc;color:#0e7490" onmouseover="this.style.background='#ecfeff';this.style.borderColor='#0e7490'" onmouseout="this.style.background='';this.style.borderColor='#a5f3fc'">
+        <span class="text-2xl">🛒</span><span class="text-sm">Lịch hẹn mua</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .seg-group { display:inline-flex; background:#f3f4f6; border-radius:12px; padding:3px; gap:2px; }
+  .seg { padding:7px 12px; border-radius:9px; font-size:13px; font-weight:700; color:#6b7280; white-space:nowrap; }
+  .seg:hover { color:#111827; }
+  .seg.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+  #showGroup .seg.active { color:#0e7490; }
+
+  /* ── FullCalendar theming (scoped) ── */
+  #tintus-fc { font-family:'Inter',system-ui,sans-serif; }
+  #tintus-fc .fc { --fc-border-color:#f3f4f6; --fc-page-bg-color:#fff; --fc-neutral-bg-color:#f9fafb; }
+  #tintus-fc .fc-theme-standard td, #tintus-fc .fc-theme-standard th, #tintus-fc .fc-theme-standard .fc-scrollgrid { border-color:#f3f4f6; }
+  #tintus-fc .fc-toolbar-title { font-size:18px; font-weight:900; color:#111827; }
+  #tintus-fc .fc-toolbar.fc-header-toolbar { margin-bottom:14px; }
+  #tintus-fc .fc .fc-button { background:#fff; border:1px solid #e5e7eb; color:#374151; font-weight:700; font-size:13px; text-transform:none; border-radius:10px; padding:7px 13px; box-shadow:none; }
+  #tintus-fc .fc .fc-button:hover { background:#f9fafb; color:#111827; }
+  #tintus-fc .fc .fc-button:focus, #tintus-fc .fc .fc-button:active:focus { box-shadow:0 0 0 3px rgba(185,28,28,.18); outline:none; }
+  #tintus-fc .fc .fc-button-primary:not(:disabled).fc-button-active, #tintus-fc .fc .fc-button-primary:not(:disabled):active { background:#b91c1c; border-color:#b91c1c; color:#fff; }
+  #tintus-fc .fc .fc-button-primary:disabled { opacity:.5; }
+  #tintus-fc .fc .fc-day-today { background:#fff7ed !important; }
+  #tintus-fc .fc .fc-timegrid-now-indicator-line { border-color:#dc2626; }
+  #tintus-fc .fc .fc-timegrid-now-indicator-arrow { border-color:#dc2626; color:#dc2626; }
+  #tintus-fc .fc .fc-col-header-cell-cushion { font-weight:800; font-size:12px; color:#374151; padding:8px 4px; }
+  #tintus-fc .fc .fc-timegrid-axis-cushion, #tintus-fc .fc .fc-timegrid-slot-label-cushion { font-size:11px; font-weight:600; color:#9ca3af; }
+  #tintus-fc .fc .fc-daygrid-day-number { font-size:12px; font-weight:700; color:#374151; }
+  #tintus-fc .fc .fc-event { border-radius:7px; border:none; padding:1px 2px; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,.12); }
+  #tintus-fc .fc .fc-event-main { font-weight:700; font-size:12px; }
+  #tintus-fc .fc .fc-event-title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style>
 {% endblock %}
 
 {% block admin_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script>
-// ── Camera pricing (for live total preview; server recomputes on save) ──
+const APPT_COLOR = '#0e7490';
+
+// Camera pricing (rental total preview)
 const CAM_PRICES = {
   {% for cam in cameras %}
   {{ cam.id }}: {name:{{ cam.name|tojson }}, color:{{ color_map[cam.id]|tojson }},
@@ -98,17 +232,23 @@ const CAM_PRICES = {
   {% endfor %}
 };
 
-// ── Layout constants ──
 const LABEL_W = 190, COL_W = 132, HEAD_H = 40, BAR_H = 26, BAR_GAP = 4, ROW_PAD = 8;
 const WD = ['CN','Th 2','Th 3','Th 4','Th 5','Th 6','Th 7'];
 
-const State = { start: startOfDay(new Date()), days: 14, bookings: [], cameras: [] };
+const State = {
+  start: startOfDay(new Date()), days: 14,
+  calView: localStorage.getItem('lichCalView') || 'timeGridWeek',
+  mode: localStorage.getItem('lichMode') || 'grid',
+  show: localStorage.getItem('lichShow') || 'both',
+  bookings: [], appointments: [], cameras: []
+};
 
 function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 function ymd(d){ const x=new Date(d); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); }
 function dayIndex(dateStr){ return Math.floor((startOfDay(new Date(dateStr)) - State.start) / 86400000); }
 function dayDiff(a,b){ return Math.round((startOfDay(new Date(b)) - startOfDay(new Date(a))) / 86400000); }
+function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
 
 function calcTotal(camId, startStr, endStr){
   const c = CAM_PRICES[camId]; if(!c) return {days:0,total:0};
@@ -120,39 +260,35 @@ function calcTotal(camId, startStr, endStr){
   return {days, total};
 }
 
-// ── Render grid ──
-async function loadGrid(){
-  const data = await TINTUS.api(`{{ url_for('bookinggrid.data') }}?start=${ymd(State.start)}&days=${State.days}`);
-  State.bookings = data.bookings;
-  State.cameras  = data.cameras;
-  renderGrid();
+// ════════════ data + grid ════════════
+function updateGridLabel(){
   const end = addDays(State.start, State.days-1);
   document.getElementById('rangeLabel').textContent =
-    `${ymd(State.start)} → ${ymd(end)} · ${State.cameras.length} máy`;
+    `${ymd(State.start)} → ${ymd(end)} · ${State.cameras.length} máy · ${State.appointments.length} lịch hẹn`;
+}
+
+async function loadData(){
+  const data = await TINTUS.api(`{{ url_for('bookinggrid.data') }}?start=${ymd(State.start)}&days=${State.days}`);
+  State.bookings = data.bookings; State.appointments = data.appointments || []; State.cameras = data.cameras;
+  if(State.mode === 'grid'){ renderGrid(); updateGridLabel(); }
 }
 
 function renderGrid(){
   const grid = document.getElementById('grid');
   const N = State.days;
-  const totalW = LABEL_W + N*COL_W;
-  grid.style.width = totalW + 'px';
+  grid.style.width = (LABEL_W + N*COL_W) + 'px';
   grid.innerHTML = '';
+  const today = ymd(new Date());
 
-  // group bookings by camera
-  const byCam = {};
-  State.bookings.forEach(b => { (byCam[b.camera_id] = byCam[b.camera_id] || []).push(b); });
-
-  // ── Header row ──
+  // header
   const head = document.createElement('div');
   head.style.cssText = `display:flex; position:sticky; top:0; z-index:20; background:#f9fafb; border-bottom:1px solid #e5e7eb; height:${HEAD_H}px`;
   const corner = document.createElement('div');
   corner.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:21; background:#f9fafb; border-right:1px solid #e5e7eb; display:flex; align-items:center; padding:0 14px; font-weight:800; font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em`;
   corner.textContent = 'Máy ảnh';
   head.appendChild(corner);
-  const today = ymd(new Date());
   for(let i=0;i<N;i++){
-    const d = addDays(State.start, i);
-    const isToday = ymd(d) === today;
+    const d = addDays(State.start, i), isToday = ymd(d) === today;
     const cell = document.createElement('div');
     cell.style.cssText = `width:${COL_W}px; flex:0 0 ${COL_W}px; border-right:1px solid #f3f4f6; display:flex; flex-direction:column; align-items:center; justify-content:center; ${isToday?'background:#fff7ed':''}`;
     cell.innerHTML = `<span style="font-size:11px;font-weight:700;color:${isToday?'#b91c1c':'#9ca3af'}">${WD[d.getDay()]}</span>
@@ -161,105 +297,148 @@ function renderGrid(){
   }
   grid.appendChild(head);
 
-  // ── Camera rows ──
-  State.cameras.forEach(cam => {
-    const list = (byCam[cam.id] || []).slice().sort((a,b)=> new Date(a.start)-new Date(b.start));
-    // lane assignment for overlaps
-    const laneEnds = [];
-    list.forEach(b => {
-      let lane = 0;
-      while(lane < laneEnds.length && laneEnds[lane] > new Date(b.start)) lane++;
-      b._lane = lane;
-      laneEnds[lane] = new Date(b.end);
-    });
-    const lanes = Math.max(1, laneEnds.length);
-    const height = ROW_PAD*2 + lanes*BAR_H + (lanes-1)*BAR_GAP;
-
+  // ── appointment row (buy appointments) ──
+  if(State.show !== 'rent'){
+    const byDay = {};
+    State.appointments.forEach(a => { (byDay[a.date] = byDay[a.date] || []).push(a); });
     const row = document.createElement('div');
-    row.style.cssText = `display:flex; position:relative; border-bottom:1px solid #f3f4f6; min-height:${Math.max(48,height)}px`;
-
-    // label
+    row.style.cssText = `display:flex; position:relative; border-bottom:2px solid #a5f3fc; background:#ecfeff; min-height:52px`;
     const label = document.createElement('div');
-    label.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:10; background:#fff; border-right:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; padding:0 14px`;
-    label.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${cam.color};flex:0 0 10px"></span>
-                       <span style="font-size:13px;font-weight:700;color:#1f2937;line-height:1.2">${cam.name}</span>`;
+    label.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:10; background:#ecfeff; border-right:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; padding:0 14px`;
+    label.innerHTML = `<span style="font-size:15px">🛒</span><span style="font-size:13px;font-weight:800;color:#0e7490;line-height:1.15">Hẹn mua máy</span>`;
     row.appendChild(label);
-
-    // day cells (clickable empty area)
     for(let i=0;i<N;i++){
-      const d = addDays(State.start,i);
-      const isToday = ymd(d)===today;
+      const d = addDays(State.start,i), ds = ymd(d), isToday = ds===today;
       const cell = document.createElement('div');
-      cell.className = 'day-cell';
-      cell.dataset.cam = cam.id; cell.dataset.date = ymd(d);
-      cell.style.cssText = `width:${COL_W}px; flex:0 0 ${COL_W}px; border-right:1px solid #f3f4f6; cursor:pointer; ${isToday?'background:#fff7ed':''}`;
-      cell.addEventListener('mouseenter', ()=> cell.style.background = isToday?'#ffedd5':'#f9fafb');
-      cell.addEventListener('mouseleave', ()=> cell.style.background = isToday?'#fff7ed':'');
-      cell.addEventListener('click', ()=> openCreate(cam.id, ymd(d)));
+      cell.style.cssText = `width:${COL_W}px; flex:0 0 ${COL_W}px; border-right:1px solid #f3f4f6; cursor:pointer; padding:5px 4px; display:flex; flex-direction:column; gap:3px; ${isToday?'background:#fff7ed':''}`;
+      cell.addEventListener('click', ()=> openApptCreate(ds, '10:00'));
+      (byDay[ds] || []).slice().sort((a,b)=> a.time.localeCompare(b.time)).forEach(a => {
+        const chip = document.createElement('div');
+        chip.title = `${a.time} · ${a.customer||'Khách'}` + (a.interest?` · ${a.interest}`:'') + (a.phone?` · ${a.phone}`:'');
+        chip.style.cssText = `background:${APPT_COLOR}; color:#fff; border-radius:6px; padding:2px 6px; font-size:11px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; ${a.status==='done'?'opacity:.55':''}`;
+        chip.innerHTML = `${esc(a.time)} ${esc(a.customer||'Khách')}`;
+        chip.addEventListener('click', ev => { ev.stopPropagation(); openApptEdit(a); });
+        cell.appendChild(chip);
+      });
       row.appendChild(cell);
     }
-
-    // booking bars (absolute)
-    list.forEach(b => {
-      let s = dayIndex(b.start_date);
-      let e = dayIndex(b.end_date);           // end date inclusive-ish
-      let endIdx = e; if(endIdx <= s) endIdx = s + 1;  // at least 1 day wide
-      const visStart = Math.max(0, s);
-      const visEnd   = Math.min(N, endIdx);
-      if(visEnd <= 0 || visStart >= N) return;  // out of range
-      const left = LABEL_W + visStart*COL_W + 3;
-      const width = (visEnd - visStart)*COL_W - 6;
-      const top = ROW_PAD + b._lane*(BAR_H+BAR_GAP);
-      const bar = document.createElement('div');
-      bar.title = `${b.customer} · ${b.phone}`;
-      bar.style.cssText = `position:absolute; left:${left}px; top:${top}px; width:${width}px; height:${BAR_H}px;
-        background:${b.color}; color:#fff; border-radius:7px; padding:0 8px; display:flex; align-items:center;
-        font-size:12px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.15); z-index:5`;
-      bar.textContent = `${b.customer || 'Khách'} · ${TINTUS.fmtK(b.total)}`;
-      bar.addEventListener('click', ev => { ev.stopPropagation(); openEdit(b); });
-      row.appendChild(bar);
-    });
-
     grid.appendChild(row);
-  });
-
-  if(State.cameras.length===0){
-    grid.innerHTML = '<div style="padding:40px;text-align:center;color:#9ca3af">Chưa có máy ảnh nào.</div>';
   }
+
+  // ── camera rows (rentals) ──
+  if(State.show !== 'appt'){
+    const byCam = {};
+    State.bookings.forEach(b => { (byCam[b.camera_id] = byCam[b.camera_id] || []).push(b); });
+    State.cameras.forEach(cam => {
+      const list = (byCam[cam.id] || []).slice().sort((a,b)=> new Date(a.start)-new Date(b.start));
+      const laneEnds = [];
+      list.forEach(b => {
+        let lane = 0;
+        while(lane < laneEnds.length && laneEnds[lane] > new Date(b.start)) lane++;
+        b._lane = lane; laneEnds[lane] = new Date(b.end);
+      });
+      const lanes = Math.max(1, laneEnds.length);
+      const height = ROW_PAD*2 + lanes*BAR_H + (lanes-1)*BAR_GAP;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex; position:relative; border-bottom:1px solid #f3f4f6; min-height:${Math.max(48,height)}px`;
+      const label = document.createElement('div');
+      label.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:10; background:#fff; border-right:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; padding:0 14px`;
+      label.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${cam.color};flex:0 0 10px"></span>
+                         <span style="font-size:13px;font-weight:700;color:#1f2937;line-height:1.2">${esc(cam.name)}</span>`;
+      row.appendChild(label);
+      for(let i=0;i<N;i++){
+        const d = addDays(State.start,i), isToday = ymd(d)===today;
+        const cell = document.createElement('div');
+        cell.dataset.cam = cam.id; cell.dataset.date = ymd(d);
+        cell.style.cssText = `width:${COL_W}px; flex:0 0 ${COL_W}px; border-right:1px solid #f3f4f6; cursor:pointer; ${isToday?'background:#fff7ed':''}`;
+        cell.addEventListener('mouseenter', ()=> cell.style.background = isToday?'#ffedd5':'#f9fafb');
+        cell.addEventListener('mouseleave', ()=> cell.style.background = isToday?'#fff7ed':'');
+        cell.addEventListener('click', ()=> openCreate(cam.id, ymd(d)));
+        row.appendChild(cell);
+      }
+      list.forEach(b => {
+        let s = dayIndex(b.start_date), e = dayIndex(b.end_date);
+        let endIdx = e; if(endIdx <= s) endIdx = s + 1;
+        const visStart = Math.max(0, s), visEnd = Math.min(N, endIdx);
+        if(visEnd <= 0 || visStart >= N) return;
+        const bar = document.createElement('div');
+        bar.title = `${b.customer} · ${b.phone}`;
+        bar.style.cssText = `position:absolute; left:${LABEL_W + visStart*COL_W + 3}px; top:${ROW_PAD + b._lane*(BAR_H+BAR_GAP)}px; width:${(visEnd-visStart)*COL_W - 6}px; height:${BAR_H}px;
+          background:${b.color}; color:#fff; border-radius:7px; padding:0 8px; display:flex; align-items:center;
+          font-size:12px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.15); z-index:5`;
+        bar.textContent = `${b.customer || 'Khách'} · ${TINTUS.fmtVND(b.total)}`;
+        bar.addEventListener('click', ev => { ev.stopPropagation(); openEdit(b); });
+        row.appendChild(bar);
+      });
+      grid.appendChild(row);
+    });
+    if(State.cameras.length===0 && State.show==='rent'){
+      grid.insertAdjacentHTML('beforeend', '<div style="padding:40px;text-align:center;color:#9ca3af">Chưa có máy ảnh nào.</div>');
+    }
+  }
+  updateGridLabel();
 }
 
-// ── Modal logic ──
-const modal = document.getElementById('modal');
-function openModal(){ modal.style.display='flex'; }
-function closeModal(){ modal.style.display='none'; }
+// ════════════ calendar mode ════════════
+let calendar = null;
+function ensureCalendar(){
+  if(calendar) return;
+  const el = document.getElementById('tintus-fc');
+  calendar = new FullCalendar.Calendar(el, {
+    initialView: State.calView, locale: 'vi', firstDay: 1, timeZone: 'local',
+    height: 'calc(100vh - 240px)', expandRows: true, nowIndicator: true, allDaySlot: false,
+    slotMinTime: '07:00:00', slotMaxTime: '23:00:00', scrollTime: '08:00:00',
+    slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+    eventTimeFormat:  { hour: '2-digit', minute: '2-digit', hour12: false },
+    headerToolbar: false,   // we drive nav from the shared top toolbar for a consistent look
+    views: { timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 } } },
+    datesSet: function(info){
+      State.calView = info.view.type;
+      localStorage.setItem('lichCalView', info.view.type);
+      if(State.mode === 'cal'){
+        document.getElementById('rangeLabel').textContent = info.view.title;
+        document.getElementById('rangeSel').value = info.view.type;
+      }
+    },
+    events: function(info, success, failure){
+      fetch(`{{ url_for('bookinggrid.events') }}?show=${State.show}&start=${encodeURIComponent(info.startStr)}&end=${encodeURIComponent(info.endStr)}`)
+        .then(r => r.json()).then(success).catch(()=>{ TINTUS.toast('Không tải được lịch','err'); failure(); });
+    },
+    eventClick: function(info){
+      info.jsEvent.preventDefault();
+      const p = info.event.extendedProps || {};
+      if(p.kind === 'appt') openApptEdit(p); else openEdit(p);
+    },
+    dateClick: function(info){
+      const s = info.dateStr;
+      if(s.indexOf('T') >= 0){ const [d,t] = s.split('T'); openPick(d, (t||'10:00').slice(0,5)); }
+      else openPick(s, '10:00');
+    }
+  });
+  calendar.render();
+}
 
+// ════════════ rental modal ════════════
+const modal = document.getElementById('modal');
+function closeModal(){ modal.style.display='none'; }
 function refreshPreview(){
   const camId = document.getElementById('f_camera').value;
-  const s = document.getElementById('f_start').value;
-  const e = document.getElementById('f_end').value;
-  if(camId && s && e){
-    const {days,total} = calcTotal(camId, s, e);
-    document.getElementById('daysPreview').textContent = days + ' ngày';
+  const s = document.getElementById('f_start').value, e = document.getElementById('f_end').value;
+  if(camId && s && e){ const {days,total}=calcTotal(camId,s,e);
+    document.getElementById('daysPreview').textContent = days+' ngày';
     document.getElementById('totalPreview').textContent = TINTUS.fmtVND(total);
-  } else {
-    document.getElementById('daysPreview').textContent = '— ngày';
-    document.getElementById('totalPreview').textContent = '0đ';
-  }
+  } else { document.getElementById('daysPreview').textContent='— ngày'; document.getElementById('totalPreview').textContent='0đ'; }
 }
-
 function openCreate(camId, dateStr){
   document.getElementById('modalTitle').textContent = 'Đơn thuê mới';
   document.getElementById('f_id').value = '';
   document.getElementById('f_camera').value = camId;
-  document.getElementById('f_name').value = '';
-  document.getElementById('f_phone').value = '';
-  document.getElementById('f_notes').value = '';
-  document.getElementById('f_start').value = dateStr;
-  document.getElementById('f_end').value = ymd(addDays(new Date(dateStr),1));
+  document.getElementById('f_name').value=''; document.getElementById('f_phone').value=''; document.getElementById('f_notes').value='';
+  document.getElementById('f_start').value = dateStr + 'T09:00';
+  document.getElementById('f_end').value = ymd(addDays(new Date(dateStr),1)) + 'T09:00';
   document.getElementById('deleteBtn').classList.add('hidden');
-  refreshPreview(); openModal();
+  refreshPreview(); modal.style.display='flex';
 }
-
 function openEdit(b){
   document.getElementById('modalTitle').textContent = 'Sửa đơn thuê';
   document.getElementById('f_id').value = b.id;
@@ -267,12 +446,11 @@ function openEdit(b){
   document.getElementById('f_name').value = b.customer || '';
   document.getElementById('f_phone').value = b.phone || '';
   document.getElementById('f_notes').value = b.notes || '';
-  document.getElementById('f_start').value = b.start_date;
-  document.getElementById('f_end').value = b.end_date;
+  document.getElementById('f_start').value = (b.start || '').slice(0,16);
+  document.getElementById('f_end').value = (b.end || '').slice(0,16);
   document.getElementById('deleteBtn').classList.remove('hidden');
-  refreshPreview(); openModal();
+  refreshPreview(); modal.style.display='flex';
 }
-
 async function saveBooking(){
   const payload = {
     id: document.getElementById('f_id').value || null,
@@ -283,39 +461,158 @@ async function saveBooking(){
     start_date: document.getElementById('f_start').value,
     end_date: document.getElementById('f_end').value,
   };
-  if(!payload.customer_name){ TINTUS.toast('Nhập tên khách hàng', 'warn'); return; }
+  if(!payload.customer_name){ TINTUS.toast('Nhập tên khách hàng','warn'); return; }
   try {
     const res = await TINTUS.api(`{{ url_for('bookinggrid.save') }}`, payload);
     closeModal();
-    if(res.warning) TINTUS.toast(res.warning, 'warn');
-    else TINTUS.toast('Đã lưu đơn thuê', 'ok');
-    loadGrid();
-  } catch(e){ TINTUS.toast(e.message, 'err'); }
+    TINTUS.toast(res.warning || 'Đã lưu đơn thuê', res.warning ? 'warn' : 'ok');
+    afterChange();
+  } catch(e){ TINTUS.toast(e.message,'err'); }
 }
-
 async function deleteBooking(){
-  const id = document.getElementById('f_id').value;
-  if(!id) return;
+  const id = document.getElementById('f_id').value; if(!id) return;
   if(!confirm('Xoá đơn thuê này?')) return;
-  try {
-    await TINTUS.api(`{{ url_for('bookinggrid.delete') }}`, {id: parseInt(id,10)});
-    closeModal(); TINTUS.toast('Đã xoá', 'ok'); loadGrid();
-  } catch(e){ TINTUS.toast(e.message, 'err'); }
+  try { await TINTUS.api(`{{ url_for('bookinggrid.delete') }}`, {id: parseInt(id,10)});
+    closeModal(); TINTUS.toast('Đã xoá','ok'); afterChange();
+  } catch(e){ TINTUS.toast(e.message,'err'); }
 }
 
-// ── Wire up ──
-document.getElementById('prevBtn').addEventListener('click', ()=>{ State.start = addDays(State.start, -State.days); loadGrid(); });
-document.getElementById('nextBtn').addEventListener('click', ()=>{ State.start = addDays(State.start,  State.days); loadGrid(); });
-document.getElementById('todayBtn').addEventListener('click', ()=>{ State.start = startOfDay(new Date()); loadGrid(); });
-document.getElementById('daysSel').addEventListener('change', e=>{ State.days = parseInt(e.target.value,10); loadGrid(); });
-document.getElementById('addBtn').addEventListener('click', ()=> openCreate(State.cameras[0] ? State.cameras[0].id : Object.keys(CAM_PRICES)[0], ymd(State.start)));
+// ════════════ appointment modal ════════════
+const apptModal = document.getElementById('apptModal');
+function closeAppt(){ apptModal.style.display='none'; }
+function openApptCreate(dateStr, timeStr){
+  document.getElementById('apptTitle').textContent = 'Lịch hẹn mua máy';
+  document.getElementById('ap_id').value = '';
+  document.getElementById('ap_name').value=''; document.getElementById('ap_phone').value='';
+  document.getElementById('ap_interest').value=''; document.getElementById('ap_notes').value='';
+  document.getElementById('ap_camera').value = '';
+  document.getElementById('ap_date').value = dateStr || ymd(State.start);
+  document.getElementById('ap_time').value = timeStr || '10:00';
+  document.getElementById('ap_status').value = 'booked';
+  document.getElementById('apptDeleteBtn').classList.add('hidden');
+  apptModal.style.display='flex';
+}
+function openApptEdit(a){
+  document.getElementById('apptTitle').textContent = 'Sửa lịch hẹn';
+  document.getElementById('ap_id').value = a.id;
+  document.getElementById('ap_name').value = a.customer || '';
+  document.getElementById('ap_phone').value = a.phone || '';
+  document.getElementById('ap_interest').value = a.interest || '';
+  document.getElementById('ap_camera').value = a.camera_id || '';
+  document.getElementById('ap_notes').value = a.notes || '';
+  document.getElementById('ap_date').value = a.date;
+  document.getElementById('ap_time').value = a.time;
+  document.getElementById('ap_status').value = a.status || 'booked';
+  document.getElementById('apptDeleteBtn').classList.remove('hidden');
+  apptModal.style.display='flex';
+}
+async function saveAppt(){
+  const date = document.getElementById('ap_date').value, time = document.getElementById('ap_time').value;
+  if(!date || !time){ TINTUS.toast('Chọn ngày và giờ hẹn','warn'); return; }
+  const payload = {
+    id: document.getElementById('ap_id').value || null,
+    customer_name: document.getElementById('ap_name').value.trim(),
+    phone: document.getElementById('ap_phone').value.trim(),
+    interest: document.getElementById('ap_interest').value.trim(),
+    camera_id: document.getElementById('ap_camera').value || null,
+    notes: document.getElementById('ap_notes').value.trim(),
+    status: document.getElementById('ap_status').value,
+    start_time: `${date}T${time}`,
+  };
+  if(!payload.customer_name){ TINTUS.toast('Nhập tên khách hàng','warn'); return; }
+  try { await TINTUS.api(`{{ url_for('bookinggrid.appt_save') }}`, payload);
+    closeAppt(); TINTUS.toast('Đã lưu lịch hẹn','ok'); afterChange();
+  } catch(e){ TINTUS.toast(e.message,'err'); }
+}
+async function deleteAppt(){
+  const id = document.getElementById('ap_id').value; if(!id) return;
+  if(!confirm('Xoá lịch hẹn này?')) return;
+  try { await TINTUS.api(`{{ url_for('bookinggrid.appt_delete') }}`, {id: parseInt(id,10)});
+    closeAppt(); TINTUS.toast('Đã xoá','ok'); afterChange();
+  } catch(e){ TINTUS.toast(e.message,'err'); }
+}
+
+// refresh whichever view is active
+function afterChange(){ if(State.mode==='cal' && calendar){ calendar.refetchEvents(); } loadData(); }
+
+// ════════════ chooser (rental vs appointment) ════════════
+let pickWhen = { date: null, time: '10:00' };
+function openPick(date, time){
+  pickWhen = { date: date || ymd(new Date()), time: time || '10:00' };
+  document.getElementById('pick_when').textContent = `${pickWhen.time} · ${pickWhen.date}`;
+  document.getElementById('pickModal').style.display = 'flex';
+}
+function closePick(){ document.getElementById('pickModal').style.display = 'none'; }
+function defaultCam(){ return State.cameras[0] ? State.cameras[0].id : Object.keys(CAM_PRICES)[0]; }
+
+// ════════════ mode + filter ════════════
+function rebuildRangeSelect(mode){
+  const sel = document.getElementById('rangeSel');
+  const opts = mode === 'grid'
+    ? [['7','7 ngày'], ['14','14 ngày'], ['30','30 ngày']]
+    : [['timeGridWeek','Tuần'], ['timeGridThreeDay','3 ngày'], ['dayGridMonth','Tháng']];
+  const cur = mode === 'grid' ? String(State.days) : State.calView;
+  sel.innerHTML = '';
+  opts.forEach(([v,l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); });
+  sel.value = cur;
+}
+
+function setMode(m){
+  State.mode = m; localStorage.setItem('lichMode', m);
+  document.getElementById('gridWrap').classList.toggle('hidden', m!=='grid');
+  document.getElementById('calWrap').classList.toggle('hidden', m!=='cal');
+  document.querySelectorAll('#modeGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
+  rebuildRangeSelect(m);
+  if(m==='cal'){ ensureCalendar(); setTimeout(()=>{ calendar.updateSize(); calendar.refetchEvents(); }, 30); }
+  else { renderGrid(); }
+}
+function setShow(s){
+  State.show = s; localStorage.setItem('lichShow', s);
+  document.querySelectorAll('#showGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.show===s));
+  if(State.mode==='cal' && calendar) calendar.refetchEvents(); else renderGrid();
+}
+
+// ════════════ wire up ════════════
+document.getElementById('prevBtn').addEventListener('click', ()=>{
+  if(State.mode==='cal' && calendar){ calendar.prev(); } else { State.start = addDays(State.start, -State.days); loadData(); }
+});
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  if(State.mode==='cal' && calendar){ calendar.next(); } else { State.start = addDays(State.start, State.days); loadData(); }
+});
+document.getElementById('todayBtn').addEventListener('click', ()=>{
+  if(State.mode==='cal' && calendar){ calendar.today(); } else { State.start = startOfDay(new Date()); loadData(); }
+});
+document.getElementById('rangeSel').addEventListener('change', e=>{
+  const val = e.target.value;
+  if(State.mode==='grid'){ State.days = parseInt(val,10); loadData(); }
+  else { State.calView = val; localStorage.setItem('lichCalView', val); if(calendar) calendar.changeView(val); }
+});
+document.getElementById('addRentBtn').addEventListener('click', ()=> openCreate(defaultCam(), ymd(State.start)));
+document.getElementById('pickClose').addEventListener('click', closePick);
+document.getElementById('pickModal').addEventListener('click', e=>{ if(e.target.id==='pickModal') closePick(); });
+document.getElementById('pickRent').addEventListener('click', ()=>{ closePick(); openCreate(defaultCam(), pickWhen.date); });
+document.getElementById('pickAppt').addEventListener('click', ()=>{ closePick(); openApptCreate(pickWhen.date, pickWhen.time); });
+document.getElementById('addApptBtn').addEventListener('click', ()=> openApptCreate(ymd(new Date()), '10:00'));
 document.getElementById('modalClose').addEventListener('click', closeModal);
 document.getElementById('cancelBtn').addEventListener('click', closeModal);
 document.getElementById('saveBtn').addEventListener('click', saveBooking);
 document.getElementById('deleteBtn').addEventListener('click', deleteBooking);
 ['f_camera','f_start','f_end'].forEach(id => document.getElementById(id).addEventListener('change', refreshPreview));
 modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
+document.getElementById('apptClose').addEventListener('click', closeAppt);
+document.getElementById('apptCancel').addEventListener('click', closeAppt);
+document.getElementById('apptSave').addEventListener('click', saveAppt);
+document.getElementById('apptDeleteBtn').addEventListener('click', deleteAppt);
+apptModal.addEventListener('click', e=>{ if(e.target===apptModal) closeAppt(); });
+document.querySelectorAll('#modeGroup .seg').forEach(b => b.addEventListener('click', ()=> setMode(b.dataset.mode)));
+document.querySelectorAll('#showGroup .seg').forEach(b => b.addEventListener('click', ()=> setShow(b.dataset.show)));
 
-loadGrid();
+// init
+document.querySelectorAll('#showGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.show===State.show));
+document.querySelectorAll('#modeGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.mode===State.mode));
+rebuildRangeSelect(State.mode);
+document.getElementById('gridWrap').classList.toggle('hidden', State.mode!=='grid');
+document.getElementById('calWrap').classList.toggle('hidden', State.mode!=='cal');
+loadData().then(()=>{ if(State.mode==='cal'){ ensureCalendar(); setTimeout(()=>{ calendar.updateSize(); }, 30); } });
 </script>
 {% endblock %}

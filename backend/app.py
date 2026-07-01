@@ -11,7 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import (db, Camera, RentalBooking, PurchaseOrder, Sheet,
                     CameraVariant, SaleRecord, Supplier, StockReceipt, StoreCost,
-                    Accessory, AccessorySale)
+                    Accessory, AccessorySale, Appointment)
 from seed import seed as seed_db, backfill_costs
 
 try:
@@ -166,10 +166,10 @@ def admin_logout():
 # ── Jinja2 filter: 280000 → "280K" ─────────────────────────────────────────
 @app.template_filter('vnd')
 def vnd_filter(value):
+    """Full VND with Vietnamese thousands separators: 280000 → '280.000' (— if empty)."""
     if not value:
         return '—'
-    v = int(value)
-    return f'{v // 1000}K' if v >= 1000 else str(v)
+    return '{:,.0f}'.format(int(value)).replace(',', '.')
 
 
 # ── Jinja2 filter: 1200000 → "1.200.000" (Vietnamese thousands separators) ──
@@ -369,22 +369,25 @@ def checkout():
 
 # ── Rental API ───────────────────────────────────────────────────────────────
 
-@app.route('/api/camera-bookings/<int:camera_id>')
-def camera_bookings_api(camera_id):
-    bookings = RentalBooking.query.filter_by(camera_id=camera_id).all()
-    return jsonify([{'start': b.start_date.isoformat(), 'end': b.end_date.isoformat()} for b in bookings])
+@app.route('/api/camera-availability/<int:camera_id>')
+def camera_availability_api(camera_id):
+    """Public: only reveals whether a camera is free for a given [start,end) — not the schedule."""
+    start = parse_dt(request.args.get('start'))
+    end   = parse_dt(request.args.get('end'))
+    if not start or not end or end <= start:
+        return jsonify({'available': False, 'error': 'invalid range'}), 400
+    busy = bool(bookings_overlapping(start, end, camera_id)) or \
+           bool(appointments_overlapping(start, end, camera_id))
+    return jsonify({'available': not busy})
 
 
 @app.route('/api/available-cameras')
 def available_cameras_api():
     start_str = request.args.get('start')
     end_str   = request.args.get('end')
-    if not start_str or not end_str:
-        return jsonify({'error': 'Missing start or end date'}), 400
-    try:
-        start = datetime.strptime(start_str, '%Y-%m-%dT%H:%M')
-        end   = datetime.strptime(end_str,   '%Y-%m-%dT%H:%M')
-    except ValueError:
+    start = parse_dt(start_str)
+    end   = parse_dt(end_str)
+    if not start or not end:
         return jsonify({'error': 'Invalid date format'}), 400
     if end <= start:
         return jsonify({'error': 'End date must be after start date'}), 400
@@ -400,33 +403,36 @@ def available_cameras_api():
 
 @app.route('/rent', methods=['GET', 'POST'])
 def rent():
-    message = None
+    message = error = None
     if request.method == 'POST':
-        camera_id      = request.form.get('camera_id')
-        customer_name  = request.form.get('customer_name')
-        phone          = request.form.get('phone')
-        notes          = request.form.get('notes')
-        start_date_str = request.form.get('start_date')
-        end_date_str   = request.form.get('end_date')
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%dT%H:%M')
-        end_date   = datetime.strptime(end_date_str,   '%Y-%m-%dT%H:%M')
-        camera = db.session.get(Camera,camera_id)
-        total_price = compute_rental_total(camera, start_date, end_date)
-        db.session.add(RentalBooking(
-            camera_id=camera_id,
-            customer_name=customer_name,
-            phone=phone,
-            notes=notes,
-            start_date=start_date,
-            end_date=end_date,
-            total_price=total_price,
-        ))
-        db.session.commit()
-        message = f'Thành công! Bạn đã đặt thuê {camera.name}. Tổng tiền dự kiến: {total_price:,.0f}đ'
-    rent_cameras = Camera.query.filter_by(type='Rent').all()
+        camera = db.session.get(Camera, request.form.get('camera_id'))
+        start_date = parse_dt(request.form.get('start_date'))
+        end_date   = parse_dt(request.form.get('end_date'))
+        if not camera or camera.type != 'Rent':
+            error = 'Vui lòng chọn một máy hợp lệ để thuê.'
+        elif not start_date or not end_date or end_date <= start_date:
+            error = 'Thời gian thuê không hợp lệ — giờ trả phải sau giờ nhận.'
+        elif bookings_overlapping(start_date, end_date, camera.id) or appointments_overlapping(start_date, end_date, camera.id):
+            error = f'Máy “{camera.name}” đã có người đặt trong khung giờ bạn chọn. Vui lòng chọn thời gian khác hoặc máy khác.'
+        else:
+            total_price = compute_rental_total(camera, start_date, end_date)
+            b = RentalBooking(
+                camera_id=camera.id, customer_name=(request.form.get('customer_name') or '').strip(),
+                phone=(request.form.get('phone') or '').strip(), notes=(request.form.get('notes') or '').strip(),
+                start_date=start_date, end_date=end_date, total_price=total_price,
+            )
+            db.session.add(b)
+            db.session.commit()
+            race_err = confirm_rental_or_rollback(b)
+            if race_err:
+                error = race_err
+            else:
+                message = f'Thành công! Bạn đã đặt thuê {camera.name}. Tổng tiền dự kiến: {total_price:,.0f}đ'.replace(',', '.')
+    rent_cameras = rent_cameras_ordered()
     camera_slug = request.args.get('camera', '')
     selected_camera = Camera.query.filter_by(slug=camera_slug).first() if camera_slug else None
-    return render_template('rent.html', cameras=rent_cameras, message=message, selected_camera=selected_camera)
+    return render_template('rent.html', cameras=rent_cameras, message=message,
+                           error=error, selected_camera=selected_camera)
 
 
 # ── Admin helpers ─────────────────────────────────────────────────────────────
@@ -437,6 +443,8 @@ ADMIN_COLORS = [
     '#f97316', '#06b6d4', '#ec4899', '#84cc16', '#6366f1',
     '#14b8a6', '#e11d48', '#0ea5e9', '#a855f7', '#22c55e',
 ]
+
+APPT_COLOR = '#0e7490'   # buy-appointments: a single high-contrast teal (vs per-camera rental colors)
 
 
 def color_map_for(cameras):
@@ -509,6 +517,26 @@ def serialize_booking(b, color=None):
     }
 
 
+def serialize_appt(a):
+    cam = a.camera
+    end = a.end_time or (a.start_time + timedelta(minutes=45))
+    return {
+        'id':        a.id,
+        'customer':  a.customer_name or '',
+        'phone':     a.phone or '',
+        'camera_id': a.camera_id,
+        'camera':    cam.name if cam else '',
+        'interest':  a.interest or '',
+        'notes':     a.notes or '',
+        'status':    a.status or 'booked',
+        'start':     a.start_time.isoformat(),
+        'end':       end.isoformat(),
+        'date':      a.start_time.strftime('%Y-%m-%d'),
+        'time':      a.start_time.strftime('%H:%M'),
+        'kind':      'appt',
+    }
+
+
 def bookings_overlapping(start, end, camera_id, exclude_id=None):
     """Other bookings for the same camera that overlap [start, end)."""
     q = RentalBooking.query.filter(
@@ -521,6 +549,36 @@ def bookings_overlapping(start, end, camera_id, exclude_id=None):
     return q.all()
 
 
+def appointments_overlapping(start, end, camera_id, exclude_id=None):
+    """Active appointments that reserve the SAME camera and overlap [start, end)."""
+    if not camera_id:
+        return []
+    q = Appointment.query.filter(
+        Appointment.camera_id == camera_id,
+        Appointment.status != 'cancelled',
+        Appointment.start_time < end,
+        Appointment.end_time > start,
+    )
+    if exclude_id:
+        q = q.filter(Appointment.id != exclude_id)
+    return q.all()
+
+
+def confirm_rental_or_rollback(b):
+    """Race-safe finalize: after committing rental b, re-verify no *earlier* rental or any
+    appointment reservation grabbed the same slot concurrently. Deterministic tiebreak — the
+    smaller-id rental wins, and any unit-reserving appointment beats a rental. Returns an error
+    string (and rolls b back) if b loses, else None."""
+    earlier = [o for o in bookings_overlapping(b.start_date, b.end_date, b.camera_id, exclude_id=b.id) if o.id < b.id]
+    appt_clash = appointments_overlapping(b.start_date, b.end_date, b.camera_id)
+    if earlier or appt_clash:
+        name = b.camera.name if b.camera else ''
+        db.session.delete(b)
+        db.session.commit()
+        return f'Máy “{name}” vừa có người khác đặt trùng khung giờ. Vui lòng chọn thời gian khác.'
+    return None
+
+
 # ── Admin custom views (live inside the Flask-Admin panel) ─────────────────────
 
 class BookingGridView(BaseView):
@@ -530,7 +588,11 @@ class BookingGridView(BaseView):
     def index(self):
         cameras   = rent_cameras_ordered()
         color_map = color_map_for(cameras)
-        return self.render('admin/booking_grid.html', cameras=cameras, color_map=color_map)
+        # All active cameras selectable when an appointment reserves a specific unit.
+        appt_cameras = (Camera.query.filter(Camera.is_sold.isnot(True))
+                        .order_by(Camera.type, Camera.brand, Camera.name).all())
+        return self.render('admin/booking_grid.html', cameras=cameras,
+                           color_map=color_map, appt_cameras=appt_cameras)
 
     @expose('/data')
     def data(self):
@@ -546,10 +608,16 @@ class BookingGridView(BaseView):
         bookings = (RentalBooking.query
                     .filter(RentalBooking.start_date < end, RentalBooking.end_date > start)
                     .all())
+        appts = (Appointment.query
+                 .filter(Appointment.status != 'cancelled',
+                         Appointment.start_time >= start, Appointment.start_time < end)
+                 .order_by(Appointment.start_time)
+                 .all())
         return jsonify({
             'cameras':  [{'id': c.id, 'name': c.name, 'brand': c.brand,
                           'color': color_map.get(c.id, '#6b7280')} for c in cameras],
             'bookings': [serialize_booking(b, color_map.get(b.camera_id)) for b in bookings],
+            'appointments': [serialize_appt(a) for a in appts],
         })
 
     @expose('/save', methods=['POST'])
@@ -564,6 +632,19 @@ class BookingGridView(BaseView):
             return jsonify({'ok': False, 'error': 'Ngày nhận / trả không hợp lệ'}), 400
 
         bid = d.get('id')
+        # Block double-booking the same camera for an overlapping time (exclude self on edit).
+        overlaps = bookings_overlapping(start, end, cam.id, exclude_id=int(bid) if bid else None)
+        if overlaps:
+            names = ', '.join(o.customer_name or '?' for o in overlaps)
+            return jsonify({'ok': False,
+                            'error': f'Máy “{cam.name}” đã được đặt trùng khung giờ này (khách: {names}). Chọn thời gian khác.'}), 409
+        # Block if a buy-appointment has reserved this exact unit for the same window.
+        appt_clash = appointments_overlapping(start, end, cam.id)
+        if appt_clash:
+            who = ', '.join(a.customer_name or '?' for a in appt_clash)
+            return jsonify({'ok': False,
+                            'error': f'Máy “{cam.name}” đang được giữ cho lịch hẹn mua (khách: {who}). Chọn thời gian khác.'}), 409
+
         if bid:
             b = db.session.get(RentalBooking,bid)
             if not b:
@@ -581,13 +662,12 @@ class BookingGridView(BaseView):
         b.total_price   = compute_rental_total(cam, start, end)
         db.session.commit()
 
-        overlaps = bookings_overlapping(start, end, cam.id, exclude_id=b.id)
-        warning  = None
-        if overlaps:
-            names = ', '.join(o.customer_name or '?' for o in overlaps)
-            warning = f'Trùng lịch với: {names}'
+        race_err = confirm_rental_or_rollback(b)
+        if race_err:
+            return jsonify({'ok': False, 'error': race_err}), 409
+
         cmap = color_map_for(rent_cameras_ordered())
-        return jsonify({'ok': True, 'booking': serialize_booking(b, cmap.get(cam.id)), 'warning': warning})
+        return jsonify({'ok': True, 'booking': serialize_booking(b, cmap.get(cam.id))})
 
     @expose('/delete', methods=['POST'])
     def delete(self):
@@ -596,6 +676,98 @@ class BookingGridView(BaseView):
         if not b:
             return jsonify({'ok': False, 'error': 'Không tìm thấy đơn'}), 404
         db.session.delete(b)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    # ── Combined calendar feed: rentals + buy-appointments ───────────────────
+    @expose('/events')
+    def events(self):
+        show = request.args.get('show', 'both')
+        cameras   = rent_cameras_ordered()
+        color_map = color_map_for(cameras)
+        start = parse_dt((request.args.get('start') or '')[:19])
+        end   = parse_dt((request.args.get('end') or '')[:19])
+        events = []
+        if show in ('both', 'rent'):
+            q = RentalBooking.query
+            if start: q = q.filter(RentalBooking.end_date >= start)
+            if end:   q = q.filter(RentalBooking.start_date <= end)
+            for b in q.all():
+                color = color_map.get(b.camera_id, '#6b7280')
+                cam = b.camera
+                events.append({
+                    'id': f'r{b.id}',
+                    'title': f'{cam.name if cam else "Máy?"} · {b.customer_name}',
+                    'start': b.start_date.isoformat(), 'end': b.end_date.isoformat(),
+                    'backgroundColor': color, 'borderColor': color,
+                    'extendedProps': serialize_booking(b, color) | {'kind': 'rent'},
+                })
+        if show in ('both', 'appt'):
+            qa = Appointment.query.filter(Appointment.status != 'cancelled')
+            if start: qa = qa.filter(Appointment.start_time >= start - timedelta(days=1))
+            if end:   qa = qa.filter(Appointment.start_time <= end)
+            for a in qa.all():
+                title = '🛒 ' + (a.customer_name or 'Khách') + (f' · {a.interest}' if a.interest else '')
+                events.append({
+                    'id': f'a{a.id}', 'title': title,
+                    'start': a.start_time.isoformat(),
+                    'end': (a.end_time or (a.start_time + timedelta(minutes=45))).isoformat(),
+                    'backgroundColor': APPT_COLOR, 'borderColor': APPT_COLOR,
+                    'extendedProps': serialize_appt(a),
+                })
+        return jsonify(events)
+
+    # ── Buy-appointment CRUD ─────────────────────────────────────────────────
+    @expose('/appt/save', methods=['POST'])
+    def appt_save(self):
+        d = request.get_json(silent=True) or {}
+        start = parse_dt(d.get('start_time'))
+        if not start:
+            return jsonify({'ok': False, 'error': 'Thời gian hẹn không hợp lệ'}), 400
+        aid = d.get('id')
+        end = parse_dt(d.get('end_time'))
+        end = end if (end and end > start) else (start + timedelta(minutes=45))
+
+        # Optional: reserve a specific unit. If set, block if that unit is rented or
+        # already reserved by another appointment for an overlapping window.
+        cam_id = d.get('camera_id') or None
+        status = d.get('status') if d.get('status') in ('booked', 'done', 'cancelled') else 'booked'
+        if cam_id and status != 'cancelled':
+            cam = db.session.get(Camera, cam_id)
+            if not cam:
+                return jsonify({'ok': False, 'error': 'Không tìm thấy máy'}), 400
+            if bookings_overlapping(start, end, cam.id):
+                return jsonify({'ok': False, 'error': f'Máy “{cam.name}” đang có đơn thuê trùng khung giờ này.'}), 409
+            appt_clash = appointments_overlapping(start, end, cam.id, exclude_id=int(aid) if aid else None)
+            if appt_clash:
+                who = ', '.join(x.customer_name or '?' for x in appt_clash)
+                return jsonify({'ok': False, 'error': f'Máy “{cam.name}” đã được giữ cho lịch hẹn khác (khách: {who}).'}), 409
+
+        if aid:
+            a = db.session.get(Appointment, aid)
+            if not a:
+                return jsonify({'ok': False, 'error': 'Không tìm thấy lịch hẹn'}), 404
+        else:
+            a = Appointment()
+            db.session.add(a)
+        a.customer_name = (d.get('customer_name') or '').strip()
+        a.phone         = (d.get('phone') or '').strip()
+        a.interest      = (d.get('interest') or '').strip()
+        a.notes         = (d.get('notes') or '').strip()
+        a.start_time    = start
+        a.end_time      = end
+        a.camera_id     = int(cam_id) if cam_id else None
+        a.status        = status
+        db.session.commit()
+        return jsonify({'ok': True, 'appt': serialize_appt(a)})
+
+    @expose('/appt/delete', methods=['POST'])
+    def appt_delete(self):
+        d = request.get_json(silent=True) or {}
+        a = db.session.get(Appointment, d.get('id'))
+        if not a:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy lịch hẹn'}), 404
+        db.session.delete(a)
         db.session.commit()
         return jsonify({'ok': True})
 

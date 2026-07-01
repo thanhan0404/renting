@@ -33,6 +33,13 @@
     </div>
     {% endif %}
 
+    {% if error %}
+    <div class="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 px-5 py-4 rounded-2xl mb-8">
+        <span class="text-xl shrink-0">⚠️</span>
+        <p class="text-sm font-semibold">{{ error }}</p>
+    </div>
+    {% endif %}
+
     {% if not message %}
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
 
@@ -58,7 +65,7 @@
                                     data-price="{{ cam.price }}"
                                     data-name="{{ cam.name }}"
                                     {% if selected_camera and cam.id == selected_camera.id %}selected{% endif %}>
-                                {{ cam.name }} — {{ cam.price | vnd }}K/ngày
+                                {{ cam.name }} — {{ cam.price | vnd }}đ/ngày
                             </option>
                             {% endfor %}
                         </select>
@@ -106,6 +113,7 @@
 
                 <!-- Date error -->
                 <p id="dateError" class="text-red-600 text-xs font-semibold hidden">⚠ Thời gian trả phải sau thời gian nhận.</p>
+                <p id="availWarn" class="text-red-600 text-xs font-semibold hidden">⚠ Máy này đã có người đặt trong khung giờ bạn chọn. Vui lòng đổi thời gian hoặc chọn máy khác.</p>
 
                 <!-- Notes -->
                 <div>
@@ -146,10 +154,10 @@
                         <span class="brand-badge bg-red-100 text-red-700">{{ selected_camera.brand }}</span>
                     </div>
                     <div class="text-xs text-gray-500 space-y-1">
-                        <div class="flex justify-between"><span>Ngày 1:</span> <span class="font-bold text-red-700">{{ selected_camera.price | vnd }}K</span></div>
-                        <div class="flex justify-between"><span>Ngày 2:</span> <span class="font-bold">{{ selected_camera.price_d2 | vnd }}K</span></div>
-                        <div class="flex justify-between"><span>Ngày 3:</span> <span class="font-bold">{{ selected_camera.price_d3 | vnd }}K</span></div>
-                        <div class="flex justify-between"><span>Ngày 4+:</span> <span class="font-bold">+{{ selected_camera.price_d4 | vnd }}K/ngày</span></div>
+                        <div class="flex justify-between"><span>Ngày 1:</span> <span class="font-bold text-red-700">{{ selected_camera.price | vnd }}đ</span></div>
+                        <div class="flex justify-between"><span>Ngày 2:</span> <span class="font-bold">{{ selected_camera.price_d2 | vnd }}đ</span></div>
+                        <div class="flex justify-between"><span>Ngày 3:</span> <span class="font-bold">{{ selected_camera.price_d3 | vnd }}đ</span></div>
+                        <div class="flex justify-between"><span>Ngày 4+:</span> <span class="font-bold">+{{ selected_camera.price_d4 | vnd }}đ/ngày</span></div>
                     </div>
                 </div>
                 {% endif %}
@@ -207,8 +215,8 @@ const brandBg = {
     'DJI': 'bg-gray-50', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'
 };
 
-function fmtK(v) {
-    return v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v;
+function fmtVnd(v) {
+    return Number(v || 0).toLocaleString('vi-VN');
 }
 
 function calcTieredTotal(cam, days) {
@@ -230,6 +238,12 @@ function updatePrice() {
     const priceDiv = document.getElementById('priceContent');
     const preview  = document.getElementById('cameraPreview');
 
+    // reset availability state each recompute
+    rentAvailable = true;
+    const submitBtn = document.getElementById('submitBtn');
+    document.getElementById('availWarn').classList.add('hidden');
+    submitBtn.disabled = false; submitBtn.classList.remove('opacity-50','cursor-not-allowed');
+
     // Update camera preview panel
     if (camId && cameraPrices[camId]) {
         const cam = cameraPrices[camId];
@@ -239,10 +253,10 @@ function updatePrice() {
             <div class="p-4">
                 <h3 class="font-black text-gray-900 text-sm mb-1">${cam.name}</h3>
                 <div class="text-xs text-gray-500 space-y-1 mt-2">
-                    <div class="flex justify-between"><span>Ngày 1:</span> <span class="font-bold text-red-700">${fmtK(cam.d1)}đ</span></div>
-                    <div class="flex justify-between"><span>Ngày 2:</span> <span class="font-bold">${fmtK(cam.d2)}đ</span></div>
-                    <div class="flex justify-between"><span>Ngày 3:</span> <span class="font-bold">${fmtK(cam.d3)}đ</span></div>
-                    <div class="flex justify-between"><span>Ngày 4+:</span> <span class="font-bold">+${fmtK(cam.d4)}đ/ngày</span></div>
+                    <div class="flex justify-between"><span>Ngày 1:</span> <span class="font-bold text-red-700">${fmtVnd(cam.d1)}đ</span></div>
+                    <div class="flex justify-between"><span>Ngày 2:</span> <span class="font-bold">${fmtVnd(cam.d2)}đ</span></div>
+                    <div class="flex justify-between"><span>Ngày 3:</span> <span class="font-bold">${fmtVnd(cam.d3)}đ</span></div>
+                    <div class="flex justify-between"><span>Ngày 4+:</span> <span class="font-bold">+${fmtVnd(cam.d4)}đ/ngày</span></div>
                 </div>
             </div>`;
         preview.style.display = 'block';
@@ -291,6 +305,27 @@ function updatePrice() {
             <span class="font-black text-red-700 text-lg">${total.toLocaleString('vi-VN')}đ</span>
         </div>
         <p class="text-gray-400 text-[0.65rem] mt-2">* Chưa bao gồm phí ship. Giá chính thức xác nhận qua điện thoại.</p>`;
+
+    checkAvailability(camId, start, end);
+}
+
+// Client-side availability pre-check (server also enforces on submit).
+let rentAvailable = true;
+async function checkAvailability(camId, startStr, endStr){
+    const warn = document.getElementById('availWarn');
+    const btn  = document.getElementById('submitBtn');
+    try {
+        const res  = await fetch(`/api/camera-availability/${camId}?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`);
+        const data = await res.json();
+        const clash = !(data && data.available);
+        rentAvailable = !clash;
+        warn.classList.toggle('hidden', !clash);
+        btn.disabled = clash;
+        btn.classList.toggle('opacity-50', clash);
+        btn.classList.toggle('cursor-not-allowed', clash);
+    } catch (_) {
+        rentAvailable = true; warn.classList.add('hidden'); btn.disabled = false;
+    }
 }
 
 // Form validation before submit
@@ -300,6 +335,11 @@ document.getElementById('rentForm').addEventListener('submit', function(e) {
     if (start && end && new Date(end) <= new Date(start)) {
         e.preventDefault();
         document.getElementById('dateError').classList.remove('hidden');
+        return;
+    }
+    if (!rentAvailable) {
+        e.preventDefault();
+        document.getElementById('availWarn').classList.remove('hidden');
     }
 });
 
