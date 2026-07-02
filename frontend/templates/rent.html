@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}Đặt Lịch Thuê Máy Ảnh – tintus.digicam{% endblock %}
+
+{% block content %}
+
+<div class="bg-gray-50 border-b border-gray-100 py-3">
+    <div class="max-w-7xl mx-auto px-6 flex items-center gap-2 text-sm text-gray-500">
+        <a href="/" class="hover:text-red-700 transition-colors">Trang chủ</a>
+        <span>/</span>
+        {% if selected_camera %}
+        <a href="/product/{{ selected_camera.slug }}" class="hover:text-red-700 transition-colors">{{ selected_camera.name }}</a>
+        <span>/</span>
+        {% endif %}
+        <span class="text-gray-800 font-semibold">Đặt lịch thuê</span>
+    </div>
+</div>
+
+<div class="max-w-5xl mx-auto px-6 py-12">
+
+    <!-- Success message -->
+    {% if message %}
+    <div class="flex items-start gap-4 bg-green-50 border border-green-200 text-green-800 px-6 py-5 rounded-2xl mb-10">
+        <span class="text-2xl shrink-0">✅</span>
+        <div>
+            <p class="font-black text-base mb-1">Đặt lịch thành công!</p>
+            <p class="text-sm text-green-700">{{ message }}</p>
+            <div class="flex gap-3 mt-4">
+                <a href="/" class="inline-flex items-center gap-1.5 text-green-700 border border-green-300 hover:bg-green-100 font-bold px-4 py-2 rounded-xl text-sm transition-colors">← Về trang chủ</a>
+                <a href="/store" class="inline-flex items-center gap-1.5 bg-green-700 text-white hover:bg-green-800 font-bold px-4 py-2 rounded-xl text-sm transition-colors">Xem thêm máy</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 px-5 py-4 rounded-2xl mb-8">
+        <span class="text-xl shrink-0">⚠️</span>
+        <p class="text-sm font-semibold">{{ error }}</p>
+    </div>
+    {% endif %}
+
+    {% if not message %}
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+
+        <!-- ── LEFT: Booking Form ── -->
+        <div class="lg:col-span-3">
+            <h1 class="text-2xl font-black text-gray-900 mb-1 uppercase">Đặt Lịch Thuê Máy Ảnh</h1>
+            <p class="text-gray-500 text-sm mb-8">Điền thông tin bên dưới — chúng tôi sẽ liên hệ xác nhận trong vòng 30 phút.</p>
+
+            <form method="POST" action="/rent" id="rentForm" class="space-y-5">
+
+                <!-- Camera selector -->
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
+                        Máy ảnh muốn thuê <span class="text-red-600">*</span>
+                    </label>
+                    <div class="relative">
+                        <select name="camera_id" id="cameraSelect" required
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors appearance-none pr-10 font-semibold"
+                            onchange="updatePrice()">
+                            <option value="">-- Chọn máy ảnh --</option>
+                            {% for cam in cameras %}
+                            <option value="{{ cam.id }}"
+                                    data-price="{{ cam.price }}"
+                                    data-name="{{ cam.name }}"
+                                    {% if selected_camera and cam.id == selected_camera.id %}selected{% endif %}>
+                                {{ cam.name }} — {{ cam.price | vnd }}đ/ngày
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <svg class="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    </div>
+                </div>
+
+                <!-- Name & Phone -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
+                            Họ và tên <span class="text-red-600">*</span>
+                        </label>
+                        <input type="text" name="customer_name" required placeholder="Nguyễn Văn A"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
+                            Số điện thoại <span class="text-red-600">*</span>
+                        </label>
+                        <input type="tel" name="phone" required placeholder="09xxxxxxxx" pattern="[0-9]{10,11}"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
+                    </div>
+                </div>
+
+                <!-- Dates -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
+                            Thời gian nhận máy <span class="text-red-600">*</span>
+                        </label>
+                        <input type="datetime-local" name="start_date" id="startDate" required
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors"
+                            onchange="updatePrice()">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
+                            Thời gian trả máy <span class="text-red-600">*</span>
+                        </label>
+                        <input type="datetime-local" name="end_date" id="endDate" required
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors"
+                            onchange="updatePrice()">
+                    </div>
+                </div>
+
+                <!-- Date error -->
+                <p id="dateError" class="text-red-600 text-xs font-semibold hidden">⚠ Thời gian trả phải sau thời gian nhận.</p>
+                <p id="availWarn" class="text-red-600 text-xs font-semibold hidden">⚠ Máy này đã có người đặt trong khung giờ bạn chọn. Vui lòng đổi thời gian hoặc chọn máy khác.</p>
+
+                <!-- Notes -->
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
+                        Ghi chú (tuỳ chọn)
+                    </label>
+                    <textarea name="notes" rows="3" placeholder="Yêu cầu thêm về phụ kiện, địa chỉ ship máy, giờ giấc nhận trả..."
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm resize-none transition-colors"></textarea>
+                </div>
+
+                <!-- Deposit info -->
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                    <p class="font-bold mb-1">💡 Đặt lịch trước cần cọc 100.000đ</p>
+                    <p class="text-amber-700 text-xs leading-relaxed">Sau khi gửi form, chúng tôi sẽ liên hệ xác nhận và hướng dẫn đặt cọc. Phần còn lại thanh toán khi nhận máy.</p>
+                </div>
+
+                <button type="submit" id="submitBtn"
+                    class="w-full bg-red-700 hover:bg-red-800 text-white font-black py-4 rounded-2xl uppercase tracking-wider transition-colors text-sm">
+                    📅 Xác Nhận Đặt Lịch Thuê
+                </button>
+            </form>
+        </div>
+
+        <!-- ── RIGHT: Summary Sidebar ── -->
+        <div class="lg:col-span-2 space-y-5">
+
+            <!-- Camera preview -->
+            <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm" id="cameraPreview"
+                 style="{{ 'display:block' if selected_camera else 'display:none' }}">
+                {% if selected_camera %}
+                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-50', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+                <div class="{{ brand_bg.get(selected_camera.brand, 'bg-gray-50') }} h-40 flex items-center justify-center">
+                    <span class="text-7xl">📷</span>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-black text-gray-900 text-sm mb-1" id="previewName">{{ selected_camera.name }}</h3>
+                    <div class="flex gap-2 mb-3">
+                        <span class="brand-badge bg-red-100 text-red-700">{{ selected_camera.brand }}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 space-y-1">
+                        <div class="flex justify-between"><span>Ngày 1:</span> <span class="font-bold text-red-700">{{ selected_camera.price | vnd }}đ</span></div>
+                        <div class="flex justify-between"><span>Ngày 2:</span> <span class="font-bold">{{ selected_camera.price_d2 | vnd }}đ</span></div>
+                        <div class="flex justify-between"><span>Ngày 3:</span> <span class="font-bold">{{ selected_camera.price_d3 | vnd }}đ</span></div>
+                        <div class="flex justify-between"><span>Ngày 4+:</span> <span class="font-bold">+{{ selected_camera.price_d4 | vnd }}đ/ngày</span></div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Dynamic price estimate -->
+            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm" id="priceBox">
+                <h3 class="font-black text-gray-900 text-sm uppercase tracking-wide mb-4">Dự tính chi phí</h3>
+                <div id="priceContent">
+                    <p class="text-gray-400 text-sm text-center py-4">Chọn máy và ngày thuê để xem dự tính giá.</p>
+                </div>
+            </div>
+
+            <!-- What's included -->
+            <div class="bg-gray-50 rounded-2xl p-5">
+                <h3 class="font-black text-gray-900 text-sm uppercase tracking-wide mb-3">Bao gồm khi thuê</h3>
+                <ul class="space-y-2 text-xs text-gray-600">
+                    {% for item in ['2 viên pin + bộ sạc', 'Thẻ nhớ + dây đeo + cáp', 'Túi / Balo máy ảnh', 'Clip hướng dẫn sử dụng', 'Set màu / Film simulation', 'Hỗ trợ kỹ thuật 24/7', 'Ship tận nơi (nội thành)'] %}
+                    <li class="flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        {{ item }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <!-- Contact -->
+            <div class="bg-red-700 rounded-2xl p-5 text-white text-center">
+                <p class="text-red-200 text-xs mb-1">Cần tư vấn thêm?</p>
+                <a href="tel:0344226058" class="text-xl font-black hover:text-red-200 transition-colors block">0344.226.058</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Pricing data from DB — day-1 price only for simple estimate
+// (tiered calculation would need all 4 price points; this is a quick estimate)
+const cameraPrices = {
+    {% for cam in cameras %}
+    "{{ cam.id }}": {
+        name: {{ cam.name | tojson }},
+        d1: {{ cam.price }},
+        d2: {{ cam.price_d2 }},
+        d3: {{ cam.price_d3 }},
+        d4: {{ cam.price_d4 }},
+        brand: {{ cam.brand | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+const brandBg = {
+    'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50',
+    'DJI': 'bg-gray-50', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'
+};
+
+function fmtVnd(v) {
+    return Number(v || 0).toLocaleString('vi-VN');
+}
+
+function calcTieredTotal(cam, days) {
+    let total = 0;
+    for (let d = 1; d <= days; d++) {
+        if (d === 1) total += cam.d1;
+        else if (d === 2) total += cam.d2;
+        else if (d === 3) total += cam.d3;
+        else total += cam.d4;
+    }
+    return total;
+}
+
+function updatePrice() {
+    const camId    = document.getElementById('cameraSelect').value;
+    const start    = document.getElementById('startDate').value;
+    const end      = document.getElementById('endDate').value;
+    const errEl    = document.getElementById('dateError');
+    const priceDiv = document.getElementById('priceContent');
+    const preview  = document.getElementById('cameraPreview');
+
+    // reset availability state each recompute
+    rentAvailable = true;
+    const submitBtn = document.getElementById('submitBtn');
+    document.getElementById('availWarn').classList.add('hidden');
+    submitBtn.disabled = false; submitBtn.classList.remove('opacity-50','cursor-not-allowed');
+
+    // Update camera preview panel
+    if (camId && cameraPrices[camId]) {
+        const cam = cameraPrices[camId];
+        const bg  = brandBg[cam.brand] || 'bg-gray-50';
+        preview.innerHTML = `
+            <div class="${bg} h-40 flex items-center justify-center"><span class="text-7xl">📷</span></div>
+            <div class="p-4">
+                <h3 class="font-black text-gray-900 text-sm mb-1">${cam.name}</h3>
+                <div class="text-xs text-gray-500 space-y-1 mt-2">
+                    <div class="flex justify-between"><span>Ngày 1:</span> <span class="font-bold text-red-700">${fmtVnd(cam.d1)}đ</span></div>
+                    <div class="flex justify-between"><span>Ngày 2:</span> <span class="font-bold">${fmtVnd(cam.d2)}đ</span></div>
+                    <div class="flex justify-between"><span>Ngày 3:</span> <span class="font-bold">${fmtVnd(cam.d3)}đ</span></div>
+                    <div class="flex justify-between"><span>Ngày 4+:</span> <span class="font-bold">+${fmtVnd(cam.d4)}đ/ngày</span></div>
+                </div>
+            </div>`;
+        preview.style.display = 'block';
+    } else {
+        preview.style.display = 'none';
+    }
+
+    // Validate dates
+    if (start && end) {
+        const s = new Date(start), e = new Date(end);
+        if (e <= s) {
+            errEl.classList.remove('hidden');
+            priceDiv.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Ngày không hợp lệ.</p>';
+            return;
+        }
+        errEl.classList.add('hidden');
+    }
+
+    // Calculate price
+    if (!camId || !start || !end) {
+        priceDiv.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Chọn máy và ngày thuê để xem dự tính giá.</p>';
+        return;
+    }
+
+    const cam  = cameraPrices[camId];
+    const ms   = new Date(end) - new Date(start);
+    const days = Math.max(1, Math.ceil(ms / 86_400_000));
+    const total = calcTieredTotal(cam, days);
+
+    // Build day-by-day breakdown
+    let rows = '';
+    for (let d = 1; d <= Math.min(days, 4); d++) {
+        const label = d < 4 ? `Ngày ${d}` : `Ngày 4–${days}`;
+        const price = d === 1 ? cam.d1 : d === 2 ? cam.d2 : d === 3 ? cam.d3 : cam.d4;
+        const count = d < 4 ? 1 : (days - 3);
+        rows += `<div class="flex justify-between text-xs py-1 border-b border-gray-100">
+            <span class="text-gray-500">${label}${count > 1 ? ' × ' + count : ''}</span>
+            <span class="font-semibold">${(price * count).toLocaleString('vi-VN')}đ</span>
+        </div>`;
+    }
+
+    priceDiv.innerHTML = `
+        <div class="space-y-0 mb-3">${rows}</div>
+        <div class="flex justify-between items-center pt-2">
+            <span class="font-bold text-gray-700 text-sm">Tổng dự tính (${days} ngày)</span>
+            <span class="font-black text-red-700 text-lg">${total.toLocaleString('vi-VN')}đ</span>
+        </div>
+        <p class="text-gray-400 text-[0.65rem] mt-2">* Chưa bao gồm phí ship. Giá chính thức xác nhận qua điện thoại.</p>`;
+
+    checkAvailability(camId, start, end);
+}
+
+// Client-side availability pre-check (server also enforces on submit).
+let rentAvailable = true;
+async function checkAvailability(camId, startStr, endStr){
+    const warn = document.getElementById('availWarn');
+    const btn  = document.getElementById('submitBtn');
+    try {
+        const res  = await fetch(`/api/camera-availability/${camId}?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`);
+        const data = await res.json();
+        const clash = !(data && data.available);
+        rentAvailable = !clash;
+        warn.classList.toggle('hidden', !clash);
+        btn.disabled = clash;
+        btn.classList.toggle('opacity-50', clash);
+        btn.classList.toggle('cursor-not-allowed', clash);
+    } catch (_) {
+        rentAvailable = true; warn.classList.add('hidden'); btn.disabled = false;
+    }
+}
+
+// Form validation before submit
+document.getElementById('rentForm').addEventListener('submit', function(e) {
+    const start = document.getElementById('startDate').value;
+    const end   = document.getElementById('endDate').value;
+    if (start && end && new Date(end) <= new Date(start)) {
+        e.preventDefault();
+        document.getElementById('dateError').classList.remove('hidden');
+        return;
+    }
+    if (!rentAvailable) {
+        e.preventDefault();
+        document.getElementById('availWarn').classList.remove('hidden');
+    }
+});
+
+// Init: set minimum datetime to now
+(function() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    const minVal = now.toISOString().slice(0, 16);
+    document.getElementById('startDate').min = minVal;
+    document.getElementById('endDate').min   = minVal;
+
+    // If a camera is pre-selected, trigger price update for sidebar
+    updatePrice();
+})();
+</script>
+
+{% endblock %}

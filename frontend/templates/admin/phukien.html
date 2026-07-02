@@ -1,0 +1,459 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Phụ kiện</h1>
+    <p class="text-sm text-gray-500">Bán theo số lượng — lens, pin, thẻ nhớ, sạc… Nhập số lượng tồn, khi bán chọn số lượng & giá, hệ thống tự trừ kho.</p>
+  </div>
+</div>
+
+<!-- stat cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Loại phụ kiện</div>
+    <div id="acCount" class="text-lg font-black text-gray-900 mt-0.5">{{ item_count }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-emerald-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng tồn kho</div>
+    <div id="acStock" class="text-lg font-black text-gray-900 mt-0.5">{{ total_stock }} <span class="text-xs font-bold text-gray-400">cái</span></div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Vốn tồn kho</div>
+    <div id="acValue" class="text-lg font-black text-gray-900 mt-0.5">{{ stock_value|money }}đ</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Doanh thu tháng này</div>
+    <div class="text-lg font-black text-gray-900 mt-0.5">{{ month_rev|money }}đ</div>
+  </div>
+</div>
+
+<!-- tabs -->
+<div class="flex items-center gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-max">
+  <button id="tabBtnStock" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">📦 Kho</button>
+  <button id="tabBtnHist" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">🧾 Lịch sử bán</button>
+</div>
+
+<div id="tabStock">
+
+<!-- quick add -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
+    <div class="md:col-span-3">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Tên phụ kiện *</label>
+      <input id="ac_name" type="text" placeholder="VD: Lens Fujifilm 35mm" class="ac-in w-full">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Loại</label>
+      <select id="ac_cat" class="ac-in w-full">
+        {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Giá nhập</label>
+      <input id="ac_cost" type="text" inputmode="numeric" placeholder="0" class="ac-in money-live w-full text-right tabular-nums">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Giá bán</label>
+      <input id="ac_price" type="text" inputmode="numeric" placeholder="0" class="ac-in money-live w-full text-right tabular-nums">
+    </div>
+    <div class="md:col-span-1">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Tồn</label>
+      <input id="ac_stock" type="text" inputmode="numeric" placeholder="0" class="ac-in w-full text-right tabular-nums">
+    </div>
+    <div class="md:col-span-2">
+      <button id="ac_add" class="w-full bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold py-2.5 rounded-xl">+ Thêm</button>
+    </div>
+  </div>
+</div>
+
+<!-- table -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:860px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3" style="min-width:200px">Tên</th>
+          <th class="text-center px-4 py-3" style="min-width:120px">Loại</th>
+          <th class="text-right px-4 py-3" style="min-width:120px">Giá nhập</th>
+          <th class="text-right px-4 py-3" style="min-width:120px">Giá bán</th>
+          <th class="text-right px-4 py-3" style="min-width:90px">Tồn kho</th>
+          <th class="text-left px-4 py-3" style="min-width:160px">Ghi chú</th>
+          <th class="text-center px-4 py-3" style="min-width:150px"></th>
+        </tr>
+      </thead>
+      <tbody id="acBody">
+        {% for a in accessories %}
+        <tr class="ac-row border-t border-gray-100 hover:bg-gray-50/60" data-id="{{ a.id }}" data-name="{{ a.name }}" data-price="{{ a.price }}">
+          <td class="px-4 py-1.5"><input class="ac-cell font-semibold text-gray-900" type="text" data-field="name" value="{{ a.name }}" placeholder="Tên"></td>
+          <td class="px-4 py-1.5 text-center">
+            <select class="ac-cell ac-sel" data-field="category">
+              <option value="" {% if not a.category %}selected{% endif %}>—</option>
+              {% for cat in categories %}<option value="{{ cat }}" {% if a.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+              {% if a.category and a.category not in categories %}<option value="{{ a.category }}" selected>{{ a.category }}</option>{% endif %}
+            </select>
+          </td>
+          <td class="px-4 py-1.5"><input class="ac-cell ac-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="cost" data-raw="{{ a.cost }}"></td>
+          <td class="px-4 py-1.5"><input class="ac-cell ac-money text-right tabular-nums text-gray-900" inputmode="numeric" data-field="price" data-raw="{{ a.price }}"></td>
+          <td class="px-4 py-1.5"><input class="ac-cell ac-stock text-right tabular-nums font-black {% if a.stock <= 0 %}text-brand-700{% else %}text-gray-900{% endif %}" inputmode="numeric" data-field="stock" value="{{ a.stock }}"></td>
+          <td class="px-4 py-1.5"><input class="ac-cell text-gray-700" type="text" data-field="note" value="{{ a.note }}" placeholder="—"></td>
+          <td class="px-4 py-1.5 text-center whitespace-nowrap">
+            <button class="ac-sell bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">🛒 Bán</button>
+            <button class="ac-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 align-middle" title="Xoá">🗑</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not accessories %}<div id="acEmpty" class="px-6 py-10 text-center text-gray-400">Chưa có phụ kiện nào. Thêm ở trên ↑</div>{% endif %}
+</div>
+
+</div><!-- /tabStock -->
+
+<!-- ── History tab ── -->
+<div id="tabHistory" class="hidden">
+  <div class="flex flex-wrap items-center gap-2 mb-3">
+    <div id="acPeriodSeg" class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="day">Hôm nay</button>
+      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="month">Tháng này</button>
+      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="year">Năm nay</button>
+      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="all">Tất cả</button>
+    </div>
+    <span class="text-xs text-gray-400 ml-auto">Bấm vào ô để sửa trực tiếp. SL sẽ tự cập nhật lại tồn kho.</span>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm" style="min-width:1040px">
+        <thead>
+          <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+            <th class="text-left px-4 py-3" style="min-width:140px">Ngày</th>
+            <th class="text-left px-4 py-3" style="min-width:170px">Phụ kiện</th>
+            <th class="text-left px-4 py-3" style="min-width:140px">Khách</th>
+            <th class="text-left px-4 py-3" style="min-width:120px">SĐT</th>
+            <th class="text-center px-4 py-3" style="min-width:70px">SL</th>
+            <th class="text-right px-4 py-3" style="min-width:120px">Giá bán/cái</th>
+            <th class="text-right px-4 py-3" style="min-width:120px">Doanh thu</th>
+            <th class="text-right px-4 py-3" style="min-width:110px">Lãi</th>
+            <th class="text-left px-4 py-3" style="min-width:200px">Ghi chú</th>
+            <th class="text-center px-4 py-3" style="min-width:48px"></th>
+          </tr>
+        </thead>
+        <tbody id="histBody">
+          {% for s in sales %}
+          <tr class="hist-row border-t border-gray-100 hover:bg-gray-50/60" data-id="{{ s.id }}" data-date="{{ s.date_iso }}">
+            <td class="px-4 py-1.5 text-gray-500 whitespace-nowrap">{{ s.date }}</td>
+            <td class="px-4 py-1.5 font-semibold text-gray-900">{{ s.name }}</td>
+            <td class="px-4 py-1.5"><input class="hist-cell text-gray-700" type="text" data-field="customer_name" value="{{ s.customer_name }}" placeholder="—"></td>
+            <td class="px-4 py-1.5"><input class="hist-cell text-gray-700" type="text" data-field="phone" value="{{ s.phone }}" placeholder="—"></td>
+            <td class="px-4 py-1.5"><input class="hist-cell hist-qty text-center tabular-nums" inputmode="numeric" data-field="quantity" value="{{ s.quantity }}"></td>
+            <td class="px-4 py-1.5"><input class="hist-cell hist-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="unit_price" data-raw="{{ s.unit_price }}"></td>
+            <td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 hist-rev">{{ s.revenue|money }}đ</td>
+            <td class="px-4 py-1.5 text-right tabular-nums hist-profit {% if s.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ s.profit|money }}đ</td>
+            <td class="px-4 py-1.5"><input class="hist-cell text-gray-600" type="text" data-field="note" value="{{ s.note }}" placeholder="—"></td>
+            <td class="px-4 py-1.5 text-center"><button class="hist-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">🗑</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div id="histEmpty" class="px-6 py-10 text-center text-gray-400 {% if sales %}hidden{% endif %}">Chưa có giao dịch bán nào.</div>
+    <div id="histNone" class="px-6 py-10 text-center text-gray-400 hidden">Không có giao dịch trong kỳ này.</div>
+  </div>
+</div>
+
+<!-- sell popup -->
+<div id="acSellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Bán phụ kiện</h3>
+      <button id="acSellClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <p class="text-sm text-gray-500">Phụ kiện: <b id="acSellName" class="text-gray-900"></b> · còn <b id="acSellStock" class="text-gray-900"></b> cái</p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số lượng bán</label>
+          <input id="acSellQty" type="number" min="1" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá bán / cái</label>
+          <input id="acSellPrice" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên khách (tuỳ chọn)</label>
+          <input id="acSellCustomer" type="text" placeholder="Tên khách" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số điện thoại</label>
+          <input id="acSellPhone" type="tel" placeholder="09…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú (tuỳ chọn)</label>
+        <input id="acSellNote" type="text" placeholder="VD: khách quen, kèm máy, giảm giá…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <p class="text-sm text-gray-500">Thành tiền: <b id="acSellTotal" class="text-gray-900">0đ</b></p>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="acSellCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="acSellDo" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận bán</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ac-in { border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; background:#fff; }
+  .ac-in:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .ac-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:5px 8px; font-size:13px; outline:none; background:transparent; }
+  .ac-cell:hover { background:#f3f4f6; }
+  .ac-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .ac-sel { font-weight:700; color:#374151; cursor:pointer; }
+  .ac-tab { color:#6b7280; }
+  .ac-tab.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+  .hist-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:4px 8px; font-size:13px; outline:none; background:transparent; }
+  .hist-cell:hover { background:#f3f4f6; }
+  .hist-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .acper-btn { color:#6b7280; transition:background .12s,color .12s; }
+  .acper-btn.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const ADD_URL  = "{{ url_for('phukien.add') }}";
+  const UPD_URL  = "{{ url_for('phukien.update') }}";
+  const SELL_URL = "{{ url_for('phukien.sell') }}";
+  const DEL_URL  = "{{ url_for('phukien.delete') }}";
+  const SALE_UPD_URL = "{{ url_for('phukien.sale_update') }}";
+  const SALE_DEL_URL = "{{ url_for('phukien.sale_delete') }}";
+  const TODAY = "{{ today }}", THIS_MONTH = "{{ this_month }}", THIS_YEAR = "{{ this_year }}";
+  let acPeriod = 'month';
+  const fmt = TINTUS.fmtVND, num = TINTUS.parseMoney, group = TINTUS.group;
+  const $ = id => document.getElementById(id);
+
+  document.querySelectorAll('.ac-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
+
+  const esc = v => { const d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; };
+
+  // ── tabs (Kho / Lịch sử) ──
+  function setTab(which) {
+    const stock = which === 'stock';
+    $('tabStock').classList.toggle('hidden', !stock);
+    $('tabHistory').classList.toggle('hidden', stock);
+    $('tabBtnStock').classList.toggle('active', stock);
+    $('tabBtnHist').classList.toggle('active', !stock);
+  }
+  $('tabBtnStock').addEventListener('click', () => setTab('stock'));
+  $('tabBtnHist').addEventListener('click', () => setTab('history'));
+  setTab('stock');
+
+  function makeSaleRow(s) {
+    const tr = document.createElement('tr');
+    tr.className = 'hist-row border-t border-gray-100 hover:bg-gray-50/60';
+    tr.dataset.id = s.id; tr.dataset.date = s.date_iso || '';
+    const pc = (Number(s.profit) >= 0) ? 'text-emerald-600' : 'text-brand-700';
+    tr.innerHTML =
+      `<td class="px-4 py-1.5 text-gray-500 whitespace-nowrap">${esc(s.date)}</td>` +
+      `<td class="px-4 py-1.5 font-semibold text-gray-900">${esc(s.name)}</td>` +
+      `<td class="px-4 py-1.5"><input class="hist-cell text-gray-700" type="text" data-field="customer_name" value="${esc(s.customer_name)}" placeholder="—"></td>` +
+      `<td class="px-4 py-1.5"><input class="hist-cell text-gray-700" type="text" data-field="phone" value="${esc(s.phone)}" placeholder="—"></td>` +
+      `<td class="px-4 py-1.5"><input class="hist-cell hist-qty text-center tabular-nums" inputmode="numeric" data-field="quantity" value="${s.quantity}"></td>` +
+      `<td class="px-4 py-1.5"><input class="hist-cell hist-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="unit_price" data-raw="${s.unit_price}"></td>` +
+      `<td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 hist-rev">${fmt(s.revenue)}</td>` +
+      `<td class="px-4 py-1.5 text-right tabular-nums hist-profit ${pc}">${fmt(s.profit)}</td>` +
+      `<td class="px-4 py-1.5"><input class="hist-cell text-gray-600" type="text" data-field="note" value="${esc(s.note)}" placeholder="—"></td>` +
+      `<td class="px-4 py-1.5 text-center"><button class="hist-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">🗑</button></td>`;
+    wireSaleRow(tr);
+    return tr;
+  }
+
+  // ── inline-edit + delete a history row ──
+  function applySale(tr, s) {
+    if (!s) return;
+    const rev = tr.querySelector('.hist-rev'), pr = tr.querySelector('.hist-profit');
+    if (rev) rev.textContent = fmt(s.revenue);
+    if (pr) { pr.textContent = fmt(s.profit); pr.classList.toggle('text-emerald-600', Number(s.profit) >= 0); pr.classList.toggle('text-brand-700', Number(s.profit) < 0); }
+    const q = tr.querySelector('[data-field="quantity"]'); if (q) q.value = s.quantity;
+    const up = tr.querySelector('[data-field="unit_price"]'); if (up) { up.dataset.raw = s.unit_price; up.value = fmt(s.unit_price); }
+  }
+  function wireSaleRow(tr) {
+    tr.querySelectorAll('.hist-cell').forEach(inp => {
+      const money = inp.classList.contains('hist-money');
+      if (money) {
+        inp.value = fmt(num(inp.dataset.raw));
+        inp.addEventListener('focus', () => { inp.value = group(inp.dataset.raw); inp.select(); });
+      }
+      inp.dataset.prev = inp.value;
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', async () => {
+        let value = inp.value;
+        if (money) { const raw = num(inp.value); inp.dataset.raw = raw; inp.value = fmt(raw); value = raw; }
+        else if (inp.dataset.field === 'quantity') { value = Math.max(1, num(inp.value) || 1); inp.value = value; }
+        try {
+          const res = await TINTUS.api(SALE_UPD_URL, { id: Number(tr.dataset.id), field: inp.dataset.field, value });
+          applySale(tr, res.sale);
+          if (res.accessory) syncStockRow(res.accessory);
+          inp.dataset.prev = inp.value;
+          TINTUS.toast('Đã lưu', 'ok');
+        } catch (e) {
+          if (money) { inp.value = fmt(num(inp.dataset.raw)); } else { inp.value = inp.dataset.prev; }
+          TINTUS.toast(e.message || 'Lỗi', 'err');
+        }
+      });
+    });
+    const del = tr.querySelector('.hist-del');
+    if (del) del.addEventListener('click', async () => {
+      if (!confirm('Xoá giao dịch này? Số lượng sẽ được trả lại kho.')) return;
+      try {
+        const res = await TINTUS.api(SALE_DEL_URL, { id: Number(tr.dataset.id) });
+        if (res.accessory) syncStockRow(res.accessory);
+        tr.remove(); applyHistPeriod();
+        TINTUS.toast('Đã xoá', 'ok');
+      } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  }
+  // keep the stock table in sync when a sale edit/delete changes an accessory's stock
+  function syncStockRow(acc) {
+    const r = document.querySelector('#acBody .ac-row[data-id="' + acc.id + '"]');
+    if (!r) return;
+    const cell = r.querySelector('[data-field="stock"]');
+    if (cell) { cell.value = acc.stock; cell.classList.toggle('text-brand-700', acc.stock <= 0); cell.classList.toggle('text-gray-900', acc.stock > 0); }
+    recalcCards();
+  }
+  // period filter for the history rows
+  function inAcPeriod(dateIso) {
+    if (acPeriod === 'all') return true;
+    if (!dateIso) return false;
+    if (acPeriod === 'day')  return dateIso === TODAY;
+    if (acPeriod === 'year') return dateIso.slice(0, 4) === THIS_YEAR;
+    return dateIso.slice(0, 7) === THIS_MONTH;
+  }
+  function applyHistPeriod() {
+    let shown = 0, any = false;
+    document.querySelectorAll('#histBody .hist-row').forEach(r => {
+      any = true;
+      const ok = inAcPeriod(r.dataset.date);
+      r.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    const empty = $('histEmpty'), none = $('histNone');
+    if (empty) empty.classList.toggle('hidden', any);
+    if (none)  none.classList.toggle('hidden', !any || shown > 0);
+  }
+  document.querySelectorAll('#acPeriodSeg .acper-btn').forEach(b => b.addEventListener('click', () => {
+    acPeriod = b.dataset.per;
+    document.querySelectorAll('#acPeriodSeg .acper-btn').forEach(x => x.classList.toggle('active', x === b));
+    applyHistPeriod();
+  }));
+  document.querySelectorAll('#acPeriodSeg .acper-btn').forEach(b => b.classList.toggle('active', b.dataset.per === acPeriod));
+  document.querySelectorAll('#histBody .hist-row').forEach(wireSaleRow);
+  applyHistPeriod();
+
+  function recalcCards() {
+    let count = 0, stock = 0, value = 0;
+    document.querySelectorAll('#acBody .ac-row').forEach(r => {
+      count++;
+      const st = num(r.querySelector('[data-field="stock"]').value);
+      const cost = num(r.querySelector('[data-field="cost"]').dataset.raw);
+      stock += st; value += st * cost;
+    });
+    $('acCount').textContent = count;
+    $('acStock').innerHTML = stock + ' <span class="text-xs font-bold text-gray-400">cái</span>';
+    $('acValue').textContent = fmt(value);
+  }
+
+  function wireRow(tr) {
+    tr.querySelectorAll('.ac-cell').forEach(inp => {
+      const money = inp.classList.contains('ac-money');
+      if (money) {
+        inp.value = fmt(num(inp.dataset.raw));
+        inp.addEventListener('focus', () => { inp.value = group(inp.dataset.raw); inp.select(); });
+      }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', async () => {
+        let value = inp.value;
+        if (money) { const raw = num(inp.value); inp.dataset.raw = raw; inp.value = fmt(raw); value = raw; }
+        else if (inp.dataset.field === 'stock') { value = num(inp.value); inp.value = value; }
+        try {
+          const res = await TINTUS.api(UPD_URL, { id: Number(tr.dataset.id), field: inp.dataset.field, value });
+          if (inp.dataset.field === 'price') tr.dataset.price = res.accessory.price;
+          if (inp.dataset.field === 'name')  tr.dataset.name  = res.accessory.name;
+          recalcCards(); TINTUS.toast('Đã lưu', 'ok');
+        } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+      });
+    });
+    tr.querySelector('.ac-sell').addEventListener('click', () => openSell(tr));
+    tr.querySelector('.ac-del').addEventListener('click', async () => {
+      if (!confirm('Xoá phụ kiện này?')) return;
+      try { await TINTUS.api(DEL_URL, { id: Number(tr.dataset.id) }); tr.remove(); recalcCards(); TINTUS.toast('Đã xoá', 'ok'); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  }
+  document.querySelectorAll('#acBody .ac-row').forEach(wireRow);
+
+  // ── add ──
+  $('ac_add').addEventListener('click', async () => {
+    const name = $('ac_name').value.trim();
+    if (!name) { TINTUS.toast('Nhập tên phụ kiện', 'warn'); return; }
+    const payload = { name, category: $('ac_cat').value,
+      cost: num($('ac_cost').value), price: num($('ac_price').value), stock: num($('ac_stock').value) };
+    try { await TINTUS.api(ADD_URL, payload); TINTUS.toast('Đã thêm', 'ok'); location.reload(); }
+    catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+  ['ac_name', 'ac_cost', 'ac_price', 'ac_stock'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('ac_add').click(); }));
+
+  // ── sell popup ──
+  const modal = $('acSellModal');
+  let sellTr = null, sellMax = 0;
+  function recalcTotal() {
+    const qty = parseInt($('acSellQty').value, 10) || 0;
+    $('acSellTotal').textContent = fmt(qty * num($('acSellPrice').value));
+  }
+  function openSell(tr) {
+    sellTr = tr;
+    sellMax = num(tr.querySelector('[data-field="stock"]').value);
+    if (sellMax <= 0) { TINTUS.toast('Hết hàng', 'warn'); return; }
+    $('acSellName').textContent = tr.dataset.name;
+    $('acSellStock').textContent = sellMax;
+    $('acSellQty').value = 1; $('acSellQty').max = sellMax;
+    $('acSellPrice').value = group(tr.dataset.price);
+    $('acSellNote').value = ''; $('acSellCustomer').value = ''; $('acSellPhone').value = '';
+    recalcTotal();
+    modal.style.display = 'flex'; $('acSellQty').focus();
+  }
+  function closeSell() { modal.style.display = 'none'; sellTr = null; }
+  $('acSellClose').addEventListener('click', closeSell);
+  $('acSellCancel').addEventListener('click', closeSell);
+  modal.addEventListener('click', e => { if (e.target === modal) closeSell(); });
+  $('acSellQty').addEventListener('input', recalcTotal);
+  $('acSellPrice').addEventListener('input', recalcTotal);
+  $('acSellDo').addEventListener('click', async () => {
+    if (!sellTr) return;
+    const qty = parseInt($('acSellQty').value, 10) || 0;
+    if (qty < 1) { TINTUS.toast('Số lượng ≥ 1', 'warn'); return; }
+    if (qty > sellMax) { TINTUS.toast('Vượt quá tồn kho', 'warn'); return; }
+    try {
+      const res = await TINTUS.api(SELL_URL, { id: Number(sellTr.dataset.id), quantity: qty,
+        price: num($('acSellPrice').value), note: $('acSellNote').value.trim(),
+        customer_name: $('acSellCustomer').value.trim(), phone: $('acSellPhone').value.trim() });
+      const stockCell = sellTr.querySelector('[data-field="stock"]');
+      stockCell.value = res.accessory.stock;
+      stockCell.classList.toggle('text-brand-700', res.accessory.stock <= 0);
+      stockCell.classList.toggle('text-gray-900', res.accessory.stock > 0);
+      if (res.sale) {
+        const hb = $('histBody');
+        if (hb) hb.insertBefore(makeSaleRow(res.sale), hb.firstChild);
+        const he = $('histEmpty'); if (he) he.classList.add('hidden');
+        applyHistPeriod();
+      }
+      recalcCards(); closeSell();
+      TINTUS.toast('Đã bán ' + res.sold + ' cái (' + fmt(res.revenue) + ')', 'ok');
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+})();
+</script>
+{% endblock %}

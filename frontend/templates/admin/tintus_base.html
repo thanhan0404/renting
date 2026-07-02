@@ -1,0 +1,232 @@
+{% extends 'admin/master.html' %}
+{% import 'admin/layout.html' as layout with context %}
+
+{#
+  Shared shell for tintus.digicam custom admin views.
+  Overrides Flask-Admin's page_body to replace the default Bootstrap navbar with a
+  left-sidebar dashboard layout (inspired by the provided mockups), kept LIGHT-themed.
+  Tailwind preflight is OFF so it never clobbers Flask-Admin's Bootstrap chrome on the
+  built-in model views.
+#}
+
+{% block head %}
+  {{ super() }}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      corePlugins: { preflight: false, visibility: false, container: false },
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: {
+              50:'#fef2f2',100:'#fee2e2',200:'#fecaca',500:'#ef4444',
+              600:'#dc2626',700:'#b91c1c',800:'#991b1b',900:'#7f1d1d'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* ── Dashboard shell ─────────────────────────────────────────────── */
+    #tintus-app { font-family:'Inter',system-ui,sans-serif; color:#1f2937; }
+    #tintus-app *, #tintus-app *::before, #tintus-app *::after { box-sizing:border-box; }
+    #tintus-app h1,#tintus-app h2,#tintus-app h3 { margin:0; }
+    #tintus-app a { text-decoration:none; color:inherit; }
+    #tintus-app table { border-collapse:separate; border-spacing:0; }
+    body { margin:0; background:#f3f4f6; }
+
+    .ta-shell { display:flex; min-height:100vh; }
+
+    /* Sidebar */
+    .ta-sidebar {
+      width:248px; flex-shrink:0; background:#fff; border-right:1px solid #e5e7eb;
+      padding:18px 14px; display:flex; flex-direction:column; gap:4px;
+      position:sticky; top:0; height:100vh; overflow-y:auto;
+    }
+    .ta-brand { display:flex; align-items:center; gap:11px; padding:6px 8px 18px; }
+    .ta-brand-logo { width:38px; height:38px; border-radius:11px; background:#b91c1c; color:#fff;
+                     display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+    .ta-navlabel { font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+                   color:#9ca3af; padding:14px 14px 6px; }
+    .ta-navitem { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:12px;
+                  font-weight:700; font-size:14px; color:#6b7280; transition:all .15s; white-space:nowrap; }
+    .ta-navitem:hover { background:#f9fafb; color:#111827; }
+    .ta-navitem.active { background:#b91c1c; color:#fff; box-shadow:0 6px 16px -6px rgba(185,28,28,.5); }
+    .ta-navitem svg { width:20px; height:20px; flex-shrink:0; }
+    .ta-spacer { flex:1; }
+
+    /* Main column */
+    .ta-main { flex:1; min-width:0; display:flex; flex-direction:column; }
+    .ta-topbar { height:64px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex;
+                 align-items:center; gap:14px; padding:0 24px; position:sticky; top:0; z-index:30; }
+    .ta-search { position:relative; flex:1; max-width:460px; }
+    .ta-search input { width:100%; padding:9px 14px 9px 38px; border:1px solid #e5e7eb; background:#f3f4f6;
+                       border-radius:11px; font-size:13.5px; outline:none; transition:all .15s; }
+    .ta-search input:focus { background:#fff; border-color:#fca5a5; }
+    .ta-search svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:#9ca3af; }
+    .ta-avatar { width:36px; height:36px; border-radius:10px; background:#111827; color:#fff;
+                 display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; }
+    .ta-content { padding:24px; flex:1; }
+
+    @media (max-width:880px){
+      .ta-sidebar { width:66px; padding:16px 8px; }
+      .ta-label, .ta-brand-text, .ta-navlabel { display:none; }
+      .ta-navitem { justify-content:center; padding:11px 0; }
+      .ta-brand { justify-content:center; padding:6px 0 16px; }
+    }
+
+    /* Toast (unchanged API) */
+    #tintus-toast-wrap { position:fixed; top:18px; right:18px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+    .tintus-toast { background:#111827; color:#fff; padding:10px 16px; border-radius:10px; font-size:13px;
+                    font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.25); opacity:0; transform:translateX(20px);
+                    transition:all .25s; max-width:340px; }
+    .tintus-toast.show { opacity:1; transform:translateX(0); }
+    .tintus-toast.ok   { background:#065f46; }
+    .tintus-toast.err  { background:#991b1b; }
+    .tintus-toast.warn { background:#92400e; }
+
+    #tintus-app ::-webkit-scrollbar { height:9px; width:9px; }
+    #tintus-app ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:6px; }
+    #tintus-app ::-webkit-scrollbar-track { background:#f3f4f6; }
+  </style>
+{% endblock %}
+
+{% block page_body %}
+{% set nav = [
+  ('cameras',     'Quản lý máy', 'Kho máy',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10m0-10L4 7"/>'),
+  ('phukien',     'Phụ kiện',    'Hàng khác',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>'),
+  ('bookinggrid', 'Lịch thuê',   'Thuê & hẹn',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>'),
+  ('finance',     'Tài chính',   'Doanh thu',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>'),
+  ('chiphi',      'Chi phí tiệm','Chi phí',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 12h12m0 0l-3-3m3 3l-3 3"/>'),
+  ('sheet',       'Sổ tay',      'Ghi chú',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>')
+] %}
+<div id="tintus-app">
+  <div class="ta-shell">
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="ta-sidebar">
+      <a href="/" class="ta-brand">
+        <span class="ta-brand-logo">📷</span>
+        <span class="ta-brand-text" style="line-height:1.1">
+          <span style="display:block;font-weight:900;font-size:15px;color:#111827">tintus.digicam</span>
+          <span style="display:block;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9ca3af">Admin</span>
+        </span>
+      </a>
+
+      <div class="ta-navlabel">Quản lý</div>
+      {% for ep, label, sub, icon in nav %}
+      {% set active = (admin_view.endpoint == ep) %}
+      <a href="{{ url_for(ep ~ '.index') }}" class="ta-navitem {% if active %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ icon|safe }}</svg>
+        <span class="ta-label">{{ label }}</span>
+      </a>
+      {% endfor %}
+
+      <div class="ta-spacer"></div>
+
+      <a href="/" class="ta-navitem">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span class="ta-label">Về cửa hàng</span>
+      </a>
+      <a href="{{ url_for('admin_logout') }}" class="ta-navitem" style="color:#b91c1c">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        <span class="ta-label">Đăng xuất</span>
+      </a>
+    </aside>
+
+    <!-- ── MAIN ── -->
+    <div class="ta-main">
+      <header class="ta-topbar">
+        <div class="ta-search">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+          <input id="ta-search" type="text" placeholder="Tìm trong trang (tên máy, khách, ghi chú)…" autocomplete="off">
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+          <span class="ta-avatar">TD</span>
+        </div>
+      </header>
+
+      <main class="ta-content">
+        {% block messages %}{{ layout.messages() }}{% endblock %}
+        {% block admin_content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</div>
+
+<div id="tintus-toast-wrap"></div>
+{% endblock %}
+
+{% block tail %}
+  {{ super() }}
+  <script>
+  // ── Shared admin helpers (unchanged public API: window.TINTUS) ──────────
+  window.TINTUS = (function () {
+    function fmtVND(n) { n = Number(n) || 0; return n.toLocaleString('vi-VN') + 'đ'; }
+    function fmtK(n) { n = Number(n) || 0; return n >= 1000 ? Math.round(n / 1000) + 'K' : String(n); }
+    function parseMoney(s) { return parseInt(String(s).replace(/[^\d-]/g, ''), 10) || 0; }
+    // 5000000 → "5.000.000" (grouped, no đ) — used while editing money fields
+    function group(s) { const n = parseMoney(s); return n ? n.toLocaleString('vi-VN') : ''; }
+    function toast(msg, type) {
+      const wrap = document.getElementById('tintus-toast-wrap');
+      const el = document.createElement('div');
+      el.className = 'tintus-toast ' + (type || '');
+      el.textContent = msg;
+      wrap.appendChild(el);
+      requestAnimationFrame(() => el.classList.add('show'));
+      setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, type === 'err' ? 4500 : 2600);
+    }
+    async function api(url, body, method) {
+      const opts = { method: method || (body ? 'POST' : 'GET'), headers: {} };
+      if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+      const r = await fetch(url, opts);
+      let data = null;
+      try { data = await r.json(); } catch (e) {}
+      if (!r.ok) { throw new Error((data && data.error) ? data.error : ('Lỗi ' + r.status)); }
+      return data;
+    }
+    return { fmtVND, fmtK, parseMoney, group, toast, api };
+  })();
+
+  // ── Live thousands-separators while typing in any money field ───────────
+  (function () {
+    const SEL = '.cam-money,.cc-money,.rd-money,.money-live';
+    document.addEventListener('input', function (e) {
+      const inp = e.target;
+      if (!inp.matches || !inp.matches(SEL)) return;
+      const caret = inp.selectionStart || 0;
+      const digitsBefore = inp.value.slice(0, caret).replace(/\D/g, '').length;
+      const digits = inp.value.replace(/\D/g, '');
+      const out = digits ? parseInt(digits, 10).toLocaleString('vi-VN') : '';
+      inp.value = out;
+      // restore caret after the same number of digits
+      let pos = 0, seen = 0;
+      while (pos < out.length && seen < digitsBefore) { if (/\d/.test(out[pos])) seen++; pos++; }
+      try { inp.setSelectionRange(pos, pos); } catch (_) {}
+    }, true);
+  })();
+
+  // ── Topbar search: live-filters any data table on the current page ──────
+  (function () {
+    const input = document.getElementById('ta-search');
+    if (!input) return;
+    input.addEventListener('input', function () {
+      const q = input.value.toLowerCase().trim();
+      document.querySelectorAll('#tintus-app table tbody tr').forEach(function (tr) {
+        if (tr.querySelector('input,select,textarea')) return; // skip editable input rows
+        tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
+      });
+    });
+  })();
+  </script>
+  {% block admin_js %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Chi phí tiệm</h1>
+    <p class="text-sm text-gray-500">Chi phí cố định / vận hành của cửa hàng — tiền nhà, quảng cáo, vận chuyển… Tự trừ vào lợi nhuận ở tab Tài chính.</p>
+  </div>
+</div>
+
+<!-- stat cards -->
+<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng chi phí</div>
+    <div id="ccTotal" class="text-lg font-black text-gray-900 mt-0.5">{{ total|money }}đ</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tháng này</div>
+    <div id="ccMonth" class="text-lg font-black text-gray-900 mt-0.5">{{ month_total|money }}đ</div>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Số mục</div>
+    <div id="ccCount" class="text-lg font-black text-gray-900 mt-0.5">{{ costs|length }}</div>
+  </div>
+</div>
+
+<!-- by category -->
+{% if by_cat %}
+<div class="flex flex-wrap gap-2 mb-5">
+  {% for cat, amt in by_cat %}
+  <span class="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1.5 text-xs font-bold text-gray-600">
+    {{ cat }} <span class="text-gray-900">{{ amt|money }}đ</span>
+  </span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- quick add -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-4">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+    <div>
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Ngày</label>
+      <input id="cc_date" type="date" value="{{ today }}" class="cc-in w-full">
+    </div>
+    <div>
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Loại</label>
+      <select id="cc_cat" class="cc-in w-full">
+        {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Ghi chú</label>
+      <input id="cc_note" type="text" placeholder="VD: Quảng cáo Facebook 12/6" class="cc-in w-full">
+    </div>
+    <div>
+      <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Số tiền</label>
+      <div class="flex gap-1.5">
+        <input id="cc_amount" type="text" inputmode="numeric" placeholder="0" class="cc-in money-live w-full text-right tabular-nums">
+        <button id="cc_add" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 rounded-xl shrink-0">Thêm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- table -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:680px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3" style="min-width:130px">Ngày</th>
+          <th class="text-left px-4 py-3" style="min-width:150px">Loại</th>
+          <th class="text-left px-4 py-3">Ghi chú</th>
+          <th class="text-right px-4 py-3" style="min-width:140px">Số tiền</th>
+          <th class="px-4 py-3" style="min-width:48px"></th>
+        </tr>
+      </thead>
+      <tbody id="ccBody">
+        {% for c in costs %}
+        <tr class="cc-row border-t border-gray-100 hover:bg-gray-50/60" data-id="{{ c.id }}">
+          <td class="px-4 py-1.5"><input class="cc-cell" type="date" data-field="cost_date" value="{{ c.date }}"></td>
+          <td class="px-4 py-1.5">
+            <select class="cc-cell" data-field="category">
+              {% for cat in categories %}<option value="{{ cat }}" {% if c.category == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+              {% if c.category not in categories %}<option value="{{ c.category }}" selected>{{ c.category }}</option>{% endif %}
+            </select>
+          </td>
+          <td class="px-4 py-1.5"><input class="cc-cell" type="text" data-field="note" value="{{ c.note }}" placeholder="—"></td>
+          <td class="px-4 py-1.5"><input class="cc-cell cc-money text-right tabular-nums font-bold text-gray-900" inputmode="numeric" data-field="amount" data-raw="{{ c.amount }}"></td>
+          <td class="px-4 py-1.5 text-center"><button class="cc-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá">🗑</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not costs %}<div id="ccEmpty" class="px-6 py-10 text-center text-gray-400">Chưa có chi phí nào. Thêm ở trên ↑</div>{% endif %}
+</div>
+
+<style>
+  .cc-in { border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; background:#fff; }
+  .cc-in:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .cc-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:5px 8px; font-size:13px; outline:none; background:transparent; }
+  .cc-cell:hover { background:#f3f4f6; }
+  .cc-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const ADD_URL = "{{ url_for('chiphi.add') }}";
+  const UPD_URL = "{{ url_for('chiphi.update') }}";
+  const DEL_URL = "{{ url_for('chiphi.delete') }}";
+  const fmt = TINTUS.fmtVND, num = TINTUS.parseMoney;
+  const $ = id => document.getElementById(id);
+
+  document.querySelectorAll('.cc-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
+
+  function recalcTotals() {
+    let total = 0; const now = new Date(); const ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    let month = 0, n = 0;
+    document.querySelectorAll('#ccBody .cc-row').forEach(r => {
+      const amt = num(r.querySelector('[data-field="amount"]').dataset.raw);
+      total += amt; n++;
+      const d = r.querySelector('[data-field="cost_date"]').value || '';
+      if (d.slice(0,7) === ym) month += amt;
+    });
+    $('ccTotal').textContent = fmt(total);
+    $('ccMonth').textContent = fmt(month);
+    $('ccCount').textContent = n;
+  }
+
+  function wireRow(tr) {
+    tr.querySelectorAll('.cc-cell').forEach(inp => {
+      const money = inp.classList.contains('cc-money');
+      if (money) {
+        inp.value = fmt(num(inp.dataset.raw));
+        inp.addEventListener('focus', () => { inp.value = TINTUS.group(inp.dataset.raw); inp.select(); });
+      }
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', async () => {
+        let value = inp.value;
+        if (money) { const raw = num(inp.value); inp.dataset.raw = raw; inp.value = fmt(raw); value = raw; }
+        try { await TINTUS.api(UPD_URL, { id: Number(tr.dataset.id), field: inp.dataset.field, value });
+          recalcTotals(); TINTUS.toast('Đã lưu', 'ok'); }
+        catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+      });
+    });
+    tr.querySelector('.cc-del').addEventListener('click', async () => {
+      if (!confirm('Xoá chi phí này?')) return;
+      try { await TINTUS.api(DEL_URL, { id: Number(tr.dataset.id) }); tr.remove(); recalcTotals(); TINTUS.toast('Đã xoá', 'ok'); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  }
+  document.querySelectorAll('#ccBody .cc-row').forEach(wireRow);
+
+  $('cc_add').addEventListener('click', async () => {
+    const amount = num($('cc_amount').value);
+    if (amount <= 0) { TINTUS.toast('Nhập số tiền', 'warn'); return; }
+    const payload = { category: $('cc_cat').value, note: $('cc_note').value.trim(),
+                      amount, cost_date: $('cc_date').value || null };
+    try {
+      const res = await TINTUS.api(ADD_URL, payload);
+      const c = res.cost;
+      const empty = $('ccEmpty'); if (empty) empty.remove();
+      const tr = document.createElement('tr');
+      tr.className = 'cc-row border-t border-gray-100 hover:bg-gray-50/60';
+      tr.dataset.id = c.id;
+      const cats = {{ categories|tojson }};
+      let opts = cats.map(x => `<option value="${x}" ${x===c.category?'selected':''}>${x}</option>`).join('');
+      if (!cats.includes(c.category)) opts += `<option value="${c.category}" selected>${c.category}</option>`;
+      tr.innerHTML =
+        `<td class="px-4 py-1.5"><input class="cc-cell" type="date" data-field="cost_date" value="${c.date}"></td>` +
+        `<td class="px-4 py-1.5"><select class="cc-cell" data-field="category">${opts}</select></td>` +
+        `<td class="px-4 py-1.5"><input class="cc-cell" type="text" data-field="note" value="" placeholder="—"></td>` +
+        `<td class="px-4 py-1.5"><input class="cc-cell cc-money text-right tabular-nums font-bold text-gray-900" inputmode="numeric" data-field="amount" data-raw="${c.amount}"></td>` +
+        `<td class="px-4 py-1.5 text-center"><button class="cc-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá">🗑</button></td>`;
+      tr.querySelector('[data-field="note"]').value = c.note || '';
+      $('ccBody').insertBefore(tr, $('ccBody').firstChild);
+      wireRow(tr); recalcTotals();
+      $('cc_amount').value = ''; $('cc_note').value = '';
+      TINTUS.toast('Đã thêm chi phí', 'ok');
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+  $('cc_amount').addEventListener('keydown', e => { if (e.key === 'Enter') $('cc_add').click(); });
+})();
+</script>
+{% endblock %}

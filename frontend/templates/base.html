@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Thuê Máy Ảnh HCM - tintus.digicam{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+        html { scroll-behavior: smooth; }
+        body { -webkit-font-smoothing: antialiased; }
+        /* Dropdown hover */
+        .nav-dropdown:hover .dropdown-menu { display: block; }
+        .dropdown-menu { display: none; }
+        /* FAQ accordion */
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        details[open] summary .chevron { transform: rotate(180deg); }
+        .chevron { transition: transform 0.2s; }
+        /* Smooth card hover (Aperture-style lift) */
+        .product-card { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; }
+        .product-card:hover { transform: translateY(-5px); box-shadow: 0 24px 48px -12px rgba(17,24,39,0.18); border-color: rgba(185,28,28,0.25); }
+        /* Status / brand pills */
+        .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border-radius: 999px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+        .pill-available { background: #dcfce7; color: #15803d; }
+        .pill-reserved  { background: #fef3c7; color: #b45309; }
+        .pill-out       { background: #f3f4f6; color: #6b7280; }
+        .brand-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        a { text-decoration: none; }
+        /* Soft elevation used across cards */
+        .ring-soft { box-shadow: 0 1px 2px rgba(17,24,39,0.04), 0 8px 24px -16px rgba(17,24,39,0.12); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+    <!-- ── TOP BAR ── -->
+    <div class="bg-red-900 text-white text-xs py-2 px-4 flex-shrink-0">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-center md:justify-between items-center gap-x-6 gap-y-1">
+            <span class="flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 opacity-80" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                451/17/8 Tô Hiến Thành, Quận 10, TP.HCM
+            </span>
+            <div class="flex items-center gap-5">
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 opacity-80" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                    9:00 – 21:30 hằng ngày
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 opacity-80" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+                    <a href="tel:0344226058" class="hover:text-red-200 transition-colors">0344.226.058</a>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── NAVIGATION ── -->
+    <nav class="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 flex items-center gap-5 h-[76px]">
+
+            <!-- Logo -->
+            <a href="/" class="flex items-center gap-3 shrink-0">
+                <div class="w-11 h-11 bg-red-700 rounded-2xl flex items-center justify-center shadow-md shadow-red-700/20">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
+                <div class="hidden sm:block">
+                    <div class="text-[1.15rem] font-black text-red-700 leading-tight tracking-tight">tintus.digicam</div>
+                    <div class="text-[0.65rem] font-bold text-gray-400 uppercase tracking-widest">Hỗ trợ tận tình</div>
+                </div>
+            </a>
+
+            <!-- Nav Links -->
+            <ul class="hidden lg:flex items-center gap-0.5 list-none p-0 m-0">
+                <li>
+                    <a href="/" class="flex items-center px-3 py-2 rounded-lg text-[0.8rem] font-bold uppercase tracking-wide text-gray-700 hover:text-red-700 hover:bg-red-50 transition-all {% if request.path == '/' %}!text-red-700 bg-red-50{% endif %}">Trang chủ</a>
+                </li>
+                <!-- Dropdown: Các loại máy -->
+                <li class="nav-dropdown relative">
+                    <a href="/store" class="flex items-center gap-1 px-3 py-2 rounded-lg text-[0.8rem] font-bold uppercase tracking-wide text-gray-700 hover:text-red-700 hover:bg-red-50 transition-all {% if request.path == '/store' %}!text-red-700 bg-red-50{% endif %}">
+                        Các loại máy
+                        <svg class="w-3.5 h-3.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                    </a>
+                    <div class="dropdown-menu absolute top-full left-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 min-w-[190px] z-50">
+                        <a href="/store?brand=canon" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                            <span class="w-7 h-7 bg-red-100 rounded-lg flex items-center justify-center text-sm">📷</span> Canon
+                        </a>
+                        <a href="/store?brand=fujifilm" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                            <span class="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center text-sm">📷</span> Fujifilm
+                        </a>
+                        <a href="/store?brand=sony" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                            <span class="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center text-sm">📷</span> Sony
+                        </a>
+                        <a href="/store?brand=dji" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                            <span class="w-7 h-7 bg-gray-100 rounded-lg flex items-center justify-center text-sm">🎥</span> DJI Pocket3
+                        </a>
+                        <a href="/store?brand=lumix" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                            <span class="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center text-sm">📷</span> Lumix
+                        </a>
+                        <a href="/store?brand=casio" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                            <span class="w-7 h-7 bg-yellow-100 rounded-lg flex items-center justify-center text-sm">📷</span> Casio
+                        </a>
+                        <a href="/store?brand=nikon" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                            <span class="w-7 h-7 bg-yellow-100 rounded-lg flex items-center justify-center text-sm">📷</span> Nikon
+                        </a>
+                    </div>
+                </li>
+                <li>
+                    <a href="/bang-gia" class="flex items-center px-3 py-2 rounded-lg text-[0.8rem] font-bold uppercase tracking-wide text-gray-700 hover:text-red-700 hover:bg-red-50 transition-all {% if request.path == '/bang-gia' %}!text-red-700 bg-red-50{% endif %}">Bảng giá thuê</a>
+                </li>
+                <li>
+                    <a href="/mua" class="flex items-center px-3 py-2 rounded-lg text-[0.8rem] font-bold uppercase tracking-wide text-gray-700 hover:text-red-700 hover:bg-red-50 transition-all {% if request.path == '/mua' %}!text-red-700 bg-red-50{% endif %}">Mua máy</a>
+                </li>
+            </ul>
+
+            <!-- Search (Aperture-style) -->
+            <form action="/store" method="GET" class="hidden md:flex flex-1 max-w-xs ml-auto">
+                <div class="relative w-full">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+                    <input type="text" name="q" value="{{ request.args.get('q', '') }}" placeholder="Tìm máy ảnh..."
+                        class="w-full pl-10 pr-3 py-2.5 bg-gray-100 border border-transparent rounded-xl text-sm focus:outline-none focus:bg-white focus:border-red-300 transition-all">
+                </div>
+            </form>
+
+            <!-- Right cluster -->
+            <div class="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
+                <!-- Hotline -->
+                <div class="hidden xl:flex flex-col items-end mr-2">
+                    <span class="text-[0.65rem] text-gray-400 font-semibold">Hotline tư vấn</span>
+                    <a href="tel:0344226058" class="text-red-700 font-black text-base leading-tight hover:text-red-800 transition-colors">0344.226.058</a>
+                </div>
+
+                <!-- Cart -->
+                <a href="/cart" class="relative flex items-center justify-center w-11 h-11 rounded-xl hover:bg-gray-100 transition-colors" title="Giỏ hàng">
+                    <svg style="width:22px;height:22px" class="text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    {% if cart_count %}
+                    <span class="absolute -top-0.5 -right-0.5 bg-red-700 text-white text-[0.6rem] font-black w-5 h-5 rounded-full flex items-center justify-center ring-2 ring-white">{{ cart_count }}</span>
+                    {% endif %}
+                </a>
+
+                <!-- Mobile Menu Toggle -->
+                <button id="mobile-menu-btn" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden lg:hidden border-t border-gray-100 bg-white px-4 pb-4">
+            <form action="/store" method="GET" class="pt-3">
+                <input type="text" name="q" placeholder="🔍 Tìm máy ảnh..."
+                    class="w-full px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:bg-white border border-transparent focus:border-red-300">
+            </form>
+            <div class="py-2 space-y-1">
+                <a href="/" class="block px-4 py-2.5 rounded-xl text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-red-700">Trang chủ</a>
+                <a href="/store" class="block px-4 py-2.5 rounded-xl text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-red-700">Các loại máy</a>
+                <a href="/bang-gia" class="block px-4 py-2.5 rounded-xl text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-red-700">Bảng giá thuê</a>
+                <a href="/mua" class="block px-4 py-2.5 rounded-xl text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-red-700">Mua máy</a>
+                <a href="tel:0344226058" class="block mt-3 text-center bg-red-700 text-white py-3 rounded-xl font-bold text-sm">📞 0344.226.058</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1">{% block content %}{% endblock %}</main>
+
+    <!-- ── FOOTER ── -->
+    <footer id="footer" class="bg-gray-900 text-gray-400">
+        <div class="max-w-7xl mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+            <!-- Brand -->
+            <div class="lg:col-span-1">
+                <div class="flex items-center gap-3 mb-5">
+                    <div class="w-11 h-11 bg-red-700 rounded-2xl flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
+                    <div class="text-white font-black text-xl">tintus.digicam</div>
+                </div>
+                <p class="text-sm leading-relaxed mb-5">Dịch vụ thuê máy ảnh chuyên nghiệp tại TP.HCM. Hướng dẫn sử dụng tận tình.</p>
+                <div class="flex gap-2">
+                    <a href="#" class="w-9 h-9 bg-gray-800 hover:bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors">fb</a>
+                    <a href="#" class="w-9 h-9 bg-gray-800 hover:bg-pink-600 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors">ig</a>
+                    <a href="#" class="w-9 h-9 bg-gray-800 hover:bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors">tk</a>
+                </div>
+            </div>
+
+            <!-- Danh mục -->
+            <div>
+                <h4 class="text-white font-bold mb-4 text-sm uppercase tracking-wider">Danh mục máy</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="/store?brand=canon" class="hover:text-red-400 transition-colors">Canon</a></li>
+                    <li><a href="/store?brand=fujifilm" class="hover:text-red-400 transition-colors">Fujifilm</a></li>
+                    <li><a href="/store?brand=sony" class="hover:text-red-400 transition-colors">Sony</a></li>
+                    <li><a href="/store?brand=dji" class="hover:text-red-400 transition-colors">DJI Pocket3</a></li>
+                    <li><a href="/store?brand=lumix" class="hover:text-red-400 transition-colors">Lumix</a></li>
+                    <li><a href="/store?brand=nikon" class="hover:text-red-400 transition-colors">Nikon / Casio</a></li>
+                </ul>
+            </div>
+
+            <!-- Liên kết -->
+            <div>
+                <h4 class="text-white font-bold mb-4 text-sm uppercase tracking-wider">Liên kết nhanh</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="/" class="hover:text-red-400 transition-colors">Trang chủ</a></li>
+                    <li><a href="/store" class="hover:text-red-400 transition-colors">Các loại máy</a></li>
+                    <li><a href="/bang-gia" class="hover:text-red-400 transition-colors">Bảng giá thuê</a></li>
+                    <li><a href="/rent" class="hover:text-red-400 transition-colors">Đặt lịch thuê</a></li>
+                    <li><a href="/cart" class="hover:text-red-400 transition-colors">Giỏ hàng</a></li>
+                </ul>
+            </div>
+
+            <!-- Liên hệ -->
+            <div>
+                <h4 class="text-white font-bold mb-4 text-sm uppercase tracking-wider">Liên hệ</h4>
+                <ul class="space-y-3 text-sm">
+                    <li class="flex items-start gap-2.5">
+                        <svg class="w-4 h-4 mt-0.5 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <span>451/17/8 Tô Hiến Thành, Quận 10, TP.HCM</span>
+                    </li>
+                    <li class="flex items-center gap-2.5">
+                        <svg class="w-4 h-4 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+                        <div>
+                            <a href="tel:0344226058" class="text-red-400 hover:text-red-300 transition-colors block">0344.226.058</a>
+                        </div>
+                    </li>
+                    <li class="flex items-center gap-2.5">
+                        <svg class="w-4 h-4 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                        <span>9:00 AM – 9:30 PM hằng ngày</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="border-t border-gray-800 py-5 text-center text-xs text-gray-600">
+            © 2026 <span class="text-gray-400 font-semibold">tintus.digicam</span> — Dịch vụ thuê máy ảnh chuyên nghiệp tại TP.HCM. Bản quyền thuộc về Nguyễn Lê Thanh An.
+        </div>
+    </footer>
+
+    <script>
+        // Mobile menu toggle
+        document.getElementById('mobile-menu-btn').addEventListener('click', function() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

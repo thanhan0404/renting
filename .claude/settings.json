@@ -1,0 +1,12 @@
+{
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "understand-anything@understand-anything": true,
+    "gsap-skills@gsap-skills": true,
+    "context-engineering@context-engineering-marketplace": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+  }
+}

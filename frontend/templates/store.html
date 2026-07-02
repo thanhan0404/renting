@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Các Loại Máy Ảnh Cho Thuê – tintus.digicam{% endblock %}
+
+{% block content %}
+
+{# Helpers to preserve active filters across links #}
+{% set keepq = ('&q=' ~ keyword) if keyword else '' %}
+{% set keepbrand = ('&brand=' ~ current_brand) if current_brand else '' %}
+{% set keepprice = ('&price=' ~ current_price) if current_price else '' %}
+
+<!-- Page Header -->
+<div class="bg-gray-950 text-white py-12">
+    <div class="max-w-7xl mx-auto px-6">
+        <nav class="text-sm text-gray-400 mb-4 flex items-center gap-2">
+            <a href="/" class="hover:text-white transition-colors">Trang chủ</a>
+            <span>/</span>
+            <span class="text-white">Các loại máy</span>
+        </nav>
+        <h1 class="text-4xl font-black tracking-tight">Tất cả máy ảnh cho thuê</h1>
+        <p class="text-gray-400 mt-2 text-sm">Ship tận nơi · Hỗ trợ kỹ thuật 24/7 · Phụ kiện đầy đủ</p>
+        {% if keyword %}
+        <p class="text-gray-300 mt-3 text-sm">Kết quả tìm kiếm cho: <span class="font-bold text-red-400">“{{ keyword }}”</span></p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-6 py-10 pb-28">
+    <div class="flex flex-col lg:flex-row gap-8">
+
+        <!-- ── SIDEBAR: Filters ── -->
+        <aside class="lg:w-64 shrink-0">
+            <div class="bg-white rounded-2xl border border-gray-100 p-5 sticky top-24 ring-soft">
+
+                <h3 class="flex items-center gap-2 font-black text-gray-900 text-sm uppercase tracking-wider mb-4">
+                    <svg class="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M6 12h12M10 20h4"/></svg>
+                    Thương hiệu
+                </h3>
+                {% set brands_list = [('', 'Tất cả', 'bg-gray-100', '🎯'), ('canon', 'Canon', 'bg-red-100', '📷'), ('fujifilm', 'Fujifilm', 'bg-green-100', '📷'), ('sony', 'Sony', 'bg-blue-100', '📷'), ('dji', 'DJI', 'bg-gray-100', '🎥'), ('lumix', 'Lumix', 'bg-indigo-100', '📷'), ('casio', 'Casio', 'bg-yellow-100', '📷'), ('nikon', 'Nikon', 'bg-yellow-100', '📷')] %}
+                <ul class="space-y-1">
+                    {% for slug, label, icon_bg, emoji in brands_list %}
+                    {% set active = (current_brand|lower == slug) or (not current_brand and not slug) %}
+                    <li>
+                        <a href="/store?brand={{ slug }}{{ keepq }}{{ keepprice }}"
+                           class="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-bold transition-colors {% if active %}bg-red-700 text-white{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            <span class="w-5 h-5 {% if active %}bg-white/20{% else %}{{ icon_bg }}{% endif %} rounded flex items-center justify-center text-[10px]">{{ emoji }}</span>
+                            {{ label }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+                <div class="border-t border-gray-100 mt-5 pt-5">
+                    <h3 class="font-black text-gray-900 text-sm uppercase tracking-wider mb-4">Giá thuê / ngày</h3>
+                    {% set price_bands = [('', 'Tất cả mức giá'), ('low', 'Dưới 200.000đ'), ('mid', '200.000 – 350.000đ'), ('high', 'Trên 350.000đ')] %}
+                    <div class="space-y-1.5">
+                        {% for pslug, plabel in price_bands %}
+                        {% set pactive = (current_price == pslug) %}
+                        <a href="/store?price={{ pslug }}{{ keepbrand }}{{ keepq }}"
+                           class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors {% if pactive %}bg-red-50 text-red-700{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
+                            <span class="w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 {% if pactive %}border-red-600{% else %}border-gray-300{% endif %}">
+                                {% if pactive %}<span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>{% endif %}
+                            </span>
+                            {{ plabel }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Contact Box -->
+                <div class="bg-red-50 rounded-xl p-4 mt-5">
+                    <p class="text-xs text-gray-600 mb-2 font-semibold">Cần tư vấn thêm?</p>
+                    <a href="tel:0344226058" class="flex items-center gap-2 text-red-700 font-black text-sm hover:underline">
+                        📞 0344.226.058
+                    </a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ── MAIN: Product Grid ── -->
+        <div class="flex-1">
+            <!-- Sort bar -->
+            <div class="flex items-center justify-between mb-6">
+                <p class="text-sm text-gray-500">Hiển thị <strong class="text-gray-800">{{ cameras | length }} sản phẩm</strong></p>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-500">Sắp xếp:</span>
+                    <select onchange="if(this.value!==null){window.location=this.value}"
+                            class="text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 bg-white font-semibold cursor-pointer">
+                        <option value="/store?sort={{ keepbrand }}{{ keepq }}{{ keepprice }}" {% if not current_sort %}selected{% endif %}>Mặc định</option>
+                        <option value="/store?sort=price_asc{{ keepbrand }}{{ keepq }}{{ keepprice }}" {% if current_sort=='price_asc' %}selected{% endif %}>Giá tăng dần</option>
+                        <option value="/store?sort=price_desc{{ keepbrand }}{{ keepq }}{{ keepprice }}" {% if current_sort=='price_desc' %}selected{% endif %}>Giá giảm dần</option>
+                        <option value="/store?sort=name{{ keepbrand }}{{ keepq }}{{ keepprice }}" {% if current_sort=='name' %}selected{% endif %}>Tên A–Z</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Products -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+
+                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+
+                {% for cam in cameras %}
+                <div class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group flex flex-col ring-soft">
+                    <a href="/product/{{ cam.slug }}" class="block">
+                        <div class="h-44 {{ brand_bg.get(cam.brand, 'bg-gray-50') }} flex items-center justify-center relative">
+                            <span class="text-6xl group-hover:scale-110 transition-transform duration-300">📷</span>
+                            {% if cam.stock and cam.stock > 0 %}
+                            <span class="pill pill-available absolute top-3 left-3">● Còn máy</span>
+                            {% else %}
+                            <span class="pill pill-out absolute top-3 left-3">Hết máy</span>
+                            {% endif %}
+                            {% if cam.badge %}
+                            <span class="absolute top-3 right-3 bg-red-700 text-white text-[0.65rem] font-black px-2.5 py-1 rounded-full uppercase">{{ cam.badge }}</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    <div class="p-4 flex flex-col flex-1">
+                        <div class="text-[0.7rem] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{{ cam.brand }}</div>
+                        <a href="/product/{{ cam.slug }}">
+                            <h3 class="font-black text-gray-900 text-sm mb-2 group-hover:text-red-700 transition-colors line-clamp-1">{{ cam.name }}</h3>
+                        </a>
+                        <div class="flex items-baseline gap-1 mb-3">
+                            <span class="text-red-700 font-black text-lg">{{ cam.price | vnd }}đ</span>
+                            <span class="text-gray-400 text-xs">/ngày đầu</span>
+                        </div>
+                        <ul class="space-y-1 text-[0.72rem] text-gray-500 mb-4">
+                            <li class="flex items-center gap-1.5"><span class="text-green-500 font-bold">✓</span> 2 Pin + Thẻ nhớ + Túi máy</li>
+                            <li class="flex items-center gap-1.5"><span class="text-green-500 font-bold">✓</span> Hỗ trợ kỹ thuật + Set màu</li>
+                        </ul>
+                        <div class="mt-auto flex gap-2">
+                            <a href="/product/{{ cam.slug }}" class="flex-1 text-center py-2.5 border border-gray-200 text-gray-700 hover:border-red-700 hover:text-red-700 rounded-xl font-bold text-xs transition-colors">
+                                Chi tiết
+                            </a>
+                            <a href="/rent?camera={{ cam.slug }}" class="flex-1 text-center py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-xl font-bold text-xs transition-colors uppercase tracking-wide">
+                                Đặt thuê
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+            </div>
+
+            <!-- Empty state -->
+            {% if not cameras %}
+            <div class="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                <div class="text-6xl mb-4">🔍</div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Không tìm thấy sản phẩm</h3>
+                <p class="text-gray-500 text-sm mb-6">Thử chọn thương hiệu / mức giá khác hoặc xem tất cả sản phẩm.</p>
+                <a href="/store" class="inline-flex items-center gap-2 bg-red-700 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-red-800 transition-colors">Xem tất cả</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Cross-sell strip -->
+<div class="bg-gray-950 py-7">
+    <div class="max-w-4xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-white">
+        <div>
+            <p class="font-black text-lg">Muốn sở hữu luôn một chiếc máy?</p>
+            <p class="text-gray-400 text-sm">Xem các máy đang được bán tại shop — máy mới &amp; đã qua sử dụng.</p>
+        </div>
+        <a href="/mua" class="inline-flex items-center gap-2 bg-white text-gray-900 font-bold px-6 py-3 rounded-xl text-sm hover:bg-gray-100 transition-colors shrink-0">
+            🏷️ Xem máy đang bán →
+        </a>
+    </div>
+</div>
+
+{% endblock %}

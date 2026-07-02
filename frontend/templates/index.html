@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Thuê Máy Ảnh HCM – tintus.digicam | Ship tận nơi, hướng dẫn tận tình{% endblock %}
+
+{% block content %}
+
+<!-- ══════════════════════════════════════
+     HERO SECTION — "Equip your vision" style
+══════════════════════════════════════ -->
+<section class="relative overflow-hidden bg-gray-950" style="min-height: 560px;">
+    <!-- Background texture -->
+    <div class="absolute inset-0 opacity-20" style="background-image: url('https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=1920'); background-size: cover; background-position: center;"></div>
+    <div class="absolute inset-0" style="background: linear-gradient(105deg, rgba(8,8,10,0.96) 45%, rgba(40,12,12,0.78) 100%);"></div>
+
+    <div class="relative z-10 max-w-7xl mx-auto px-6 py-16 flex flex-col lg:flex-row items-center gap-12">
+
+        <!-- Left: Hero Text -->
+        <div class="flex-1 text-white pt-2">
+            <div class="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-red-300 text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider mb-6 backdrop-blur">
+                <span class="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse"></span>
+                Dịch vụ thuê máy ảnh uy tín tại TP.HCM
+            </div>
+            <h1 class="text-5xl md:text-6xl font-black leading-[1.02] mb-5 tracking-tight">
+                Trang bị cho<br>
+                <span class="text-red-500">tầm nhìn của bạn.</span>
+            </h1>
+            <p class="text-gray-300 text-lg mb-9 leading-relaxed max-w-xl">
+                Thuê máy ảnh, lens và thiết bị quay phim cao cấp cho dự án tiếp theo.
+                Hướng dẫn tận tình · Ship tận nơi · Hỗ trợ 24/7.
+            </p>
+
+            <!-- Deposit Options -->
+            <div class="space-y-3 mb-9">
+                <p class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-4">Hình thức đặt cọc:</p>
+                <div class="flex items-start gap-3">
+                    <span class="w-6 h-6 bg-red-700 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5">1</span>
+                    <span class="text-gray-200 text-sm">Phí thuê + CCCD chính chủ</span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="w-6 h-6 bg-red-700 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5">2</span>
+                    <span class="text-gray-200 text-sm">Phí thuê + Hộ chiếu / Bằng lái xe + Ảnh VNeID</span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="w-6 h-6 bg-red-700 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 mt-0.5">3</span>
+                    <span class="text-gray-200 text-sm">Đặt cọc 100% giá trị máy</span>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+                <a href="/store" class="inline-flex items-center gap-2 bg-red-700 hover:bg-red-800 text-white font-bold px-7 py-3.5 rounded-2xl transition-colors text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    Xem các dòng máy
+                </a>
+                <a href="/bang-gia" class="inline-flex items-center gap-2 border border-white/30 hover:border-white text-gray-200 hover:text-white font-bold px-7 py-3.5 rounded-2xl transition-colors text-sm">
+                    Bảng giá thuê →
+                </a>
+            </div>
+        </div>
+
+        <!-- Right: Booking Card -->
+        <div class="w-full lg:w-[420px] bg-white rounded-3xl shadow-2xl overflow-hidden shrink-0">
+            <div class="bg-red-700 py-5 px-6 text-center">
+                <h2 class="text-white font-black text-base uppercase tracking-wider">ĐẶT LỊCH THUÊ MÁY ẢNH</h2>
+                <p class="text-red-200 text-xs mt-1">Để lại thông tin – chúng tôi liên hệ ngay!</p>
+            </div>
+            <div class="p-6 space-y-3">
+                <form action="/rent" method="GET">
+                    <input type="hidden" name="flow" value="date">
+                    <div class="space-y-3">
+                        <input type="text" name="customer_name" placeholder="👤 Họ và tên"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
+                        <input type="tel" name="phone" placeholder="📞 Số điện thoại"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[0.7rem] text-gray-500 font-semibold mb-1 block uppercase tracking-wide">Ngày thuê</label>
+                                <input type="date" name="start_date"
+                                    class="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
+                            </div>
+                            <div>
+                                <label class="text-[0.7rem] text-gray-500 font-semibold mb-1 block uppercase tracking-wide">Ngày trả</label>
+                                <input type="date" name="end_date"
+                                    class="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
+                            </div>
+                        </div>
+                        <textarea name="notes" placeholder="📝 Ghi chú (loại máy muốn thuê, yêu cầu khác…)" rows="2"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm resize-none transition-colors"></textarea>
+                        <button type="submit" class="w-full bg-red-700 hover:bg-red-800 text-white font-black py-4 rounded-xl uppercase tracking-wider transition-colors text-sm">
+                            🚀 ĐĂNG KÝ NHẬN MÁY ẢNH
+                        </button>
+                    </div>
+                </form>
+                <p class="text-center text-xs text-gray-400 pt-1">Hoặc gọi ngay <a href="tel:0344226058" class="text-red-600 font-bold hover:underline">0344.226.058</a></p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     QUY TRÌNH THUÊ MÁY (3 BƯỚC)
+══════════════════════════════════════ -->
+<section class="py-16 bg-white">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-black uppercase text-gray-900 mb-3">Quy Trình Thuê Máy</h2>
+            <p class="text-gray-500 text-sm">Đơn giản · Nhanh chóng · Tin cậy</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+            <div class="hidden md:block absolute top-10 left-1/3 right-1/3 h-0.5 bg-red-100 z-0"></div>
+
+            <div class="text-center p-8 rounded-3xl border border-gray-100 bg-white hover:border-red-200 hover:shadow-xl transition-all group">
+                <div class="w-20 h-20 bg-red-50 group-hover:bg-red-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-5 transition-colors">📅</div>
+                <span class="inline-block bg-red-700 text-white text-xs font-black px-4 py-1 rounded-full mb-4">BƯỚC 1</span>
+                <h3 class="text-base font-black text-gray-900 mb-3">Chọn máy & Đặt lịch</h3>
+                <p class="text-gray-500 text-sm leading-relaxed">Chọn dòng máy ảnh, ngày giờ nhận và trả. Đặt cọc <strong class="text-red-700">100.000đ</strong> để giữ lịch thuê.</p>
+            </div>
+            <div class="text-center p-8 rounded-3xl border border-gray-100 bg-white hover:border-red-200 hover:shadow-xl transition-all group">
+                <div class="w-20 h-20 bg-red-50 group-hover:bg-red-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-5 transition-colors">💳</div>
+                <span class="inline-block bg-red-700 text-white text-xs font-black px-4 py-1 rounded-full mb-4">BƯỚC 2</span>
+                <h3 class="text-base font-black text-gray-900 mb-3">Hoàn tất đặt cọc</h3>
+                <p class="text-gray-500 text-sm leading-relaxed">Đóng phần cọc còn lại. Giữ CCCD/hộ chiếu hoặc cọc 100% giá trị máy. Nhận máy tại shop hoặc ship tận nơi.</p>
+            </div>
+            <div class="text-center p-8 rounded-3xl border border-gray-100 bg-white hover:border-red-200 hover:shadow-xl transition-all group">
+                <div class="w-20 h-20 bg-red-50 group-hover:bg-red-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-5 transition-colors">📷</div>
+                <span class="inline-block bg-red-700 text-white text-xs font-black px-4 py-1 rounded-full mb-4">BƯỚC 3</span>
+                <h3 class="text-base font-black text-gray-900 mb-3">Trả máy & Hoàn cọc</h3>
+                <p class="text-gray-500 text-sm leading-relaxed">Trả máy đúng hạn tại shop hoặc ship về. Chúng tôi kiểm tra và hoàn trả giấy tờ / tiền cọc ngay lập tức.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     DANH MỤC MÁY ẢNH NỔI BẬT
+══════════════════════════════════════ -->
+<section id="danh-muc" class="py-16 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+            <div>
+                <h2 class="text-3xl font-black uppercase text-gray-900 mb-2">Danh Mục Máy Ảnh</h2>
+                <p class="text-gray-500 text-sm">Hướng dẫn sử dụng tận tình</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="/store" class="px-5 py-2 bg-red-700 text-white rounded-full text-sm font-bold hover:bg-red-800 transition-colors">Tất cả</a>
+                <a href="/store?brand=canon" class="px-5 py-2 bg-white text-gray-700 border border-gray-200 rounded-full text-sm font-bold hover:border-red-700 hover:text-red-700 transition-colors">Canon</a>
+                <a href="/store?brand=fujifilm" class="px-5 py-2 bg-white text-gray-700 border border-gray-200 rounded-full text-sm font-bold hover:border-red-700 hover:text-red-700 transition-colors">Fujifilm</a>
+                <a href="/store?brand=sony" class="px-5 py-2 bg-white text-gray-700 border border-gray-200 rounded-full text-sm font-bold hover:border-red-700 hover:text-red-700 transition-colors">Sony</a>
+            </div>
+        </div>
+
+        <!-- Product Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+
+            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+
+            {% for cam in featured %}
+            <a href="/product/{{ cam.slug }}" class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group block ring-soft">
+                <div class="h-48 {{ brand_bg.get(cam.brand, 'bg-gray-50') }} flex items-center justify-center relative overflow-hidden">
+                    <span class="text-6xl group-hover:scale-110 transition-transform duration-300">📷</span>
+                    {% if cam.stock and cam.stock > 0 %}
+                    <span class="pill pill-available absolute top-3 left-3">● Còn máy</span>
+                    {% else %}
+                    <span class="pill pill-out absolute top-3 left-3">Hết máy</span>
+                    {% endif %}
+                    {% if cam.badge %}<span class="absolute top-3 right-3 bg-red-700 text-white text-[0.65rem] font-black px-2.5 py-1 rounded-full uppercase">{{ cam.badge }}</span>{% endif %}
+                </div>
+                <div class="p-4">
+                    <div class="text-[0.7rem] font-bold text-gray-400 uppercase tracking-wider mb-0.5">{{ cam.brand }}</div>
+                    <h3 class="font-black text-gray-900 text-sm mb-1 group-hover:text-red-700 transition-colors line-clamp-1">{{ cam.name }}</h3>
+                    <div class="flex items-baseline gap-1 mb-3">
+                        <span class="text-red-700 font-black text-lg">{{ cam.price | vnd }}đ</span>
+                        <span class="text-gray-400 text-xs">/ngày</span>
+                    </div>
+                    <ul class="space-y-1 text-xs text-gray-500 mb-4">
+                        <li class="flex items-center gap-1.5"><span class="text-green-500">✓</span> 2 Pin + Thẻ nhớ</li>
+                        <li class="flex items-center gap-1.5"><span class="text-green-500">✓</span> Hỗ trợ kỹ thuật + Set màu</li>
+                        <li class="flex items-center gap-1.5"><span class="text-green-500">✓</span> Ship tận nơi</li>
+                    </ul>
+                    <div class="w-full text-center py-2.5 border-2 border-red-700 text-red-700 group-hover:bg-red-700 group-hover:text-white rounded-xl font-bold text-xs transition-colors uppercase tracking-wide">
+                        Đặt lịch thuê
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="text-center mt-10">
+            <a href="/store" class="inline-flex items-center gap-2 border-2 border-red-700 text-red-700 hover:bg-red-700 hover:text-white font-bold px-8 py-3.5 rounded-2xl transition-all text-sm">
+                Xem tất cả sản phẩm
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     BAO GỒM KHI THUÊ
+══════════════════════════════════════ -->
+<section class="py-16 bg-white">
+    <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-black uppercase text-gray-900 mb-3">Bao Gồm Khi Thuê</h2>
+            <p class="text-gray-500 text-sm">Mỗi đơn thuê đều được trang bị đầy đủ phụ kiện</p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+            <div class="text-center p-6 bg-gray-50 rounded-2xl hover:bg-red-50 transition-colors group">
+                <div class="text-4xl mb-3 group-hover:scale-110 transition-transform">🔋</div>
+                <h4 class="font-bold text-gray-900 text-sm mb-1">2 Pin dự phòng</h4>
+                <p class="text-xs text-gray-500">Không lo hết pin khi đang chụp</p>
+            </div>
+            <div class="text-center p-6 bg-gray-50 rounded-2xl hover:bg-red-50 transition-colors group">
+                <div class="text-4xl mb-3 group-hover:scale-110 transition-transform">💾</div>
+                <h4 class="font-bold text-gray-900 text-sm mb-1">Thẻ nhớ 32GB+</h4>
+                <p class="text-xs text-gray-500">Lưu trữ đủ cho cả chuyến đi</p>
+            </div>
+            <div class="text-center p-6 bg-gray-50 rounded-2xl hover:bg-red-50 transition-colors group">
+                <div class="text-4xl mb-3 group-hover:scale-110 transition-transform">🎒</div>
+                <h4 class="font-bold text-gray-900 text-sm mb-1">Túi / Balo máy ảnh</h4>
+                <p class="text-xs text-gray-500">Bảo vệ thiết bị an toàn</p>
+            </div>
+            <div class="text-center p-6 bg-gray-50 rounded-2xl hover:bg-red-50 transition-colors group">
+                <div class="text-4xl mb-3 group-hover:scale-110 transition-transform">🎨</div>
+                <h4 class="font-bold text-gray-900 text-sm mb-1">Set màu / Preset</h4>
+                <p class="text-xs text-gray-500">Film simulation set sẵn chuyên nghiệp</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FAQ
+══════════════════════════════════════ -->
+<section class="py-16 bg-gray-50">
+    <div class="max-w-3xl mx-auto px-6">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-black uppercase text-gray-900 mb-3">Câu Hỏi Thường Gặp</h2>
+        </div>
+        <div class="space-y-3">
+
+            <details class="bg-white rounded-2xl border border-gray-100 overflow-hidden group">
+                <summary class="flex items-center justify-between p-5 cursor-pointer font-bold text-gray-800 text-sm">
+                    <span>Thuê máy cần giấy tờ gì?</span>
+                    <svg class="w-5 h-5 text-red-700 chevron shrink-0 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <div class="px-5 pb-5 text-gray-500 text-sm leading-relaxed border-t border-gray-100 pt-4">
+                    Có 3 hình thức đặt cọc: (1) Phí thuê + CCCD chính chủ, (2) Phí thuê + Hộ chiếu/Bằng lái xe + Ảnh VNeID, (3) Đặt cọc 100% giá trị máy.
+                </div>
+            </details>
+
+            <details class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <summary class="flex items-center justify-between p-5 cursor-pointer font-bold text-gray-800 text-sm">
+                    <span>Thuê 1 ngày là bao nhiêu tiếng?</span>
+                    <svg class="w-5 h-5 text-red-700 chevron shrink-0 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <div class="px-5 pb-5 text-gray-500 text-sm leading-relaxed border-t border-gray-100 pt-4">
+                    Thời gian thuê tính theo 24 giờ. Ví dụ: Nhận lúc 8h sáng thì trả trước 8h sáng hôm sau. Trả trễ sẽ tính thêm phí theo giờ hoặc theo ngày.
+                </div>
+            </details>
+
+            <details class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <summary class="flex items-center justify-between p-5 cursor-pointer font-bold text-gray-800 text-sm">
+                    <span>Tôi không biết dùng máy ảnh có thuê được không?</span>
+                    <svg class="w-5 h-5 text-red-700 chevron shrink-0 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <div class="px-5 pb-5 text-gray-500 text-sm leading-relaxed border-t border-gray-100 pt-4">
+                    Hoàn toàn được! Chúng tôi có clip hướng dẫn sử dụng riêng cho từng dòng máy, hỗ trợ kỹ thuật qua điện thoại 24/7 trong suốt thời gian thuê.
+                </div>
+            </details>
+
+            <details class="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <summary class="flex items-center justify-between p-5 cursor-pointer font-bold text-gray-800 text-sm">
+                    <span>Nếu làm hỏng máy thì sao?</span>
+                    <svg class="w-5 h-5 text-red-700 chevron shrink-0 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <div class="px-5 pb-5 text-gray-500 text-sm leading-relaxed border-t border-gray-100 pt-4">
+                    Khách hàng chịu trách nhiệm bồi thường theo giá trị thực tế của thiết bị bị hỏng. Chúng tôi sẽ thương lượng cụ thể từng trường hợp một cách hợp lý.
+                </div>
+            </details>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     CTA BANNER
+══════════════════════════════════════ -->
+<section class="py-14 bg-red-700">
+    <div class="max-w-4xl mx-auto px-6 text-center text-white">
+        <h2 class="text-3xl font-black mb-3">Sẵn sàng thuê máy ảnh?</h2>
+        <p class="text-red-200 mb-8 text-sm">Liên hệ ngay để được tư vấn dòng máy phù hợp với chuyến đi của bạn!</p>
+        <div class="flex flex-wrap justify-center gap-4">
+            <a href="tel:0344226058" class="inline-flex items-center gap-2 bg-white text-red-700 font-black px-8 py-4 rounded-2xl hover:bg-gray-100 transition-colors text-sm">
+                📞 Gọi ngay: 0344.226.058
+            </a>
+            <a href="/rent" class="inline-flex items-center gap-2 border-2 border-white text-white font-bold px-8 py-4 rounded-2xl hover:bg-white hover:text-red-700 transition-all text-sm">
+                Đặt lịch online →
+            </a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
