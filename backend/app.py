@@ -444,7 +444,8 @@ ADMIN_COLORS = [
     '#14b8a6', '#e11d48', '#0ea5e9', '#a855f7', '#22c55e',
 ]
 
-APPT_COLOR = '#0e7490'   # buy-appointments: a single high-contrast teal (vs per-camera rental colors)
+APPT_COLOR = '#0e7490'        # buy-appointments (booked): high-contrast teal
+APPT_DONE_COLOR = '#16a34a'   # finished appointments turn green so they're easy to spot
 
 
 def color_map_for(cameras):
@@ -707,12 +708,14 @@ class BookingGridView(BaseView):
             if start: qa = qa.filter(Appointment.start_time >= start - timedelta(days=1))
             if end:   qa = qa.filter(Appointment.start_time <= end)
             for a in qa.all():
-                title = '🛒 ' + (a.customer_name or 'Khách') + (f' · {a.interest}' if a.interest else '')
+                done = (a.status == 'done')
+                color = APPT_DONE_COLOR if done else APPT_COLOR
+                title = ('✅ ' if done else '🛒 ') + (a.customer_name or 'Khách') + (f' · {a.interest}' if a.interest else '')
                 events.append({
                     'id': f'a{a.id}', 'title': title,
                     'start': a.start_time.isoformat(),
                     'end': (a.end_time or (a.start_time + timedelta(minutes=45))).isoformat(),
-                    'backgroundColor': APPT_COLOR, 'borderColor': APPT_COLOR,
+                    'backgroundColor': color, 'borderColor': color,
                     'extendedProps': serialize_appt(a),
                 })
         return jsonify(events)
@@ -860,9 +863,12 @@ def serialize_unit(cam):
         'import_cost': cam.import_cost or 0, 'repair_cost': cam.repair_cost or 0, 'profit': cam.profit,
         'sale_state': cam.sale_state or 'stock',
         'sold_to': cam.sold_to or '', 'sold_phone': cam.sold_phone or '', 'sold_source': cam.sold_source or '',
+        'sold_note': cam.sold_note or '',
         'sold_at': cam.sold_date.strftime('%Y-%m-%dT%H:%M') if cam.sold_date else '',
+        'sold_date': cam.sold_date.strftime('%Y-%m-%d') if cam.sold_date else '',
         'sold_month': cam.sold_date.strftime('%Y-%m') if cam.sold_date else '',
-        'gift_cost': cam.gift_cost, 'gift_label': cam.gift_label,
+        'state_label': cam.state_label,
+        'gift_cost': cam.gift_cost, 'gift_label': cam.gift_label, 'gifts': cam.gifts,
     }
 
 
@@ -876,6 +882,15 @@ def serialize_accessory(a):
     return {'id': a.id, 'name': a.name, 'category': a.category or '',
             'cost': a.cost or 0, 'price': a.price or 0, 'stock': a.stock or 0,
             'note': a.note or '', 'stock_value': a.stock_value}
+
+
+def serialize_accessory_sale(s):
+    return {'id': s.id, 'name': s.name or '', 'quantity': s.quantity or 0,
+            'unit_price': s.unit_price or 0, 'unit_cost': s.unit_cost or 0,
+            'revenue': s.revenue, 'profit': s.profit, 'note': s.note or '',
+            'customer_name': s.customer_name or '', 'phone': s.phone or '',
+            'date': s.sale_date.strftime('%d/%m/%Y %H:%M') if s.sale_date else '',
+            'date_iso': s.sale_date.strftime('%Y-%m-%d') if s.sale_date else ''}
 
 
 def camera_pnl(cam):
@@ -906,26 +921,34 @@ class CamerasView(BaseView):
         'reorder_point': int,
         'is_broken':   bool,  'is_sold':     bool,  'featured':    bool,
     }
-    SALE_STATES = ('stock', 'sold', 'fixing', 'unfixable')
+    SALE_STATES = ('stock', 'processing', 'deposit', 'sold', 'fixing', 'unfixable')
+    SELL_STATES = ('sold', 'deposit')    # states that finalise a sale (capture price/customer)
 
     @expose('/')
     def index(self):
         rent = Camera.query.filter_by(type='Rent').order_by(Camera.brand, Camera.name).all()
-        # Active selling inventory = everything NOT yet sold (stock / fixing / unfixable).
+        # Active selling inventory = stock / processing / fixing / unfixable (not sold, not deposited).
         sale = (Camera.query.filter_by(type='Sale')
-                .filter(Camera.sale_state != 'sold').order_by(Camera.id).all())
+                .filter(~Camera.sale_state.in_(('sold', 'deposit'))).order_by(Camera.id).all())
         # Sold units live in their own tab, newest sale first.
         sold = (Camera.query.filter_by(type='Sale', sale_state='sold')
                 .order_by(Camera.sold_date.desc(), Camera.id.desc()).all())
+        # Deposited (đã cọc) units — reserved for online buyers, revenue already booked.
+        deposit = (Camera.query.filter_by(type='Sale', sale_state='deposit')
+                   .order_by(Camera.sold_date.desc(), Camera.id.desc()).all())
         color_map = color_map_for(rent_cameras_ordered())   # rental colors match the grid
-        brands = sorted({c.brand for c in (rent + sale + sold) if c.brand})
+        brands = sorted({c.brand for c in (rent + sale + sold + deposit) if c.brand})
         gift_options = (Accessory.query.filter(Accessory.stock > 0)
                         .order_by(Accessory.category, Accessory.name).all())
         return self.render('admin/cameras.html',
                            rent_cameras=rent, sale_cameras=sale, sold_cameras=sold,
-                           cameras=rent + sale + sold, color_map=color_map,
+                           deposit_cameras=deposit,
+                           cameras=rent + sale + sold + deposit, color_map=color_map,
                            categories=CAMERA_CATEGORIES, brands=brands,
                            sale_sources=SALE_SOURCES,
+                           today=datetime.now().strftime('%Y-%m-%d'),
+                           this_month=datetime.now().strftime('%Y-%m'),
+                           this_year=datetime.now().strftime('%Y'),
                            gift_options=[serialize_accessory(a) for a in gift_options])
 
     @expose('/update', methods=['POST'])
@@ -950,21 +973,19 @@ class CamerasView(BaseView):
                 return jsonify({'ok': False, 'error': 'Trạng thái không hợp lệ'}), 400
             cam.sale_state = value
             cam.is_sold = (value == 'sold')
-            if value == 'sold':
-                cam.sold_date = datetime.now()
-            else:                                  # reverting out of "sold" clears the sale
+            if value in self.SELL_STATES:          # sold / đã cọc → realised sale
+                if not cam.sold_date:
+                    cam.sold_date = datetime.now()
+            else:                                  # reverting out of a sale
                 cam.sold_date = None
                 if value == 'stock':
-                    # put any gifted accessories back into stock
-                    for g in cam.gifts:
-                        acc = db.session.get(Accessory, g.get('id'))
-                        if acc:
-                            acc.stock = (acc.stock or 0) + 1
+                    # fully undo the sale: restock gifts, drop their history, clear sale info
+                    self._restock_gifts(cam)
                     cam.gift_json = ''
                     cam.sold_price = 0
-                    cam.sold_to = cam.sold_phone = cam.sold_source = ''
+                    cam.sold_to = cam.sold_phone = cam.sold_source = cam.sold_note = ''
             db.session.commit()
-            return jsonify({'ok': True, 'pnl': camera_pnl(cam)})
+            return jsonify({'ok': True, 'pnl': camera_pnl(cam), 'unit': serialize_unit(cam)})
 
         if field not in self.EDITABLE:
             return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
@@ -986,9 +1007,44 @@ class CamerasView(BaseView):
         db.session.commit()
         return jsonify({'ok': True, 'pnl': camera_pnl(cam)})
 
+    # ── Gift helpers (shared by sell + gift editing + revert) ────────────────
+    @staticmethod
+    def _restock_gifts(cam):
+        """Put every gifted accessory back into stock and delete its history log."""
+        for g in cam.gifts:
+            acc = db.session.get(Accessory, g.get('id'))
+            if acc:
+                acc.stock = (acc.stock or 0) + 1
+            sid = g.get('sale_id')
+            if sid:
+                rec = db.session.get(AccessorySale, sid)
+                if rec:
+                    db.session.delete(rec)
+
+    @staticmethod
+    def _apply_gifts(cam, gift_ids):
+        """Deduct the chosen accessories from stock and log each as a (0đ) accessory sale.
+        Price/cost = 0 because the gift cost is already booked against the camera's profit
+        via gift_cost — logging it again at cost would double-count it in Finance.
+        Returns the gift_json list. Assumes any previous gifts were already restocked."""
+        gifts = []
+        for aid in (gift_ids or []):
+            acc = db.session.get(Accessory, aid)
+            if acc and (acc.stock or 0) > 0:
+                acc.stock -= 1
+                rec = AccessorySale(accessory_id=acc.id, name=acc.name, quantity=1,
+                                    unit_price=0, unit_cost=0,
+                                    note=f'🎁 Tặng kèm máy: {cam.name}', sale_date=datetime.now())
+                db.session.add(rec)
+                db.session.flush()   # need rec.id to unlink it later on return/edit
+                gifts.append({'id': acc.id, 'name': acc.name,
+                              'cost': int(acc.cost or 0), 'sale_id': rec.id})
+        return gifts
+
     @expose('/sell', methods=['POST'])
     def sell(self):
-        """Mark a for-sale unit as sold, capturing price + customer info."""
+        """Finalise a for-sale unit: sold (đã bán) or deposit (đã cọc), capturing
+        price + customer info. A deposit books the full amount into that day's finance."""
         d = request.get_json(silent=True) or {}
         cam = db.session.get(Camera, d.get('id'))
         if not cam:
@@ -997,21 +1053,31 @@ class CamerasView(BaseView):
             price = max(0, int(d.get('sold_price') or 0))
         except (TypeError, ValueError):
             return jsonify({'ok': False, 'error': 'Giá bán không hợp lệ'}), 400
-        cam.sale_state = 'sold'
-        cam.is_sold = True
+        state = d.get('state') if d.get('state') in self.SELL_STATES else 'sold'
+        cam.sale_state = state
+        cam.is_sold = (state == 'sold')
         cam.sold_price = price
         cam.sold_to = (d.get('customer_name') or '').strip()
         cam.sold_phone = (d.get('phone') or '').strip()
         cam.sold_source = (d.get('source') or '').strip()
+        cam.sold_note = (d.get('note') or '').strip()
         cam.sold_date = datetime.now()
-        # gifted accessories: deduct each from stock, record cost (eats profit)
-        gift_ids = d.get('gifts') or []
-        gifts = []
-        for aid in gift_ids:
-            acc = db.session.get(Accessory, aid)
-            if acc and (acc.stock or 0) > 0:
-                acc.stock -= 1
-                gifts.append({'id': acc.id, 'name': acc.name, 'cost': int(acc.cost or 0)})
+        # gifted accessories: restock any previous gifts first, then apply the new selection
+        self._restock_gifts(cam)
+        gifts = self._apply_gifts(cam, d.get('gifts'))
+        cam.gift_json = json.dumps(gifts, ensure_ascii=False) if gifts else ''
+        db.session.commit()
+        return jsonify({'ok': True, 'pnl': camera_pnl(cam), 'unit': serialize_unit(cam)})
+
+    @expose('/gifts', methods=['POST'])
+    def gifts_update(self):
+        """Edit the gifted accessories on an already-sold/deposited unit."""
+        d = request.get_json(silent=True) or {}
+        cam = db.session.get(Camera, d.get('id'))
+        if not cam:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy máy'}), 404
+        self._restock_gifts(cam)                          # undo old gifts
+        gifts = self._apply_gifts(cam, d.get('gifts'))    # apply new selection
         cam.gift_json = json.dumps(gifts, ensure_ascii=False) if gifts else ''
         db.session.commit()
         return jsonify({'ok': True, 'pnl': camera_pnl(cam), 'unit': serialize_unit(cam)})
@@ -1029,13 +1095,15 @@ class CamerasView(BaseView):
             slug = f'{base}-{n}'
         cam_type = d.get('type') if d.get('type') in ('Rent', 'Sale') else 'Rent'
         category = (d.get('category') or '').strip()
+        state = d.get('sale_state') if d.get('sale_state') in self.SALE_STATES else 'stock'
         cam = Camera(name=name, slug=slug, brand=(d.get('brand') or '').strip(),
                      type=cam_type, category=category, price=int(d.get('price') or 0),
                      import_cost=int(d.get('import_cost') or 0), stock=1,
                      origin=(d.get('origin') or '').strip(),
                      accessory=(d.get('accessory') or '').strip(),
+                     color=(d.get('color') or '').strip(),
                      description=(d.get('note') or '').strip(),
-                     sale_state='stock')
+                     sale_state=state)
         if d.get('date_in'):
             cam.date_in = parse_dt(d.get('date_in'))
         elif cam_type == 'Sale':
@@ -1133,6 +1201,27 @@ class CamerasView(BaseView):
         db.session.delete(cam)   # variants cascade via relationship
         db.session.commit()
         return jsonify({'ok': True})
+
+    @expose('/bulk-delete', methods=['POST'])
+    def bulk_delete(self):
+        """Delete several cameras at once (multi-select on the Selling / Sold tabs)."""
+        d = request.get_json(silent=True) or {}
+        ids = d.get('ids') or []
+        try:
+            ids = [int(x) for x in ids]
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Danh sách không hợp lệ'}), 400
+        deleted = 0
+        for cid in ids:
+            cam = db.session.get(Camera, cid)
+            if not cam:
+                continue
+            self._restock_gifts(cam)     # return any gifted accessories to stock
+            RentalBooking.query.filter_by(camera_id=cam.id).delete()
+            db.session.delete(cam)       # variants cascade via relationship
+            deleted += 1
+        db.session.commit()
+        return jsonify({'ok': True, 'deleted': deleted})
 
     # ── Color/status variants (Selling tab) ──────────────────────────────────
     @expose('/variant/save', methods=['POST'])
@@ -1404,7 +1493,7 @@ class FinanceView(BaseView):
     @expose('/')
     def index(self):
         period = request.args.get('period', 'month')
-        if period not in ('day', 'month', 'year'):
+        if period not in ('day', 'month', 'year', 'all'):
             period = 'month'
         now = datetime.now()
 
@@ -1421,13 +1510,17 @@ class FinanceView(BaseView):
                     anchor = None
         if not anchor:
             anchor = now
-        astart, aend = self._bucket(period, anchor)
+        if period == 'all':
+            astart, aend = datetime(1970, 1, 1), datetime(2999, 1, 1)   # everything
+        else:
+            astart, aend = self._bucket(period, anchor)
 
         cameras = Camera.query.order_by(Camera.brand, Camera.name).all()
         rent_cameras = [c for c in cameras if c.type == 'Rent']
         sale_cameras = [c for c in cameras if c.type == 'Sale']
         bookings  = RentalBooking.query.all()
-        sold_cams = [c for c in sale_cameras if c.sale_state == 'sold' and c.sold_date]
+        # 'deposit' (đã cọc) counts as realised revenue too — customer has paid.
+        sold_cams = [c for c in sale_cameras if c.sale_state in ('sold', 'deposit') and c.sold_date]
         store_costs = StoreCost.query.all()
         acc_sales = AccessorySale.query.all()
 
@@ -1446,13 +1539,16 @@ class FinanceView(BaseView):
                     'arev': arev, 'acogs': acogs, 'aprof': arev - acogs}
 
         # ── trailing buckets for the trend charts (ending at the anchor) ──
-        counts = {'day': 14, 'month': 12, 'year': 5}[period]
+        # 'all' has no single anchor → show a yearly trend over the last few years for context.
+        chart_period = 'year' if period == 'all' else period
+        chart_anchor = now if period == 'all' else anchor
+        counts = {'day': 14, 'month': 12, 'year': 5}[chart_period]
         buckets = []
         for i in range(counts - 1, -1, -1):
-            bdt = self._shift(period, anchor, i)
-            bs, be = self._bucket(period, bdt)
-            label = bs.strftime('%d/%m') if period == 'day' else (str(bs.year) if period == 'year' else f'{bs.month:02d}/{bs.year}')
-            buckets.append((label, bs, be, bs == astart))
+            bdt = self._shift(chart_period, chart_anchor, i)
+            bs, be = self._bucket(chart_period, bdt)
+            label = bs.strftime('%d/%m') if chart_period == 'day' else (str(bs.year) if chart_period == 'year' else f'{bs.month:02d}/{bs.year}')
+            buckets.append((label, bs, be, period != 'all' and bs == astart))
         rental_series, sale_rev_series, sale_profit_series, store_cost_series = [], [], [], []
         for (label, bs, be, sel) in buckets:
             w = window(bs, be)
@@ -1501,26 +1597,34 @@ class FinanceView(BaseView):
             'broken_count': len(fixing_units) + len(unfix_units), 'unfixable_count': len(unfix_units),
             'sold_count': len(sold_in_period), 'camera_count': len(cameras),
         }
-        period_labels = {'day': '14 ngày', 'month': '12 tháng', 'year': '5 năm'}
-        anchor_labels = {
-            'day':   'Ngày ' + astart.strftime('%d/%m/%Y'),
-            'month': 'Tháng ' + astart.strftime('%m/%Y'),
-            'year':  'Năm ' + astart.strftime('%Y'),
-        }
-        anchor_values = {'day': astart.strftime('%Y-%m-%d'),
-                         'month': astart.strftime('%Y-%m'), 'year': astart.strftime('%Y')}
-        prev_anchor = self._shift(period, anchor, 1)
-        next_dt = self._shift(period, anchor, -1)
-        prev_values = {'day': prev_anchor.strftime('%Y-%m-%d'),
-                       'month': prev_anchor.strftime('%Y-%m'), 'year': prev_anchor.strftime('%Y')}
-        next_values = {'day': next_dt.strftime('%Y-%m-%d'),
-                       'month': next_dt.strftime('%Y-%m'), 'year': next_dt.strftime('%Y')}
+        period_labels = {'day': '14 ngày', 'month': '12 tháng', 'year': '5 năm', 'all': 'năm'}
+        if period == 'all':
+            anchor_label, anchor_value = 'Toàn thời gian', ''
+            prev_anchor = next_anchor = ''
+            is_current = True                         # hides "next" + "về hiện tại"
+        else:
+            anchor_labels = {
+                'day':   'Ngày ' + astart.strftime('%d/%m/%Y'),
+                'month': 'Tháng ' + astart.strftime('%m/%Y'),
+                'year':  'Năm ' + astart.strftime('%Y'),
+            }
+            anchor_values = {'day': astart.strftime('%Y-%m-%d'),
+                             'month': astart.strftime('%Y-%m'), 'year': astart.strftime('%Y')}
+            prev_dt = self._shift(period, anchor, 1)
+            next_dt = self._shift(period, anchor, -1)
+            prev_values = {'day': prev_dt.strftime('%Y-%m-%d'),
+                           'month': prev_dt.strftime('%Y-%m'), 'year': prev_dt.strftime('%Y')}
+            next_values = {'day': next_dt.strftime('%Y-%m-%d'),
+                           'month': next_dt.strftime('%Y-%m'), 'year': next_dt.strftime('%Y')}
+            anchor_label, anchor_value = anchor_labels[period], anchor_values[period]
+            prev_anchor, next_anchor = prev_values[period], next_values[period]
+            is_current = (astart <= now < aend)
         return self.render('admin/finance.html', summary=summary, cameras=cameras,
                            rent_cameras=rent_cameras, sale_cameras=sale_cameras,
                            period=period, period_label=period_labels[period],
-                           anchor_label=anchor_labels[period], anchor_value=anchor_values[period],
-                           prev_anchor=prev_values[period], next_anchor=next_values[period],
-                           is_current=(astart <= now < aend),
+                           anchor_label=anchor_label, anchor_value=anchor_value,
+                           prev_anchor=prev_anchor, next_anchor=next_anchor,
+                           is_current=is_current,
                            rental_series=rental_series, sale_rev_series=sale_rev_series,
                            sale_profit_series=sale_profit_series, store_cost_series=store_cost_series,
                            top_profit=top_profit, aging=aging)
@@ -1610,12 +1714,15 @@ class AccessoriesView(BaseView):
         month_sales = [s for s in AccessorySale.query.all()
                        if s.sale_date and s.sale_date.year == now.year and s.sale_date.month == now.month]
         month_rev = int(sum(s.revenue for s in month_sales))
+        sales = (AccessorySale.query.order_by(AccessorySale.sale_date.desc()).limit(300).all())
         return self.render('admin/phukien.html',
                            accessories=[serialize_accessory(a) for a in items],
+                           sales=[serialize_accessory_sale(s) for s in sales],
                            categories=ACCESSORY_CATEGORIES,
                            total_stock=total_stock, stock_value=stock_value,
                            item_count=len(items), month_rev=month_rev,
-                           today=now.strftime('%Y-%m-%d'))
+                           today=now.strftime('%Y-%m-%d'),
+                           this_month=now.strftime('%Y-%m'), this_year=now.strftime('%Y'))
 
     @expose('/add', methods=['POST'])
     def add(self):
@@ -1671,11 +1778,67 @@ class AccessoriesView(BaseView):
             return jsonify({'ok': False, 'error': f'Chỉ còn {a.stock or 0} cái trong kho'}), 400
         a.stock -= qty
         rec = AccessorySale(accessory_id=a.id, name=a.name, quantity=qty,
-                            unit_price=price, unit_cost=int(a.cost or 0), sale_date=datetime.now())
+                            unit_price=price, unit_cost=int(a.cost or 0),
+                            note=(d.get('note') or '').strip(),
+                            customer_name=(d.get('customer_name') or '').strip(),
+                            phone=(d.get('phone') or '').strip(),
+                            sale_date=datetime.now())
         db.session.add(rec)
         db.session.commit()
         return jsonify({'ok': True, 'accessory': serialize_accessory(a),
-                        'sold': qty, 'revenue': rec.revenue})
+                        'sold': qty, 'revenue': rec.revenue, 'sale': serialize_accessory_sale(rec)})
+
+    # ── Sales-history editing (Lịch sử bán) ──────────────────────────────────
+    SALE_EDITABLE = {'quantity': int, 'unit_price': int, 'note': str,
+                     'customer_name': str, 'phone': str}
+
+    @expose('/sale/update', methods=['POST'])
+    def sale_update(self):
+        """Inline-edit a logged accessory sale. Editing quantity re-syncs stock."""
+        d = request.get_json(silent=True) or {}
+        rec = db.session.get(AccessorySale, d.get('id'))
+        if not rec:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy giao dịch'}), 404
+        field, value = d.get('field'), d.get('value')
+        if field not in self.SALE_EDITABLE:
+            return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
+        if field == 'quantity':
+            try:
+                new_qty = max(1, int(value or 1))
+            except (TypeError, ValueError):
+                return jsonify({'ok': False, 'error': 'Số lượng không hợp lệ'}), 400
+            delta = new_qty - (rec.quantity or 0)          # extra units to pull from stock
+            acc = db.session.get(Accessory, rec.accessory_id) if rec.accessory_id else None
+            if acc and delta > 0 and delta > (acc.stock or 0):
+                return jsonify({'ok': False, 'error': f'Chỉ còn {acc.stock or 0} cái trong kho'}), 400
+            if acc:
+                acc.stock = max(0, (acc.stock or 0) - delta)
+            rec.quantity = new_qty
+        elif field == 'unit_price':
+            try:
+                rec.unit_price = max(0, int(value or 0))
+            except (TypeError, ValueError):
+                return jsonify({'ok': False, 'error': 'Giá không hợp lệ'}), 400
+        else:
+            setattr(rec, field, (str(value) if value is not None else '').strip())
+        db.session.commit()
+        acc = db.session.get(Accessory, rec.accessory_id) if rec.accessory_id else None
+        return jsonify({'ok': True, 'sale': serialize_accessory_sale(rec),
+                        'accessory': serialize_accessory(acc) if acc else None})
+
+    @expose('/sale/delete', methods=['POST'])
+    def sale_delete(self):
+        """Delete a logged accessory sale and return its units to stock."""
+        d = request.get_json(silent=True) or {}
+        rec = db.session.get(AccessorySale, d.get('id'))
+        if not rec:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy giao dịch'}), 404
+        acc = db.session.get(Accessory, rec.accessory_id) if rec.accessory_id else None
+        if acc:
+            acc.stock = (acc.stock or 0) + (rec.quantity or 0)
+        db.session.delete(rec)
+        db.session.commit()
+        return jsonify({'ok': True, 'accessory': serialize_accessory(acc) if acc else None})
 
     @expose('/delete', methods=['POST'])
     def delete(self):

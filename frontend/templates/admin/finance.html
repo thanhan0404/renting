@@ -25,7 +25,7 @@
   </div>
   <!-- period type selector -->
   <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-    {% for key, label in [('day','Ngày'), ('month','Tháng'), ('year','Năm')] %}
+    {% for key, label in [('day','Ngày'), ('month','Tháng'), ('year','Năm'), ('all','Tất cả')] %}
     <a href="{{ url_for('finance.index') }}?period={{ key }}"
        class="px-4 py-1.5 rounded-lg text-sm font-bold transition-colors {% if period == key %}bg-white text-brand-700 shadow-sm{% else %}text-gray-500 hover:text-gray-800{% endif %}">{{ label }}</a>
     {% endfor %}
@@ -33,6 +33,11 @@
 </div>
 
 <!-- selected-period navigation -->
+{% if period == 'all' %}
+<div class="mb-4">
+  <span class="inline-block px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-black text-gray-900">{{ anchor_label }}</span>
+</div>
+{% else %}
 <div class="flex flex-wrap items-center gap-2 mb-4">
   <a href="{{ url_for('finance.index') }}?period={{ period }}&anchor={{ prev_anchor }}"
      class="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:text-brand-700 hover:border-brand-300 font-bold" title="Kỳ trước">‹</a>
@@ -60,6 +65,7 @@
   <a href="{{ url_for('finance.index') }}?period={{ period }}" class="text-xs font-bold text-gray-400 hover:text-brand-700 px-2 py-2">Về hiện tại</a>
   {% endif %}
 </div>
+{% endif %}
 
 <!-- ════════ TỔNG HỢP ════════ -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">

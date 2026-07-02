@@ -223,6 +223,7 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script>
 const APPT_COLOR = '#0e7490';
+const APPT_DONE_COLOR = '#16a34a';   // finished appointments turn green
 
 // Camera pricing (rental total preview)
 const CAM_PRICES = {
@@ -314,9 +315,10 @@ function renderGrid(){
       cell.addEventListener('click', ()=> openApptCreate(ds, '10:00'));
       (byDay[ds] || []).slice().sort((a,b)=> a.time.localeCompare(b.time)).forEach(a => {
         const chip = document.createElement('div');
-        chip.title = `${a.time} · ${a.customer||'Khách'}` + (a.interest?` · ${a.interest}`:'') + (a.phone?` · ${a.phone}`:'');
-        chip.style.cssText = `background:${APPT_COLOR}; color:#fff; border-radius:6px; padding:2px 6px; font-size:11px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; ${a.status==='done'?'opacity:.55':''}`;
-        chip.innerHTML = `${esc(a.time)} ${esc(a.customer||'Khách')}`;
+        const done = a.status === 'done';
+        chip.title = `${a.time} · ${a.customer||'Khách'}` + (a.interest?` · ${a.interest}`:'') + (a.phone?` · ${a.phone}`:'') + (done?' · đã xong':'');
+        chip.style.cssText = `background:${done?APPT_DONE_COLOR:APPT_COLOR}; color:#fff; border-radius:6px; padding:2px 6px; font-size:11px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis`;
+        chip.innerHTML = `${done?'✅ ':''}${esc(a.time)} ${esc(a.customer||'Khách')}`;
         chip.addEventListener('click', ev => { ev.stopPropagation(); openApptEdit(a); });
         cell.appendChild(chip);
       });

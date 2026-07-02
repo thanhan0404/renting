@@ -40,6 +40,7 @@ class Camera(db.Model):
     sold_to     = db.Column(db.String(100), default='')       # người mua
     sold_phone  = db.Column(db.String(20),  default='')
     sold_source = db.Column(db.String(30),  default='')       # nguồn khách: Facebook/Instagram/Threads/TikTok…
+    sold_note   = db.Column(db.String(300), default='')       # ghi chú khi bán (viết trong popup bán)
     gift_json   = db.Column(db.Text,        default='')       # JSON list of gifted accessories [{id,name,cost}]
 
     @property
@@ -65,17 +66,21 @@ class Camera(db.Model):
         """Total income from all rental bookings of this camera."""
         return int(sum((b.total_price or 0) for b in self.bookings))
 
+    # A "deposit" (đã cọc) unit counts as realised revenue exactly like a sold one —
+    # the customer has paid, the camera is reserved. It only lives in a separate tab.
+    SOLD_STATES = ('sold', 'deposit')
+
     @property
     def units_sold(self):
-        """Per-unit sale: 1 if sold. Rental asset → binary is_sold."""
+        """Per-unit sale: 1 if sold/deposited. Rental asset → binary is_sold."""
         if self.type == 'Sale':
-            return 1 if self.sale_state == 'sold' else 0
+            return 1 if self.sale_state in self.SOLD_STATES else 0
         return 1 if self.is_sold else 0
 
     @property
     def sale_revenue(self):
         if self.type == 'Sale':
-            return int(self.sold_price or 0) if self.sale_state == 'sold' else 0
+            return int(self.sold_price or 0) if self.sale_state in self.SOLD_STATES else 0
         return int(self.sold_price or 0) if self.is_sold else 0
 
     @property
@@ -111,19 +116,19 @@ class Camera(db.Model):
 
     @property
     def profit(self):
-        """Sale: realised only when sold; an unfixable unit is a write-off loss."""
+        """Sale: realised only when sold/deposited; an unfixable unit is a write-off loss."""
         if self.type == 'Sale':
-            if self.sale_state == 'sold':
+            if self.sale_state in self.SOLD_STATES:
                 return self.sale_revenue - self.cost
             if self.sale_state == 'unfixable':
                 return -self.cost
-            return 0                       # stock / fixing → not yet realised
+            return 0                       # stock / processing / fixing → not yet realised
         return self.revenue - self.cost
 
     @property
     def inventory_value(self):
-        """Capital tied up in unsold, still-sellable stock."""
-        if self.type == 'Sale' and self.sale_state in ('stock', 'fixing'):
+        """Capital tied up in unsold, still-sellable stock (incl. incoming/processing)."""
+        if self.type == 'Sale' and self.sale_state in ('stock', 'fixing', 'processing'):
             return int(self.import_cost or 0)
         return 0
 
@@ -133,8 +138,9 @@ class Camera(db.Model):
 
     @property
     def state_label(self):
-        return {'stock': 'Còn hàng', 'sold': 'Đã bán',
-                'fixing': 'Cần sửa', 'unfixable': 'Không sửa được'}.get(self.sale_state or 'stock', 'Còn hàng')
+        return {'stock': 'Còn hàng', 'processing': 'Đang xử lý', 'deposit': 'Đã cọc',
+                'sold': 'Đã bán', 'fixing': 'Cần sửa',
+                'unfixable': 'Không sửa được'}.get(self.sale_state or 'stock', 'Còn hàng')
 
     # ── Variant (color × status) stock totals (used by the Selling tab) ──────
     @property
@@ -334,6 +340,9 @@ class AccessorySale(db.Model):
     quantity     = db.Column(db.Integer, default=1)
     unit_price   = db.Column(db.Integer, default=0)
     unit_cost    = db.Column(db.Integer, default=0)           # cost snapshot (COGS)
+    note         = db.Column(db.String(200), default='')      # optional note per sale
+    customer_name = db.Column(db.String(100), default='')     # tên khách
+    phone         = db.Column(db.String(20),  default='')     # sđt khách
     sale_date    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     @property
