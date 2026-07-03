@@ -17,6 +17,7 @@ from seed import seed as seed_db, backfill_costs
 try:
     from openpyxl import Workbook, load_workbook
     from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.worksheet.datavalidation import DataValidation
     HAS_OPENPYXL = True
 except ImportError:                       # pragma: no cover
     HAS_OPENPYXL = False
@@ -39,10 +40,15 @@ IMPORT_COLUMNS = ['Tên máy', 'Màu', 'Dòng máy', 'Nơi (N/V)', 'Phụ kiện
 # state text (Vietnamese / English) → internal sale_state
 STATE_ALIASES = {
     'còn hàng': 'stock', 'con hang': 'stock', 'stock': 'stock', 'tồn': 'stock', '': 'stock',
+    'đang xử lý': 'processing', 'dang xu ly': 'processing', 'processing': 'processing', 'xử lý': 'processing',
+    'đã cọc': 'deposit', 'da coc': 'deposit', 'deposit': 'deposit', 'cọc': 'deposit',
     'đã bán': 'sold', 'da ban': 'sold', 'sold': 'sold', 'bán': 'sold',
     'cần sửa': 'fixing', 'can sua': 'fixing', 'fixing': 'fixing', 'sửa': 'fixing', 'hỏng': 'fixing',
     'không sửa được': 'unfixable', 'khong sua duoc': 'unfixable', 'unfixable': 'unfixable',
 }
+
+# Vietnamese labels offered in the Excel "Trạng thái" dropdown (order matters for the sheet)
+STATE_CHOICES = ['Còn hàng', 'Đang xử lý', 'Đã cọc', 'Đã bán', 'Cần sửa', 'Không sửa được']
 
 
 def normalize_origin(value):
@@ -1133,6 +1139,20 @@ class CamerasView(BaseView):
         ws.append(['LUMIX FX60', 'Bạc', 'Compact', 'N', 'Flash, pin',
                    '2026-06-01', 'Máy đẹp', 1750000, '', 'Còn hàng'])
         ws.freeze_panes = 'A2'
+        # "Trạng thái" (last column) → in-cell dropdown so the shop picks a valid value
+        state_col = ws.cell(row=1, column=len(IMPORT_COLUMNS)).column_letter
+        dv = DataValidation(
+            type='list',
+            formula1='"{}"'.format(','.join(STATE_CHOICES)),
+            allow_blank=True,
+            showDropDown=False,           # False = show the dropdown arrow (openpyxl quirk)
+        )
+        dv.error = 'Chọn một trạng thái từ danh sách.'
+        dv.errorTitle = 'Trạng thái không hợp lệ'
+        dv.prompt = 'Chọn trạng thái từ danh sách'
+        dv.promptTitle = 'Trạng thái'
+        ws.add_data_validation(dv)
+        dv.add('{col}2:{col}1000'.format(col=state_col))   # apply to the data rows
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -1181,8 +1201,8 @@ class CamerasView(BaseView):
                     import_cost=_to_int(cells[7]),
                     sold_price=sold_price,
                     sale_state=state, price=sold_price or 0, stock=1)
-                if state == 'sold':
-                    cam.is_sold = True
+                cam.is_sold = (state == 'sold')
+                if state in ('sold', 'deposit'):   # realised sale → stamp the date revenue is counted
                     cam.sold_date = date_in
                 db.session.add(cam)
                 added += 1

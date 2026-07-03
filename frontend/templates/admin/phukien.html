@@ -30,8 +30,8 @@
 
 <!-- tabs -->
 <div class="flex items-center gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-max">
-  <button id="tabBtnStock" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">📦 Kho</button>
-  <button id="tabBtnHist" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">🧾 Lịch sử bán</button>
+  <button id="tabBtnStock" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Kho</button>
+  <button id="tabBtnHist" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Lịch sử bán</button>
 </div>
 
 <div id="tabStock">
@@ -98,8 +98,8 @@
           <td class="px-4 py-1.5"><input class="ac-cell ac-stock text-right tabular-nums font-black {% if a.stock <= 0 %}text-brand-700{% else %}text-gray-900{% endif %}" inputmode="numeric" data-field="stock" value="{{ a.stock }}"></td>
           <td class="px-4 py-1.5"><input class="ac-cell text-gray-700" type="text" data-field="note" value="{{ a.note }}" placeholder="—"></td>
           <td class="px-4 py-1.5 text-center whitespace-nowrap">
-            <button class="ac-sell bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">🛒 Bán</button>
-            <button class="ac-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 align-middle" title="Xoá">🗑</button>
+            <button class="ac-sell bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">Bán</button>
+            <button class="ac-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 align-middle" title="Xoá">Xoá</button>
           </td>
         </tr>
         {% endfor %}
@@ -151,7 +151,7 @@
             <td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 hist-rev">{{ s.revenue|money }}đ</td>
             <td class="px-4 py-1.5 text-right tabular-nums hist-profit {% if s.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ s.profit|money }}đ</td>
             <td class="px-4 py-1.5"><input class="hist-cell text-gray-600" type="text" data-field="note" value="{{ s.note }}" placeholder="—"></td>
-            <td class="px-4 py-1.5 text-center"><button class="hist-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">🗑</button></td>
+            <td class="px-4 py-1.5 text-center"><button class="hist-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -266,7 +266,7 @@
       `<td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 hist-rev">${fmt(s.revenue)}</td>` +
       `<td class="px-4 py-1.5 text-right tabular-nums hist-profit ${pc}">${fmt(s.profit)}</td>` +
       `<td class="px-4 py-1.5"><input class="hist-cell text-gray-600" type="text" data-field="note" value="${esc(s.note)}" placeholder="—"></td>` +
-      `<td class="px-4 py-1.5 text-center"><button class="hist-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">🗑</button></td>`;
+      `<td class="px-4 py-1.5 text-center"><button class="hist-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button></td>`;
     wireSaleRow(tr);
     return tr;
   }

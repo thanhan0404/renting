@@ -87,7 +87,7 @@
           </td>
           <td class="px-4 py-1.5"><input class="cc-cell" type="text" data-field="note" value="{{ c.note }}" placeholder="—"></td>
           <td class="px-4 py-1.5"><input class="cc-cell cc-money text-right tabular-nums font-bold text-gray-900" inputmode="numeric" data-field="amount" data-raw="{{ c.amount }}"></td>
-          <td class="px-4 py-1.5 text-center"><button class="cc-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá">🗑</button></td>
+          <td class="px-4 py-1.5 text-center"><button class="cc-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá">Xoá</button></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -174,7 +174,7 @@
         `<td class="px-4 py-1.5"><select class="cc-cell" data-field="category">${opts}</select></td>` +
         `<td class="px-4 py-1.5"><input class="cc-cell" type="text" data-field="note" value="" placeholder="—"></td>` +
         `<td class="px-4 py-1.5"><input class="cc-cell cc-money text-right tabular-nums font-bold text-gray-900" inputmode="numeric" data-field="amount" data-raw="${c.amount}"></td>` +
-        `<td class="px-4 py-1.5 text-center"><button class="cc-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá">🗑</button></td>`;
+        `<td class="px-4 py-1.5 text-center"><button class="cc-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá">Xoá</button></td>`;
       tr.querySelector('[data-field="note"]').value = c.note || '';
       $('ccBody').insertBefore(tr, $('ccBody').firstChild);
       wireRow(tr); recalcTotals();

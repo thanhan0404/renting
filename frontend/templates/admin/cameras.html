@@ -32,25 +32,24 @@
 <!-- ── Sub-tabs ── -->
 <div class="flex items-center gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-max">
   <button id="tabBtnRent" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    🎬 Cho thuê <span class="opacity-60">({{ rent_cameras|length }})</span>
+    Cho thuê <span class="opacity-60">({{ rent_cameras|length }})</span>
   </button>
   <button id="tabBtnSale" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    🏷️ Để bán <span class="opacity-60">({{ sale_cameras|length }})</span>
+    Để bán <span class="opacity-60">({{ sale_cameras|length }})</span>
   </button>
   <button id="tabBtnDeposit" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    💰 Đã cọc <span class="opacity-60">({{ deposit_cameras|length }})</span>
+    Đã cọc <span class="opacity-60">({{ deposit_cameras|length }})</span>
   </button>
   <button id="tabBtnSold" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    ✅ Đã bán <span class="opacity-60">({{ sold_cameras|length }})</span>
+    Đã bán <span class="opacity-60">({{ sold_cameras|length }})</span>
   </button>
 </div>
 
 <!-- ── Toolbar ── -->
 <div class="flex flex-wrap items-center gap-2 mb-4">
   <div class="relative">
-    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
     <input id="searchInput" type="text" placeholder="Tìm theo tên / hãng..."
-           class="border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm w-64 focus:outline-none focus:border-brand-500">
+           class="border border-gray-200 rounded-xl px-3 py-2 text-sm w-64 focus:outline-none focus:border-brand-500">
   </div>
   <select id="brandFilter" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500">
     <option value="">Tất cả hãng</option>
@@ -63,6 +62,7 @@
   <select id="stateFilter" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500 hidden">
     <option value="">Tất cả trạng thái</option>
     <option value="stock">Còn hàng</option>
+    <option value="processing">Đang xử lý</option>
     <option value="fixing">Cần sửa</option>
     <option value="unfixable">Không sửa được</option>
   </select>
@@ -88,7 +88,7 @@
 <div id="bulkBar" class="hidden items-center gap-3 bg-brand-50 border border-brand-200 rounded-xl px-4 py-2.5 mb-3">
   <span class="text-sm font-bold text-brand-700"><span id="bulkCount">0</span> máy đã chọn</span>
   <button id="bulkClear" class="text-xs font-bold text-gray-500 hover:text-gray-800">Bỏ chọn</button>
-  <button id="bulkDelete" class="ml-auto bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-1.5 rounded-lg">🗑 Xoá các máy đã chọn</button>
+  <button id="bulkDelete" class="ml-auto bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-1.5 rounded-lg">Xoá các máy đã chọn</button>
 </div>
 
 <!-- ════════════════ RENTING TAB ════════════════ -->
@@ -141,7 +141,7 @@
             <td class="cam-calc cell-revenue px-3 py-1.5 text-right tabular-nums font-semibold text-gray-900 bg-gray-50/70">{{ c.revenue|money }}đ</td>
             <td class="cam-calc cell-cost px-3 py-1.5 text-right tabular-nums font-semibold text-gray-700 bg-gray-50/70">{{ c.cost|money }}đ</td>
             <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
-            <td class="px-3 py-1.5 text-center"><button class="cam-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors" title="Xoá máy">🗑</button></td>
+            <td class="px-3 py-1.5 text-center"><button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors" title="Xoá máy">Xoá</button></td>
           </tr>
           <tr class="rent-detail-row hidden" data-id="{{ c.id }}">
             <td colspan="12" class="bg-gray-50/60 px-5 py-4 border-t border-gray-100">
@@ -175,8 +175,8 @@
     <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
       <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Nhập máy mới</span>
       <div class="flex items-center gap-2">
-        <a href="{{ url_for('cameras.import_template') }}" class="text-xs font-bold text-gray-500 hover:text-brand-700 border border-gray-200 rounded-lg px-3 py-1.5">⬇ Tải mẫu Excel</a>
-        <button id="importBtn" class="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-3 py-1.5">⬆ Nhập từ Excel</button>
+        <a href="{{ url_for('cameras.import_template') }}" class="text-xs font-bold text-gray-500 hover:text-brand-700 border border-gray-200 rounded-lg px-3 py-1.5">Tải mẫu Excel</a>
+        <button id="importBtn" class="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-3 py-1.5">Nhập từ Excel</button>
       </div>
     </div>
     <div class="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
@@ -208,15 +208,8 @@
         <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Giá nhập</label>
         <input id="qa_cost" type="text" inputmode="numeric" placeholder="0" class="qa-in money-live w-full text-right tabular-nums">
       </div>
-      <div class="md:col-span-3">
-        <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">Trạng thái</label>
-        <select id="qa_state" class="qa-in w-full">
-          <option value="stock">● Còn hàng</option>
-          <option value="processing">⏳ Đang xử lý</option>
-        </select>
-      </div>
       <div class="md:col-span-2">
-        <button id="qa_add" class="w-full bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold py-2.5 rounded-xl">📥 Nhập máy</button>
+        <button id="qa_add" class="w-full bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold py-2.5 rounded-xl">Nhập máy</button>
       </div>
     </div>
     <p class="text-[11px] text-gray-400 mt-2">Nhập nhanh: gõ tên + giá nhập rồi Enter. Mặc định trạng thái <b>“Còn hàng”</b>. Khi bán: đổi trạng thái sang <b>“Đã bán”</b> rồi điền giá bán & thông tin khách.</p>
@@ -289,7 +282,7 @@
             </td>
             <td class="px-3 py-1.5 text-center whitespace-nowrap">
               <input type="checkbox" class="cam-check row-select align-middle" data-id="{{ c.id }}">
-              <button class="cam-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">🗑</button>
+              <button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">Xoá</button>
             </td>
           </tr>
           {% endfor %}
@@ -334,8 +327,8 @@
             <td class="cam-sticky-cell px-3 py-1.5">
               <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
               <div class="flex items-center gap-1 pl-2 mt-0.5">
-                <span class="gift-label text-[10px] font-bold text-brand-700 truncate" title="Phụ kiện tặng kèm — đã trừ khỏi lợi nhuận">{% if c.gift_label %}🎁 {{ c.gift_label }}{% endif %}</span>
-                <button class="gift-edit text-[10px] font-bold text-gray-400 hover:text-brand-700 shrink-0" title="Sửa quà tặng kèm">✎ quà</button>
+                <span class="gift-label text-[10px] font-bold text-brand-700 truncate" title="Phụ kiện tặng kèm — đã trừ khỏi lợi nhuận">{% if c.gift_label %}{{ c.gift_label }}{% endif %}</span>
+                <button class="gift-edit text-[10px] font-bold text-gray-400 hover:text-brand-700 shrink-0" title="Sửa quà tặng kèm">Sửa quà</button>
               </div>
             </td>
             <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="color" value="{{ c.color or '' }}" placeholder="—"></td>
@@ -371,7 +364,7 @@
             </td>
             <td class="px-3 py-1.5 text-center whitespace-nowrap">
               <input type="checkbox" class="cam-check row-select align-middle" data-id="{{ c.id }}">
-              <button class="cam-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">🗑</button>
+              <button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">Xoá</button>
             </td>
           </tr>
           {% endfor %}
@@ -416,8 +409,8 @@
             <td class="cam-sticky-cell px-3 py-1.5">
               <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
               <div class="flex items-center gap-1 pl-2 mt-0.5">
-                <span class="gift-label text-[10px] font-bold text-brand-700 truncate" title="Phụ kiện tặng kèm — đã trừ khỏi lợi nhuận">{% if c.gift_label %}🎁 {{ c.gift_label }}{% endif %}</span>
-                <button class="gift-edit text-[10px] font-bold text-gray-400 hover:text-brand-700 shrink-0" title="Sửa quà tặng kèm">✎ quà</button>
+                <span class="gift-label text-[10px] font-bold text-brand-700 truncate" title="Phụ kiện tặng kèm — đã trừ khỏi lợi nhuận">{% if c.gift_label %}{{ c.gift_label }}{% endif %}</span>
+                <button class="gift-edit text-[10px] font-bold text-gray-400 hover:text-brand-700 shrink-0" title="Sửa quà tặng kèm">Sửa quà</button>
               </div>
             </td>
             <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="color" value="{{ c.color or '' }}" placeholder="—"></td>
@@ -453,7 +446,7 @@
             </td>
             <td class="px-3 py-1.5 text-center whitespace-nowrap">
               <input type="checkbox" class="cam-check row-select align-middle" data-id="{{ c.id }}">
-              <button class="cam-del w-7 h-7 rounded-lg text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">🗑</button>
+              <button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">Xoá</button>
             </td>
           </tr>
           {% endfor %}
@@ -603,7 +596,7 @@
     </div>
     <div class="p-5 space-y-3.5">
       <p class="text-sm text-gray-500">Tải file <b>.xlsx</b> theo đúng mẫu (các cột: Tên máy, Màu, Dòng máy, Nơi, Phụ kiện, Ngày về, Ghi chú, Giá nhập, Giá bán, Trạng thái). Mỗi dòng = một máy.</p>
-      <a href="{{ url_for('cameras.import_template') }}" class="inline-block text-xs font-bold text-brand-700 hover:underline">⬇ Tải file mẫu</a>
+      <a href="{{ url_for('cameras.import_template') }}" class="inline-block text-xs font-bold text-brand-700 hover:underline">Tải file mẫu</a>
       <input id="importFile" type="file" accept=".xlsx" class="block w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-700 file:text-white file:font-bold file:px-3 file:py-1.5">
       <div id="importStatus" class="text-sm text-gray-500 hidden"></div>
     </div>
@@ -890,7 +883,7 @@
       color: $('qa_color').value.trim(),
       accessory: $('qa_acc').value.trim(), date_in: $('qa_date').value || null,
       import_cost: num($('qa_cost').value),
-      sale_state: $('qa_state').value,
+      sale_state: 'stock',
     };
     TINTUS.api(ADD_URL, payload).then(() => {
       sessionStorage.setItem('camTab', 'sale');
@@ -927,7 +920,7 @@
       const u = res.unit || {};
       giftRow.dataset.gifts = JSON.stringify(u.gifts || []);
       const gl = giftRow.querySelector('.gift-label');
-      if (gl) gl.textContent = u.gift_label ? ('🎁 ' + u.gift_label) : '';
+      if (gl) gl.textContent = u.gift_label || '';
       applyPnl(giftRow, res.pnl);
       closeGift(); TINTUS.toast('Đã cập nhật quà tặng', 'ok');
     } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
