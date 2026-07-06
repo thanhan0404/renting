@@ -8,6 +8,7 @@
 {% set keepq = ('&q=' ~ keyword) if keyword else '' %}
 {% set keepbrand = ('&brand=' ~ current_brand) if current_brand else '' %}
 {% set keepprice = ('&price=' ~ current_price) if current_price else '' %}
+{% set keepsort = ('&sort=' ~ current_sort) if current_sort else '' %}
 
 <!-- Page Header -->
 <div class="bg-gray-950 text-white py-12">
@@ -41,7 +42,7 @@
                     {% for slug, label, icon_bg, emoji in brands_list %}
                     {% set active = (current_brand|lower == slug) or (not current_brand and not slug) %}
                     <li>
-                        <a href="/store?brand={{ slug }}{{ keepq }}{{ keepprice }}"
+                        <a href="/store?brand={{ slug }}{{ keepq }}{{ keepprice }}{{ keepsort }}"
                            class="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-bold transition-colors {% if active %}bg-red-700 text-white{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
                             <span class="w-5 h-5 {% if active %}bg-white/20{% else %}{{ icon_bg }}{% endif %} rounded flex items-center justify-center text-[10px]">{{ emoji }}</span>
                             {{ label }}
@@ -56,7 +57,7 @@
                     <div class="space-y-1.5">
                         {% for pslug, plabel in price_bands %}
                         {% set pactive = (current_price == pslug) %}
-                        <a href="/store?price={{ pslug }}{{ keepbrand }}{{ keepq }}"
+                        <a href="/store?price={{ pslug }}{{ keepbrand }}{{ keepq }}{{ keepsort }}"
                            class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors {% if pactive %}bg-red-50 text-red-700{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
                             <span class="w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 {% if pactive %}border-red-600{% else %}border-gray-300{% endif %}">
                                 {% if pactive %}<span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>{% endif %}
@@ -97,7 +98,7 @@
             <!-- Products -->
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
 
-                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50', 'Nikon': 'bg-yellow-50'} %}
 
                 {% for cam in cameras %}
                 <div class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group flex flex-col ring-soft">

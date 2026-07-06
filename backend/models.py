@@ -27,7 +27,8 @@ class Camera(db.Model):
     is_broken     = db.Column(db.Boolean, default=False)      # currently broken?
     repair_cost   = db.Column(db.Integer, default=0)          # cost to fix (VND)
     is_sold       = db.Column(db.Boolean, default=False)      # has been sold?
-    sold_price    = db.Column(db.Integer, default=0)          # revenue if sold (VND)
+    sold_price    = db.Column(db.Integer, default=0)          # full agreed sale price (VND)
+    deposit_amount = db.Column(db.Integer, default=0)         # cọc: cash received while state='deposit'
     sold_date     = db.Column(db.DateTime, nullable=True)
     reorder_point = db.Column(db.Integer, default=0)          # (legacy) low-stock threshold
 
@@ -49,16 +50,6 @@ class Camera(db.Model):
             return json.loads(self.specs_json)
         return {}
 
-    # ── Weighted-average acquisition cost (from received stock batches) ──────
-    @property
-    def avg_cost(self):
-        """Weighted-average unit cost across received import batches; falls back
-        to the manual import_cost when there is no batch history."""
-        qty = sum((r.quantity or 0) for r in self.receipts if r.status == 'received')
-        tot = sum((r.quantity or 0) * (r.unit_cost or 0) for r in self.receipts if r.status == 'received')
-        if qty > 0:
-            return int(round(tot / qty))
-        return int(self.import_cost or 0)
 
     # ── Per-camera P&L (used by Finance + Cameras admin views) ───────────────
     @property
@@ -79,6 +70,8 @@ class Camera(db.Model):
 
     @property
     def sale_revenue(self):
+        # A deposit (đã cọc) books the FULL sale price on the deposit day, same as a
+        # completed sale. deposit_amount is tracked separately for reference only.
         if self.type == 'Sale':
             return int(self.sold_price or 0) if self.sale_state in self.SOLD_STATES else 0
         return int(self.sold_price or 0) if self.is_sold else 0
@@ -109,7 +102,9 @@ class Camera(db.Model):
     @property
     def cost(self):
         """Sale: acquisition + repair + gifted accessories. Rental: repairs only
-        (gear is an owned asset — its purchase price is not expensed)."""
+        (gear is an owned asset — its purchase price is not expensed).
+        A deposit (đã cọc) is treated as a completed sale for accounting: full COGS
+        is recognised on the deposit day, same as the full price (see sale_revenue)."""
         if self.type == 'Sale':
             return int((self.import_cost or 0) + (self.repair_cost or 0) + self.gift_cost)
         return int(self.repair_cost or 0)
@@ -127,7 +122,8 @@ class Camera(db.Model):
 
     @property
     def inventory_value(self):
-        """Capital tied up in unsold, still-sellable stock (incl. incoming/processing)."""
+        """Capital tied up in unsold, still-sellable stock. A deposit is booked as a
+        completed sale (revenue on cọc day) so it is NOT counted as held inventory."""
         if self.type == 'Sale' and self.sale_state in ('stock', 'fixing', 'processing'):
             return int(self.import_cost or 0)
         return 0
@@ -142,22 +138,6 @@ class Camera(db.Model):
                 'sold': 'Đã bán', 'fixing': 'Cần sửa',
                 'unfixable': 'Không sửa được'}.get(self.sale_state or 'stock', 'Còn hàng')
 
-    # ── Variant (color × status) stock totals (used by the Selling tab) ──────
-    @property
-    def total_available(self):
-        return int(sum(v.qty_available or 0 for v in self.variants))
-
-    @property
-    def total_incoming(self):
-        return int(sum(v.qty_incoming or 0 for v in self.variants))
-
-    @property
-    def total_broken(self):
-        return int(sum(v.qty_broken or 0 for v in self.variants))
-
-    @property
-    def total_unfixable(self):
-        return int(sum(v.qty_unfixable or 0 for v in self.variants))
 
     # Convenience: formatted price strings used in templates
     @property
@@ -213,97 +193,47 @@ class Appointment(db.Model):
     camera        = db.relationship('Camera')
 
 
-class CameraVariant(db.Model):
-    """A color variant of a (Selling) camera, with stock split by status."""
+class Lead(db.Model):
+    """A rental/purchase inquiry captured from the public site (homepage form).
+    Not yet a booking — a to-follow-up contact so no walk-in inquiry is lost."""
     id            = db.Column(db.Integer, primary_key=True)
-    camera_id     = db.Column(db.Integer, db.ForeignKey('camera.id'), nullable=False)
-    color         = db.Column(db.String(60), default='')
-    qty_available = db.Column(db.Integer, default=0)   # Có sẵn
-    qty_incoming  = db.Column(db.Integer, default=0)   # Chưa về (not yet in stock)
-    qty_broken    = db.Column(db.Integer, default=0)   # Hỏng (broken, fixable)
-    qty_unfixable = db.Column(db.Integer, default=0)   # Không sửa được (unfixable)
-
-    camera = db.relationship(
-        'Camera',
-        backref=db.backref('variants', cascade='all, delete-orphan', order_by='CameraVariant.id'),
-    )
-
-
-class SaleRecord(db.Model):
-    """A logged sale (or return) of one or more units of a camera (Selling tab)."""
-    id         = db.Column(db.Integer, primary_key=True)
-    camera_id  = db.Column(db.Integer, db.ForeignKey('camera.id'), nullable=False)
-    variant_id = db.Column(db.Integer, nullable=True)        # which color (for stock linkage)
-    color      = db.Column(db.String(60), default='')        # snapshot of color name at sale time
-    quantity   = db.Column(db.Integer, default=1)
-    unit_price = db.Column(db.Integer, default=0)            # sale price per unit (VND)
-    unit_cost  = db.Column(db.Integer, default=0)            # cost snapshot at sale time (immutable COGS)
-    discount   = db.Column(db.Integer, default=0)            # total discount on the line (VND)
-    note       = db.Column(db.String(200), default='')
-    sale_date  = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    # Customer + payment (a real sale, not just a counter)
-    customer_name  = db.Column(db.String(100), default='')
-    phone          = db.Column(db.String(20),  default='')
-    payment_method = db.Column(db.String(20),  default='cash')   # cash | transfer | card
-    payment_status = db.Column(db.String(20),  default='paid')   # paid | deposit | unpaid
-    amount_paid    = db.Column(db.Integer,     default=0)        # for deposits / installments
-
-    # Per-unit traceability (used gear: serial, warranty, condition grade)
-    serial         = db.Column(db.String(120), default='')
-    warranty_until = db.Column(db.DateTime, nullable=True)
-    condition      = db.Column(db.String(20),  default='')       # new | likenew | A | B | C
-
-    # Returns
-    is_return  = db.Column(db.Boolean, default=False)            # True → reverses revenue & restocks
-    return_of  = db.Column(db.Integer, nullable=True)            # SaleRecord.id this return refers to
-
-    camera = db.relationship(
-        'Camera',
-        backref=db.backref('sales', cascade='all, delete-orphan', order_by='SaleRecord.id'),
-    )
-
-    @property
-    def line_total(self):
-        return (self.quantity or 0) * (self.unit_price or 0) - (self.discount or 0)
-
-
-class Supplier(db.Model):
-    """A vendor cameras are bought from (for receiving + payables tracking)."""
-    id         = db.Column(db.Integer, primary_key=True)
-    name       = db.Column(db.String(120), nullable=False)
-    phone      = db.Column(db.String(30),  default='')
-    note       = db.Column(db.String(200), default='')
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    @property
-    def total_purchased(self):
-        return int(sum((r.quantity or 0) * (r.unit_cost or 0) for r in self.receipts))
-
-
-class StockReceipt(db.Model):
-    """One import batch of a camera (qty at a unit cost), optionally from a supplier.
-
-    status='ordered'  → counts toward the variant's 'incoming' stock (chưa về)
-    status='received' → counts toward 'available' and feeds weighted-average cost
-    """
-    id            = db.Column(db.Integer, primary_key=True)
-    camera_id     = db.Column(db.Integer, db.ForeignKey('camera.id'), nullable=False)
-    variant_id    = db.Column(db.Integer, nullable=True)
-    supplier_id   = db.Column(db.Integer, db.ForeignKey('supplier.id'), nullable=True)
-    color         = db.Column(db.String(60), default='')
-    quantity      = db.Column(db.Integer, default=0)
-    unit_cost     = db.Column(db.Integer, default=0)
-    status        = db.Column(db.String(20), default='received')   # ordered | received
-    expected_date = db.Column(db.DateTime, nullable=True)
-    received_date = db.Column(db.DateTime, nullable=True)
-    note          = db.Column(db.String(200), default='')
+    customer_name = db.Column(db.String(100), default='')
+    phone         = db.Column(db.String(30),  default='')
+    notes         = db.Column(db.Text,        default='')
+    start_date    = db.Column(db.DateTime, nullable=True)     # desired rental start
+    end_date      = db.Column(db.DateTime, nullable=True)     # desired rental end
+    source        = db.Column(db.String(40),  default='Trang chủ')
+    status        = db.Column(db.String(20),  default='new')  # new | contacted | done
     created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    camera   = db.relationship('Camera',
-                               backref=db.backref('receipts', cascade='all, delete-orphan', order_by='StockReceipt.id'))
-    supplier = db.relationship('Supplier',
-                               backref=db.backref('receipts', order_by='StockReceipt.id'))
+
+class RepairLog(db.Model):
+    """A dated rental-camera repair expense, logged whenever a rental unit's cumulative
+    repair_cost is edited, so the cost lands in the Finance period it was incurred.
+    (Sale-camera repairs are already expensed in COGS at sale time, so they're not logged.)
+    created_at is naive local time to match Finance's naive date-window comparisons."""
+    id         = db.Column(db.Integer, primary_key=True)
+    camera_id  = db.Column(db.Integer, db.ForeignKey('camera.id'), nullable=False)
+    amount     = db.Column(db.Integer, default=0)             # delta added this edit (may be negative)
+    note       = db.Column(db.String(200), default='')
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+
+class ActivityLog(db.Model):
+    """One user-visible admin action, with enough row-level before/after data to
+    reverse (undo) and re-apply (redo) it. Row changes are captured automatically
+    via SQLAlchemy session events and grouped per request into a single entry.
+
+    `changes_json` is a JSON list of {action, table, pk, before, after}; datetimes
+    are wrapped as {"__dt__": iso} so they round-trip losslessly. `undone` marks
+    whether this entry is currently rolled back — the applied entries always form a
+    contiguous prefix (by id) and the undone ones a contiguous suffix, giving a
+    linear undo/redo timeline."""
+    id           = db.Column(db.Integer, primary_key=True)
+    label        = db.Column(db.String(300), default='')   # human summary, Vietnamese
+    changes_json = db.Column(db.Text, default='')
+    undone       = db.Column(db.Boolean, default=False)
+    created_at   = db.Column(db.DateTime, default=datetime.now)   # naive local time
 
 
 class StoreCost(db.Model):

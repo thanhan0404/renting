@@ -1,0 +1,119 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Khách quan tâm</h1>
+    <p class="text-sm text-gray-500">Yêu cầu gửi từ form ở trang chủ. Gọi lại để chốt đơn — đổi trạng thái khi đã liên hệ / xong.</p>
+  </div>
+</div>
+
+<!-- stat cards -->
+<div class="grid grid-cols-3 gap-3 mb-5">
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Mới (chưa gọi)</div>
+    <div id="ldNew" class="text-lg font-black text-gray-900 mt-0.5">{{ counts['new'] }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Đã liên hệ</div>
+    <div id="ldContacted" class="text-lg font-black text-gray-900 mt-0.5">{{ counts['contacted'] }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng</div>
+    <div id="ldTotal" class="text-lg font-black text-gray-900 mt-0.5">{{ total }}</div>
+  </div>
+</div>
+
+<!-- table -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:900px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3" style="min-width:140px">Nhận lúc</th>
+          <th class="text-left px-4 py-3" style="min-width:150px">Khách</th>
+          <th class="text-left px-4 py-3" style="min-width:120px">SĐT</th>
+          <th class="text-left px-4 py-3" style="min-width:150px">Ngày thuê mong muốn</th>
+          <th class="text-left px-4 py-3">Ghi chú</th>
+          <th class="text-center px-4 py-3" style="min-width:150px">Trạng thái</th>
+          <th class="px-4 py-3" style="min-width:48px"></th>
+        </tr>
+      </thead>
+      <tbody id="ldBody">
+        {% for l in leads %}
+        <tr class="ld-row border-t border-gray-100 hover:bg-gray-50/60 ld-st-{{ l.status }}" data-id="{{ l.id }}">
+          <td class="px-4 py-2 text-gray-500 whitespace-nowrap">{{ l.created }}</td>
+          <td class="px-4 py-1.5"><input class="ld-cell font-semibold text-gray-900" type="text" data-field="customer_name" value="{{ l.customer_name }}" placeholder="—"></td>
+          <td class="px-4 py-1.5"><input class="ld-cell text-gray-700" type="text" data-field="phone" value="{{ l.phone }}" placeholder="—"></td>
+          <td class="px-4 py-2 text-gray-600 whitespace-nowrap">{% if l.want_start %}{{ l.want_start }}{% if l.want_end %} → {{ l.want_end }}{% endif %}{% else %}—{% endif %}</td>
+          <td class="px-4 py-1.5"><input class="ld-cell text-gray-700" type="text" data-field="notes" value="{{ l.notes }}" placeholder="—"></td>
+          <td class="px-4 py-1.5 text-center">
+            <select class="ld-state" data-field="status">
+              <option value="new" {% if l.status == 'new' %}selected{% endif %}>Mới</option>
+              <option value="contacted" {% if l.status == 'contacted' %}selected{% endif %}>Đã liên hệ</option>
+              <option value="done" {% if l.status == 'done' %}selected{% endif %}>Xong</option>
+            </select>
+          </td>
+          <td class="px-4 py-1.5 text-center"><button class="ld-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá">Xoá</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not leads %}<div id="ldEmpty" class="px-6 py-12 text-center text-gray-400">Chưa có yêu cầu nào. Khi khách gửi form ở trang chủ, yêu cầu sẽ hiện ở đây.</div>{% endif %}
+</div>
+
+<style>
+  .ld-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:5px 8px; font-size:13px; outline:none; background:transparent; }
+  .ld-cell:hover { background:#f3f4f6; }
+  .ld-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .ld-state { border:1px solid #e5e7eb; border-radius:8px; padding:4px 8px; font-size:12px; font-weight:700; color:#374151; background:#fff; cursor:pointer; outline:none; }
+  .ld-state:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .ld-row.ld-st-done { opacity:.6; }
+  .ld-row.ld-st-contacted { background:#fffbeb; }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const UPD_URL = "{{ url_for('leads.update') }}";
+  const DEL_URL = "{{ url_for('leads.delete') }}";
+  const $ = id => document.getElementById(id);
+
+  function recalc() {
+    let n = 0, c = 0, tot = 0;
+    document.querySelectorAll('#ldBody .ld-row').forEach(r => {
+      tot++;
+      const s = r.querySelector('.ld-state').value;
+      if (s === 'new') n++; else if (s === 'contacted') c++;
+    });
+    $('ldNew').textContent = n; $('ldContacted').textContent = c; $('ldTotal').textContent = tot;
+  }
+
+  document.querySelectorAll('#ldBody .ld-row').forEach(tr => {
+    tr.querySelectorAll('.ld-cell').forEach(inp => {
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', async () => {
+        try { await TINTUS.api(UPD_URL, { id: Number(tr.dataset.id), field: inp.dataset.field, value: inp.value.trim() });
+          TINTUS.toast('Đã lưu', 'ok'); }
+        catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+      });
+    });
+    const sel = tr.querySelector('.ld-state');
+    sel.addEventListener('change', async () => {
+      try {
+        await TINTUS.api(UPD_URL, { id: Number(tr.dataset.id), field: 'status', value: sel.value });
+        tr.className = 'ld-row border-t border-gray-100 hover:bg-gray-50/60 ld-st-' + sel.value;
+        recalc(); TINTUS.toast('Đã cập nhật', 'ok');
+      } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+    tr.querySelector('.ld-del').addEventListener('click', async () => {
+      if (!confirm('Xoá yêu cầu này?')) return;
+      try { await TINTUS.api(DEL_URL, { id: Number(tr.dataset.id) }); tr.remove(); recalc(); TINTUS.toast('Đã xoá', 'ok'); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  });
+})();
+</script>
+{% endblock %}

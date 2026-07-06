@@ -1,0 +1,101 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Nhật ký hoạt động</h1>
+    <p class="text-sm text-gray-500">Mọi thao tác trong trang quản trị được ghi lại và có thể hoàn tác (undo) hoặc làm lại (redo).</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <button id="btnUndo" class="px-4 h-9 rounded-xl text-sm font-bold text-white bg-brand-700 hover:bg-brand-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            {% if not can_undo %}disabled{% endif %}>↶ Hoàn tác</button>
+    <button id="btnRedo" class="px-4 h-9 rounded-xl text-sm font-bold text-gray-800 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            {% if not can_redo %}disabled{% endif %}>↷ Làm lại</button>
+    <button id="btnClear" class="px-3 h-9 rounded-xl text-sm font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá toàn bộ nhật ký">Xoá nhật ký</button>
+  </div>
+</div>
+
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:760px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3" style="min-width:160px">Thời gian</th>
+          <th class="text-left px-4 py-3">Hoạt động</th>
+          <th class="text-center px-4 py-3" style="min-width:90px">Thay đổi</th>
+          <th class="text-center px-4 py-3" style="min-width:110px">Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody id="actBody">
+        {% for r in rows %}
+        <tr class="act-row border-t border-gray-100 hover:bg-gray-50/60 {% if r.undone %}act-undone{% endif %}" data-id="{{ r.id }}">
+          <td class="px-4 py-2.5 text-gray-500 whitespace-nowrap align-top">{{ r.when }}</td>
+          <td class="px-4 py-2.5 align-top">
+            <div class="font-semibold text-gray-900">{{ r.label }}</div>
+            {% if r.details %}
+            <details class="mt-1">
+              <summary class="text-xs text-gray-400 cursor-pointer select-none hover:text-gray-600">Chi tiết</summary>
+              <ul class="mt-1 space-y-0.5">
+                {% for d in r.details %}<li class="text-xs text-gray-500 font-mono break-all">{{ d }}</li>{% endfor %}
+              </ul>
+            </details>
+            {% endif %}
+          </td>
+          <td class="px-4 py-2.5 text-center text-gray-600 align-top">{{ r.count }}</td>
+          <td class="px-4 py-2.5 text-center align-top">
+            {% if r.undone %}
+              <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-100 text-gray-500">Đã hoàn tác</span>
+            {% else %}
+              <span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700">Đang áp dụng</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not rows %}<div class="px-6 py-12 text-center text-gray-400">Chưa có hoạt động nào được ghi lại. Khi bạn thêm / sửa / xoá bất cứ thứ gì trong trang quản trị, nó sẽ xuất hiện ở đây.</div>{% endif %}
+</div>
+
+<style>
+  .act-row.act-undone { opacity:.5; }
+  .act-row.act-undone td:nth-child(2) .font-semibold { text-decoration:line-through; }
+  #actBody details > summary::-webkit-details-marker { display:none; }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const UNDO_URL  = "{{ url_for('activity.undo') }}";
+  const REDO_URL  = "{{ url_for('activity.redo') }}";
+  const CLEAR_URL = "{{ url_for('activity.clear') }}";
+  const $ = id => document.getElementById(id);
+
+  async function run(url, okMsg) {
+    try {
+      const r = await TINTUS.api(url, {});
+      TINTUS.toast((okMsg || 'Xong') + (r && r.label ? ': ' + r.label : ''), 'ok');
+      setTimeout(() => location.reload(), 500);
+    } catch (e) {
+      TINTUS.toast(e.message || 'Lỗi', 'err');
+    }
+  }
+
+  $('btnUndo').addEventListener('click', () => run(UNDO_URL, 'Đã hoàn tác'));
+  $('btnRedo').addEventListener('click', () => run(REDO_URL, 'Đã làm lại'));
+  $('btnClear').addEventListener('click', () => {
+    if (!confirm('Xoá toàn bộ nhật ký hoạt động? Dữ liệu của bạn không bị ảnh hưởng, nhưng sẽ không thể hoàn tác các thao tác cũ nữa.')) return;
+    run(CLEAR_URL, 'Đã xoá nhật ký');
+  });
+
+  // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+  document.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { if (!$('btnUndo').disabled) { e.preventDefault(); $('btnUndo').click(); } }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { if (!$('btnRedo').disabled) { e.preventDefault(); $('btnRedo').click(); } }
+  });
+})();
+</script>
+{% endblock %}

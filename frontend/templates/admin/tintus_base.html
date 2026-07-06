@@ -106,6 +106,10 @@
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>'),
   ('chiphi',      'Chi phí tiệm','Chi phí',
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 12h12m0 0l-3-3m3 3l-3 3"/>'),
+  ('leads',       'Khách quan tâm','Khách',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2-5.24"/>'),
+  ('activity',    'Nhật ký',     'Hoàn tác',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v5h5M3.05 13A9 9 0 106 5.3L3 8m9 0v5l4 2"/>'),
   ('sheet',       'Sổ tay',      'Ghi chú',
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>')
 ] %}
@@ -221,9 +225,23 @@
     if (!input) return;
     input.addEventListener('input', function () {
       const q = input.value.toLowerCase().trim();
+      // If the page ships its own search box (e.g. Quản lý máy), drive that — it
+      // knows about tabs / detail rows — instead of the generic row filter.
+      const pageSearch = document.getElementById('searchInput');
+      if (pageSearch) {
+        pageSearch.value = input.value;
+        pageSearch.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
       document.querySelectorAll('#tintus-app table tbody tr').forEach(function (tr) {
-        if (tr.querySelector('input,select,textarea')) return; // skip editable input rows
-        tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
+        let text = tr.textContent.toLowerCase();
+        // also match against text typed into inline-edit inputs / selected options
+        tr.querySelectorAll('input, textarea, select').forEach(function (el) {
+          if (el.type === 'checkbox' || el.type === 'radio') return;
+          text += ' ' + (el.value || '').toLowerCase();
+          if (el.tagName === 'SELECT' && el.selectedOptions[0]) text += ' ' + el.selectedOptions[0].textContent.toLowerCase();
+        });
+        tr.style.display = (!q || text.includes(q)) ? '' : 'none';
       });
     });
   })();

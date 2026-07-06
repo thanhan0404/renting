@@ -80,6 +80,7 @@
                             Họ và tên <span class="text-red-600">*</span>
                         </label>
                         <input type="text" name="customer_name" required placeholder="Nguyễn Văn A"
+                            value="{{ prefill.customer_name if prefill else '' }}"
                             class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
                     </div>
                     <div>
@@ -87,33 +88,52 @@
                             Số điện thoại <span class="text-red-600">*</span>
                         </label>
                         <input type="tel" name="phone" required placeholder="09xxxxxxxx" pattern="[0-9]{10,11}"
+                            value="{{ prefill.phone if prefill else '' }}"
                             class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors">
                     </div>
                 </div>
 
-                <!-- Dates -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
-                            Thời gian nhận máy <span class="text-red-600">*</span>
-                        </label>
-                        <input type="datetime-local" name="start_date" id="startDate" required
-                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors"
-                            onchange="updatePrice()">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
-                            Thời gian trả máy <span class="text-red-600">*</span>
-                        </label>
-                        <input type="datetime-local" name="end_date" id="endDate" required
-                            class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors"
-                            onchange="updatePrice()">
+                <!-- Availability calendar (greys out already-rented days / times) -->
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
+                        Chọn ngày thuê <span class="text-red-600">*</span>
+                    </label>
+                    <div class="border border-gray-200 rounded-xl bg-gray-50 p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <button type="button" id="calPrev" class="w-8 h-8 rounded-lg hover:bg-gray-200 text-gray-600 font-bold">‹</button>
+                            <span id="calTitle" class="text-sm font-black text-gray-800"></span>
+                            <button type="button" id="calNext" class="w-8 h-8 rounded-lg hover:bg-gray-200 text-gray-600 font-bold">›</button>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-gray-400 mb-1">
+                            <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
+                        </div>
+                        <div id="calGrid" class="grid grid-cols-7 gap-1"></div>
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2.5 text-[10px] text-gray-500">
+                            <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-red-600 inline-block"></span>Đang chọn</span>
+                            <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-amber-200 inline-block"></span>Còn trống một phần</span>
+                            <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded bg-gray-200 inline-block"></span>Đã có người thuê</span>
+                        </div>
+                        <p id="calHint" class="text-[11px] text-gray-500 mt-2">Chọn máy ảnh ở trên, rồi bấm ngày nhận và ngày trả.</p>
                     </div>
                 </div>
 
-                <!-- Date error -->
-                <p id="dateError" class="text-red-600 text-xs font-semibold hidden">⚠ Thời gian trả phải sau thời gian nhận.</p>
-                <p id="availWarn" class="text-red-600 text-xs font-semibold hidden">⚠ Máy này đã có người đặt trong khung giờ bạn chọn. Vui lòng đổi thời gian hoặc chọn máy khác.</p>
+                <!-- Pickup / return time of day -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Giờ nhận máy</label>
+                        <select id="startTime" class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors"></select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Giờ trả máy</label>
+                        <select id="endTime" class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm transition-colors"></select>
+                    </div>
+                </div>
+
+                <!-- real values submitted to the server -->
+                <input type="hidden" name="start_date" id="startDate" value="{{ prefill.start_date if prefill else '' }}">
+                <input type="hidden" name="end_date" id="endDate" value="{{ prefill.end_date if prefill else '' }}">
+
+                <p id="dateError" class="text-red-600 text-xs font-semibold hidden">⚠ Vui lòng chọn ngày nhận và ngày trả hợp lệ (giờ trả sau giờ nhận).</p>
 
                 <!-- Notes -->
                 <div>
@@ -121,7 +141,7 @@
                         Ghi chú (tuỳ chọn)
                     </label>
                     <textarea name="notes" rows="3" placeholder="Yêu cầu thêm về phụ kiện, địa chỉ ship máy, giờ giấc nhận trả..."
-                        class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm resize-none transition-colors"></textarea>
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-red-500 focus:bg-white text-sm resize-none transition-colors">{{ prefill.notes if prefill else '' }}</textarea>
                 </div>
 
                 <!-- Deposit info -->
@@ -144,7 +164,7 @@
             <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm" id="cameraPreview"
                  style="{{ 'display:block' if selected_camera else 'display:none' }}">
                 {% if selected_camera %}
-                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-50', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-50', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50', 'Nikon': 'bg-yellow-50'} %}
                 <div class="{{ brand_bg.get(selected_camera.brand, 'bg-gray-50') }} h-40 flex items-center justify-center">
                     <span class="text-7xl">📷</span>
                 </div>
@@ -234,17 +254,10 @@ function updatePrice() {
     const camId    = document.getElementById('cameraSelect').value;
     const start    = document.getElementById('startDate').value;
     const end      = document.getElementById('endDate').value;
-    const errEl    = document.getElementById('dateError');
     const priceDiv = document.getElementById('priceContent');
     const preview  = document.getElementById('cameraPreview');
 
-    // reset availability state each recompute
-    rentAvailable = true;
-    const submitBtn = document.getElementById('submitBtn');
-    document.getElementById('availWarn').classList.add('hidden');
-    submitBtn.disabled = false; submitBtn.classList.remove('opacity-50','cursor-not-allowed');
-
-    // Update camera preview panel
+    // Camera preview panel
     if (camId && cameraPrices[camId]) {
         const cam = cameraPrices[camId];
         const bg  = brandBg[cam.brand] || 'bg-gray-50';
@@ -264,29 +277,16 @@ function updatePrice() {
         preview.style.display = 'none';
     }
 
-    // Validate dates
-    if (start && end) {
-        const s = new Date(start), e = new Date(end);
-        if (e <= s) {
-            errEl.classList.remove('hidden');
-            priceDiv.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Ngày không hợp lệ.</p>';
-            return;
-        }
-        errEl.classList.add('hidden');
-    }
-
-    // Calculate price
     if (!camId || !start || !end) {
         priceDiv.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Chọn máy và ngày thuê để xem dự tính giá.</p>';
         return;
     }
+    const s = new Date(start), e = new Date(end);
+    if (e <= s) { priceDiv.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Ngày không hợp lệ.</p>'; return; }
 
-    const cam  = cameraPrices[camId];
-    const ms   = new Date(end) - new Date(start);
-    const days = Math.max(1, Math.ceil(ms / 86_400_000));
+    const cam   = cameraPrices[camId];
+    const days  = Math.max(1, Math.ceil((e - s) / 86_400_000));
     const total = calcTieredTotal(cam, days);
-
-    // Build day-by-day breakdown
     let rows = '';
     for (let d = 1; d <= Math.min(days, 4); d++) {
         const label = d < 4 ? `Ngày ${d}` : `Ngày 4–${days}`;
@@ -297,7 +297,6 @@ function updatePrice() {
             <span class="font-semibold">${(price * count).toLocaleString('vi-VN')}đ</span>
         </div>`;
     }
-
     priceDiv.innerHTML = `
         <div class="space-y-0 mb-3">${rows}</div>
         <div class="flex justify-between items-center pt-2">
@@ -305,54 +304,180 @@ function updatePrice() {
             <span class="font-black text-red-700 text-lg">${total.toLocaleString('vi-VN')}đ</span>
         </div>
         <p class="text-gray-400 text-[0.65rem] mt-2">* Chưa bao gồm phí ship. Giá chính thức xác nhận qua điện thoại.</p>`;
-
-    checkAvailability(camId, start, end);
 }
 
-// Client-side availability pre-check (server also enforces on submit).
-let rentAvailable = true;
-async function checkAvailability(camId, startStr, endStr){
-    const warn = document.getElementById('availWarn');
-    const btn  = document.getElementById('submitBtn');
-    try {
-        const res  = await fetch(`/api/camera-availability/${camId}?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`);
-        const data = await res.json();
-        const clash = !(data && data.available);
-        rentAvailable = !clash;
-        warn.classList.toggle('hidden', !clash);
-        btn.disabled = clash;
-        btn.classList.toggle('opacity-50', clash);
-        btn.classList.toggle('cursor-not-allowed', clash);
-    } catch (_) {
-        rentAvailable = true; warn.classList.add('hidden'); btn.disabled = false;
+/* ══════════ Availability calendar — greys out already-rented days & times ══════════ */
+let bookedRanges = [];              // [{s:Date, e:Date}] for the selected camera
+let calMonth;                       // first-of-month currently displayed
+let selStart = null, selEnd = null; // chosen day range (midnight Dates)
+let rentAvailable = false;
+
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const midnight = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const todayMid = () => midnight(new Date());
+const $ = id => document.getElementById(id);
+
+function dayIntervals(day) {                     // booked intervals clipped to [day, day+1)
+    const ds = midnight(day), de = new Date(ds.getTime() + 86400000), out = [];
+    for (const r of bookedRanges) {
+        const s = r.s < ds ? ds : r.s, e = r.e > de ? de : r.e;
+        if (s < e) out.push([s, e]);
+    }
+    return out;
+}
+function dayState(day) {
+    const ds = midnight(day);
+    if (ds < todayMid()) return 'past';
+    const de = new Date(ds.getTime() + 86400000);
+    const iv = dayIntervals(day);
+    if (!iv.length) return 'free';
+    iv.sort((a, b) => a[0] - b[0]);
+    let cursor = ds.getTime();
+    for (const [s, e] of iv) { if (s.getTime() > cursor) return 'partial'; cursor = Math.max(cursor, e.getTime()); }
+    return cursor >= de.getTime() ? 'full' : 'partial';
+}
+function interiorAllFree(a, b) {                  // days strictly between a and b must be free
+    for (let t = new Date(a.getTime() + 86400000); t < b; t = new Date(t.getTime() + 86400000))
+        if (dayState(t) !== 'free') return false;
+    return true;
+}
+function setHint(msg, warn) {
+    const h = $('calHint');
+    h.textContent = msg;
+    h.className = 'text-[11px] mt-2 ' + (warn ? 'text-red-600 font-semibold' : 'text-gray-500');
+}
+
+function renderCal() {
+    const grid = $('calGrid');
+    $('calTitle').textContent = 'Tháng ' + (calMonth.getMonth() + 1) + '/' + calMonth.getFullYear();
+    grid.innerHTML = '';
+    const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+    const lead = (first.getDay() + 6) % 7;         // Monday-first
+    for (let i = 0; i < lead; i++) grid.appendChild(document.createElement('div'));
+    const total = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+    for (let dnum = 1; dnum <= total; dnum++) {
+        const day = new Date(calMonth.getFullYear(), calMonth.getMonth(), dnum);
+        const st = dayState(day);
+        const cell = document.createElement('button');
+        cell.type = 'button'; cell.textContent = dnum;
+        let cls = 'h-9 rounded-lg text-xs font-semibold transition-colors ';
+        if (st === 'past' || st === 'full') {
+            cls += 'bg-gray-100 text-gray-300 line-through cursor-not-allowed';
+            cell.disabled = true;
+        } else {
+            const inRange = selStart && selEnd && day >= selStart && day <= selEnd;
+            const isEnd = (selStart && +day === +selStart) || (selEnd && +day === +selEnd);
+            if (isEnd) cls += 'bg-red-600 text-white';
+            else if (inRange) cls += 'bg-red-100 text-red-700';
+            else if (st === 'partial') cls += 'bg-amber-100 text-amber-800 hover:bg-amber-200';
+            else cls += 'bg-white text-gray-700 border border-gray-200 hover:bg-red-50';
+            cell.addEventListener('click', () => pickDay(day));
+        }
+        cell.className = cls;
+        grid.appendChild(cell);
     }
 }
 
-// Form validation before submit
-document.getElementById('rentForm').addEventListener('submit', function(e) {
-    const start = document.getElementById('startDate').value;
-    const end   = document.getElementById('endDate').value;
-    if (start && end && new Date(end) <= new Date(start)) {
-        e.preventDefault();
-        document.getElementById('dateError').classList.remove('hidden');
-        return;
+function pickDay(day) {
+    if (!$('cameraSelect').value) { setHint('Vui lòng chọn máy ảnh trước.', true); return; }
+    day = midnight(day);
+    if (!selStart || (selStart && selEnd)) { selStart = day; selEnd = null; setHint('Bấm ngày trả máy.'); }
+    else if (day < selStart) { selStart = day; selEnd = null; setHint('Bấm ngày trả máy.'); }
+    else if (+day === +selStart) { selEnd = day; }
+    else if (!interiorAllFree(selStart, day)) { selStart = day; selEnd = null; setHint('Khoảng đã chọn có ngày bận — chọn lại từ ngày này.', true); }
+    else { selEnd = day; }
+    buildTimeOptions(); commit(); renderCal();
+}
+
+function timeSlots() {
+    const arr = [];
+    for (let m = 7 * 60; m <= 21 * 60; m += 30) arr.push(pad(Math.floor(m / 60)) + ':' + pad(m % 60));
+    return arr;
+}
+function fillTimeSelect(sel, day, preferred) {
+    const iv = day ? dayIntervals(day) : [];
+    sel.innerHTML = '';
+    for (const t of timeSlots()) {
+        const [hh, mm] = t.split(':').map(Number);
+        const taken = day && iv.some(([s, e]) => {
+            const inst = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hh, mm);
+            return inst >= s && inst < e;
+        });
+        const opt = document.createElement('option');
+        opt.value = t; opt.textContent = taken ? (t + ' — đã đặt') : t; opt.disabled = !!taken;
+        sel.appendChild(opt);
     }
-    if (!rentAvailable) {
-        e.preventDefault();
-        document.getElementById('availWarn').classList.remove('hidden');
+    const opts = Array.from(sel.options);
+    const choose = opts.find(o => o.value === preferred && !o.disabled) || opts.find(o => !o.disabled);
+    if (choose) sel.value = choose.value;
+}
+function buildTimeOptions() {
+    fillTimeSelect($('startTime'), selStart, $('startTime').value || '09:00');
+    fillTimeSelect($('endTime'), selEnd || selStart, $('endTime').value || '09:00');
+}
+
+function overlaps(s, e) { return bookedRanges.some(r => s < r.e && e > r.s); }
+function commit() {
+    const st = $('startTime').value, en = $('endTime').value;
+    const startEl = $('startDate'), endEl = $('endDate'), btn = $('submitBtn');
+    if (selStart && selEnd && st && en) {
+        startEl.value = ymd(selStart) + 'T' + st;
+        endEl.value = ymd(selEnd) + 'T' + en;
+        const s = new Date(startEl.value), e = new Date(endEl.value);
+        if (e <= s) { rentAvailable = false; setHint('Giờ trả phải sau giờ nhận.', true); }
+        else if (overlaps(s, e)) { rentAvailable = false; setHint('Khung giờ này đã có người thuê — chọn giờ/ngày khác.', true); }
+        else {
+            rentAvailable = true;
+            const f = d => pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+            setHint('Đã chọn: ' + f(s) + ' → ' + f(e), false);
+        }
+    } else {
+        startEl.value = ''; endEl.value = ''; rentAvailable = false;
     }
+    btn.disabled = !rentAvailable;
+    btn.classList.toggle('opacity-50', !rentAvailable);
+    btn.classList.toggle('cursor-not-allowed', !rentAvailable);
+    $('dateError').classList.add('hidden');
+    updatePrice();
+}
+
+async function loadRanges(camId) {
+    bookedRanges = [];
+    if (camId) {
+        try {
+            const res = await fetch('/api/camera-bookings/' + camId);
+            const data = await res.json();
+            bookedRanges = (data.ranges || []).map(r => ({ s: new Date(r.start), e: new Date(r.end) }));
+        } catch (_) {}
+    }
+    buildTimeOptions(); commit(); renderCal();
+}
+
+$('cameraSelect').addEventListener('change', function () { loadRanges(this.value); });
+$('startTime').addEventListener('change', commit);
+$('endTime').addEventListener('change', commit);
+$('calPrev').addEventListener('click', () => {
+    const cur = midnight(new Date()); const prev = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
+    if (prev >= new Date(cur.getFullYear(), cur.getMonth(), 1)) { calMonth = prev; renderCal(); }
+});
+$('calNext').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); });
+
+document.getElementById('rentForm').addEventListener('submit', function (e) {
+    if (!rentAvailable) { e.preventDefault(); $('dateError').classList.remove('hidden'); setHint('Vui lòng chọn ngày/giờ thuê còn trống.', true); }
 });
 
-// Init: set minimum datetime to now
-(function() {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    const minVal = now.toISOString().slice(0, 16);
-    document.getElementById('startDate').min = minVal;
-    document.getElementById('endDate').min   = minVal;
-
-    // If a camera is pre-selected, trigger price update for sidebar
-    updatePrice();
+// Init
+(function () {
+    calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const sVal = $('startDate').value, eVal = $('endDate').value;   // may be pre-filled from homepage
+    if (sVal) selStart = midnight(new Date(sVal));
+    if (eVal) selEnd = midnight(new Date(eVal));
+    buildTimeOptions();
+    if (sVal && sVal.length >= 16) $('startTime').value = sVal.slice(11, 16);
+    if (eVal && eVal.length >= 16) $('endTime').value = eVal.slice(11, 16);
+    const preCam = $('cameraSelect').value;
+    if (preCam) loadRanges(preCam); else { renderCal(); commit(); }
 })();
 </script>
 

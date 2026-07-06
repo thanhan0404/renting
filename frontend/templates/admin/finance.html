@@ -23,12 +23,16 @@
     <h1 class="text-xl font-black text-gray-900">Tài chính</h1>
     <p class="text-sm text-gray-500">Doanh thu, chi phí và lợi nhuận — tách riêng Cho thuê / Bán máy và tổng hợp. Số liệu tính theo <b>kỳ đang chọn</b>.</p>
   </div>
-  <!-- period type selector -->
-  <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-    {% for key, label in [('day','Ngày'), ('month','Tháng'), ('year','Năm'), ('all','Tất cả')] %}
-    <a href="{{ url_for('finance.index') }}?period={{ key }}"
-       class="px-4 py-1.5 rounded-lg text-sm font-bold transition-colors {% if period == key %}bg-white text-brand-700 shadow-sm{% else %}text-gray-500 hover:text-gray-800{% endif %}">{{ label }}</a>
-    {% endfor %}
+  <div class="flex items-center gap-2">
+    <!-- period type selector -->
+    <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+      {% for key, label in [('day','Ngày'), ('month','Tháng'), ('year','Năm'), ('all','Tất cả')] %}
+      <a href="{{ url_for('finance.index') }}?period={{ key }}"
+         class="px-4 py-1.5 rounded-lg text-sm font-bold transition-colors {% if period == key %}bg-white text-brand-700 shadow-sm{% else %}text-gray-500 hover:text-gray-800{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <a href="{{ url_for('finance.export') }}?period={{ period }}&anchor={{ anchor_value }}"
+       class="text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl px-4 py-2" title="Tải báo cáo kỳ đang xem ra Excel">Xuất Excel</a>
   </div>
 </div>
 

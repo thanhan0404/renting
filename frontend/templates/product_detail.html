@@ -19,7 +19,7 @@
 
         <!-- Left: Product Image -->
         <div>
-            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50', 'Nikon': 'bg-yellow-50'} %}
             <div class="{{ brand_bg.get(product.brand, 'bg-gray-50') }} rounded-3xl h-80 flex items-center justify-center mb-4 border border-gray-100 relative">
                 <span class="text-9xl">📷</span>
                 {% if product.stock > 0 %}
@@ -93,7 +93,10 @@
                     📅 Đặt lịch thuê ngay
                 </a>
                 <div class="grid grid-cols-2 gap-3">
-                    {% if product.stock > 0 %}
+                    {# Add-to-cart is a PURCHASE — only valid for for-sale units, never rentals
+                       (adding a rental to the cart would sell the rental asset on checkout). #}
+                    {% if product.type == 'Sale' %}
+                    {% if product.sale_state == 'stock' %}
                     <a href="/add_to_cart/{{ product.id }}" class="flex items-center justify-center gap-2 border-2 border-gray-200 text-gray-700 hover:border-red-700 hover:text-red-700 font-bold py-3.5 rounded-2xl transition-colors text-sm">
                         🛒 Thêm vào giỏ
                     </a>
@@ -103,6 +106,11 @@
                     <a href="tel:0344226058" class="flex items-center justify-center gap-2 border-2 border-red-700 text-red-700 hover:bg-red-50 font-bold py-3.5 rounded-2xl transition-colors text-sm">
                         📞 Gọi tư vấn
                     </a>
+                    {% else %}
+                    <a href="tel:0344226058" class="col-span-2 flex items-center justify-center gap-2 border-2 border-red-700 text-red-700 hover:bg-red-50 font-bold py-3.5 rounded-2xl transition-colors text-sm">
+                        📞 Gọi tư vấn
+                    </a>
+                    {% endif %}
                 </div>
             </div>
 
@@ -149,7 +157,7 @@
             <a href="/store" class="text-red-700 font-bold text-sm hover:underline">Xem tất cả →</a>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
-            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50', 'Nikon': 'bg-yellow-50'} %}
             {% for rel in related %}
             <a href="/product/{{ rel.slug }}" class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group block ring-soft">
                 <div class="h-36 {{ brand_bg.get(rel.brand, 'bg-gray-50') }} flex items-center justify-center">

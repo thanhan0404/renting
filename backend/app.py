@@ -3,15 +3,16 @@ import io
 import math
 import json
 from datetime import datetime, timedelta, timezone
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
+from flask import (Flask, render_template, request, redirect, url_for, session,
+                   jsonify, send_file, g, has_request_context)
 from flask_admin import Admin, BaseView, expose, AdminIndexView
 from flask_admin.contrib.sqla import ModelView
-from sqlalchemy import inspect as sa_inspect, text
+from sqlalchemy import inspect as sa_inspect, text, event
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import (db, Camera, RentalBooking, PurchaseOrder, Sheet,
-                    CameraVariant, SaleRecord, Supplier, StockReceipt, StoreCost,
-                    Accessory, AccessorySale, Appointment)
+                    StoreCost, RepairLog, ActivityLog,
+                    Accessory, AccessorySale, Appointment, Lead)
 from seed import seed as seed_db, backfill_costs
 
 try:
@@ -116,6 +117,241 @@ app.config.update(
 db.init_app(app)
 
 
+# ══ Activity log: automatic capture + undo / redo ═══════════════════════════════
+# Every admin DB mutation (insert / update / delete) is captured automatically via
+# SQLAlchemy session events, grouped per request into one ActivityLog entry, so any
+# action can be reversed (undo) and re-applied (redo) without touching each endpoint.
+
+# Models whose row changes are tracked. ActivityLog itself is intentionally excluded
+# (so writing the log never logs itself, and undo/redo can never target the log).
+LOGGED_MODELS = [Camera, RentalBooking, Appointment, Lead, RepairLog,
+                 StoreCost, Accessory, AccessorySale, PurchaseOrder, Sheet]
+TABLE_MODELS = {m.__tablename__: m for m in LOGGED_MODELS}
+
+# Vietnamese labels for auto-generated activity descriptions.
+_ACT_TABLE_VI = {
+    'camera': 'máy ảnh', 'rental_booking': 'đơn thuê', 'appointment': 'lịch hẹn',
+    'lead': 'khách quan tâm', 'repair_log': 'sửa chữa', 'store_cost': 'chi phí tiệm',
+    'accessory': 'phụ kiện', 'accessory_sale': 'bán phụ kiện',
+    'purchase_order': 'đơn mua', 'sheet': 'sổ tay',
+}
+_ACT_VERB = {'insert': 'Thêm', 'update': 'Sửa', 'delete': 'Xoá'}
+
+
+def _act_default(o):
+    """JSON encoder: make datetime round-trippable."""
+    if isinstance(o, datetime):
+        return {'__dt__': o.isoformat()}
+    raise TypeError(f'not serializable: {type(o)}')
+
+
+def _act_hook(dct):
+    if '__dt__' in dct:
+        try:
+            return datetime.fromisoformat(dct['__dt__'])
+        except (ValueError, TypeError):
+            return None
+    return dct
+
+
+def _act_dumps(x):
+    return json.dumps(x, default=_act_default, ensure_ascii=False)
+
+
+def _act_loads(s):
+    return json.loads(s or '[]', object_hook=_act_hook)
+
+
+def _act_snapshot(obj):
+    """Full column snapshot of a mapped instance."""
+    return {c.key: getattr(obj, c.key) for c in sa_inspect(obj).mapper.column_attrs}
+
+
+def _act_active():
+    """True when we should be capturing changes for the current request."""
+    return has_request_context() and not getattr(g, '_act_suspend', False)
+
+
+@event.listens_for(db.session, 'before_flush')
+def _act_before_flush(session_, flush_context, instances):
+    if not _act_active():
+        return
+    changes = getattr(g, '_act_changes', None)
+    if changes is None:
+        changes = g._act_changes = []
+        g._act_new = []
+    # Inserts: pk not assigned yet → stash the object, snapshot after flush.
+    for obj in session_.new:
+        if obj.__tablename__ in TABLE_MODELS:
+            g._act_new.append(obj)
+    # Deletes: object still fully loaded → snapshot now for later restore.
+    for obj in session_.deleted:
+        if obj.__tablename__ in TABLE_MODELS:
+            changes.append({'action': 'delete', 'table': obj.__tablename__,
+                            'pk': obj.id, 'before': _act_snapshot(obj), 'after': None})
+    # Updates: record only the columns that actually changed (old → new).
+    for obj in session_.dirty:
+        if obj.__tablename__ not in TABLE_MODELS:
+            continue
+        st = sa_inspect(obj)
+        before, after = {}, {}
+        for attr in st.mapper.column_attrs:
+            hist = st.attrs[attr.key].history
+            if hist.has_changes():
+                before[attr.key] = hist.deleted[0] if hist.deleted else None
+                after[attr.key] = hist.added[0] if hist.added else None
+        if after:
+            changes.append({'action': 'update', 'table': obj.__tablename__,
+                            'pk': obj.id, 'before': before, 'after': after})
+
+
+@event.listens_for(db.session, 'after_flush')
+def _act_after_flush(session_, flush_context):
+    if not _act_active():
+        return
+    pending = getattr(g, '_act_new', None)
+    if not pending:
+        return
+    changes = g._act_changes
+    for obj in pending:
+        changes.append({'action': 'insert', 'table': obj.__tablename__,
+                        'pk': obj.id, 'before': None, 'after': _act_snapshot(obj)})
+    g._act_new = []
+
+
+def _act_title(change):
+    snap = change.get('after') or change.get('before') or {}
+    for k in ('name', 'customer_name', 'note', 'category', 'label'):
+        if snap.get(k):
+            return str(snap[k])
+    # An update snapshot only holds the changed columns → look up the live row's name.
+    Model = TABLE_MODELS.get(change.get('table'))
+    if Model and change.get('pk') is not None:
+        obj = db.session.get(Model, change['pk'])
+        if obj:
+            for k in ('name', 'customer_name', 'note', 'category'):
+                v = getattr(obj, k, None)
+                if v:
+                    return str(v)
+    return f"#{change.get('pk')}"
+
+
+def _act_auto_label(changes):
+    """A short Vietnamese summary of a change set, e.g. 'Sửa máy ảnh: Canon G7X'."""
+    primary = changes[0]
+    for c in changes:                       # prefer the main entity over side-effects
+        if c['table'] not in ('repair_log', 'accessory_sale'):
+            primary = c
+            break
+    label = f"{_ACT_VERB.get(primary['action'], 'Thay đổi')} " \
+            f"{_ACT_TABLE_VI.get(primary['table'], primary['table'])}: {_act_title(primary)}"
+    extra = len(changes) - 1
+    if extra > 0:
+        label += f" (+{extra} thay đổi)"
+    return label
+
+
+@app.after_request
+def _act_persist(response):
+    """After each successful admin write, save the captured change set as one activity."""
+    if not has_request_context():
+        return response
+    changes = getattr(g, '_act_changes', None)
+    if not changes:
+        return response
+    # Only admin actions belong in the admin history; never log during undo/redo.
+    if getattr(g, '_act_suspend', False) or not request.path.startswith(ADMIN_URL_PREFIX):
+        return response
+    if response.status_code >= 400:         # the write failed / was rejected
+        return response
+    try:
+        g._act_suspend = True
+        # A new action truncates the redo tail (standard linear undo/redo).
+        ActivityLog.query.filter_by(undone=True).delete()
+        db.session.add(ActivityLog(
+            label=(getattr(g, '_act_label', '') or _act_auto_label(changes))[:300],
+            changes_json=_act_dumps(changes), created_at=datetime.now()))
+        db.session.commit()
+    except Exception as exc:                # never let logging break the real response
+        db.session.rollback()
+        app.logger.warning(f'[activity] persist failed: {exc}')
+    finally:
+        g._act_suspend = False
+        g._act_changes = []
+    return response
+
+
+def _act_restore(obj, snap):
+    for k, v in snap.items():
+        setattr(obj, k, v)
+
+
+def _act_reverse(changes):
+    """Undo: walk the change set backwards, applying the inverse of each row change."""
+    for c in reversed(changes):
+        Model = TABLE_MODELS.get(c['table'])
+        if not Model:
+            continue
+        if c['action'] == 'insert':                     # created → delete it
+            obj = db.session.get(Model, c['pk'])
+            if obj:
+                db.session.delete(obj)
+        elif c['action'] == 'delete':                   # deleted → recreate it
+            if db.session.get(Model, c['pk']) is None:
+                obj = Model()
+                _act_restore(obj, c['before'])
+                db.session.add(obj)
+        elif c['action'] == 'update':                   # changed → set old values
+            obj = db.session.get(Model, c['pk'])
+            if obj:
+                _act_restore(obj, c['before'])
+
+
+def _act_apply(changes):
+    """Redo: walk the change set forwards, re-applying each row change."""
+    for c in changes:
+        Model = TABLE_MODELS.get(c['table'])
+        if not Model:
+            continue
+        if c['action'] == 'insert':                     # re-create the row
+            if db.session.get(Model, c['pk']) is None:
+                obj = Model()
+                _act_restore(obj, c['after'])
+                db.session.add(obj)
+        elif c['action'] == 'delete':                   # re-delete the row
+            obj = db.session.get(Model, c['pk'])
+            if obj:
+                db.session.delete(obj)
+        elif c['action'] == 'update':                   # set new values again
+            obj = db.session.get(Model, c['pk'])
+            if obj:
+                _act_restore(obj, c['after'])
+
+
+def _act_detail_lines(changes):
+    """Human-readable per-row lines for the expandable history detail."""
+    lines = []
+    for c in changes:
+        noun = _ACT_TABLE_VI.get(c['table'], c['table'])
+        verb = _ACT_VERB.get(c['action'], '?')
+        if c['action'] == 'update':
+            before, after = c.get('before') or {}, c.get('after') or {}
+            parts = [f"{k}: {_act_fmt(before.get(k))} → {_act_fmt(after.get(k))}" for k in after]
+            lines.append(f"{verb} {noun} #{c['pk']} — " + '; '.join(parts))
+        else:
+            lines.append(f"{verb} {noun} #{c['pk']}: {_act_title(c)}")
+    return lines
+
+
+def _act_fmt(v):
+    if v is None or v == '':
+        return '∅'
+    if isinstance(v, datetime):
+        return v.strftime('%d/%m/%Y %H:%M')
+    s = str(v)
+    return s if len(s) <= 40 else s[:37] + '…'
+
+
 class RedirectIndexView(AdminIndexView):
     """The default Flask-Admin home is unused → send it straight to Cameras."""
     @expose('/')
@@ -208,6 +444,23 @@ BRAND_CONFIG = {
 def home():
     featured = Camera.query.filter_by(type='Rent', featured=True).order_by(Camera.price.desc()).limit(8).all()
     return render_template('index.html', featured=featured)
+
+
+@app.route('/lead', methods=['POST'])
+def submit_lead():
+    """Capture a homepage inquiry as a follow-up lead (no camera/date validation needed)."""
+    name  = (request.form.get('customer_name') or '').strip()
+    phone = (request.form.get('phone') or '').strip()
+    if not (name or phone):                     # ignore empty submissions
+        return redirect(url_for('home'))
+    db.session.add(Lead(
+        customer_name=name, phone=phone,
+        notes=(request.form.get('notes') or '').strip(),
+        start_date=parse_dt(request.form.get('start_date')),
+        end_date=parse_dt(request.form.get('end_date')),
+        source='Trang chủ'))
+    db.session.commit()
+    return redirect(url_for('home', sent=1) + '#dat-lich')
 
 
 @app.route('/store')
@@ -304,7 +557,7 @@ def product_alias(slug):
     return redirect(url_for('home'))
 
 
-# ── Cart (online PURCHASE of for-sale cameras → SaleRecord ledger) ────────────
+# ── Cart (online PURCHASE of for-sale cameras) ────────────────────────────────
 
 def buy_available(camera):
     """A for-sale unit is buyable when in stock; rentals fall back to legacy stock."""
@@ -319,6 +572,8 @@ def add_to_cart(camera_id):
         session['cart'] = {}
     cart = session['cart']
     camera = Camera.query.get_or_404(camera_id)
+    if camera.type != 'Sale':          # rentals are booked via /rent, never purchased
+        return redirect(url_for('product_detail', slug=camera.slug))
     avail = buy_available(camera)
     if avail > 0:
         key = str(camera_id)
@@ -348,24 +603,17 @@ def checkout():
         return redirect(url_for('buy_store'))
     customer_name = request.form.get('customer_name')
     phone         = request.form.get('phone')
-    address       = request.form.get('address')
-    for cam_id, qty in cart_items.items():
+    for cam_id in cart_items:
         camera = db.session.get(Camera, int(cam_id))
-        if not camera:
+        if not camera or camera.type != 'Sale':    # only for-sale units are purchasable
             continue
-        if camera.type == 'Sale':
-            if camera.sale_state == 'stock':       # one physical unit → mark sold
-                camera.sale_state = 'sold'
-                camera.is_sold = True
-                camera.sold_price = camera.price
-                camera.sold_to = customer_name
-                camera.sold_phone = phone
-                camera.sold_date = datetime.now()
-        elif (camera.stock or 0) >= qty:           # legacy: buying a rental asset
-            camera.stock -= qty
-            db.session.add(PurchaseOrder(
-                camera_id=camera.id, customer_name=customer_name, phone=phone,
-                address=address, quantity=qty, total_price=camera.price * qty))
+        if camera.sale_state == 'stock':           # one physical unit → mark sold
+            camera.sale_state = 'sold'
+            camera.is_sold = True
+            camera.sold_price = camera.price
+            camera.sold_to = customer_name
+            camera.sold_phone = phone
+            camera.sold_date = datetime.now()
     db.session.commit()
     session.pop('cart', None)
     return render_template('cart.html',
@@ -387,6 +635,22 @@ def camera_availability_api(camera_id):
     return jsonify({'available': not busy})
 
 
+@app.route('/api/camera-bookings/<int:camera_id>')
+def camera_bookings_api(camera_id):
+    """Public: the camera's upcoming reserved time ranges so the booking form can grey
+    out taken days/times. Returns only start/end instants — no customer info."""
+    now = datetime.now()
+    ranges = []
+    for b in RentalBooking.query.filter_by(camera_id=camera_id).filter(RentalBooking.end_date > now).all():
+        if b.start_date and b.end_date:
+            ranges.append({'start': b.start_date.isoformat(), 'end': b.end_date.isoformat()})
+    for a in (Appointment.query.filter_by(camera_id=camera_id)
+              .filter(Appointment.status != 'cancelled', Appointment.end_time > now).all()):
+        if a.start_time and a.end_time:
+            ranges.append({'start': a.start_time.isoformat(), 'end': a.end_time.isoformat()})
+    return jsonify({'ranges': ranges})
+
+
 @app.route('/api/available-cameras')
 def available_cameras_api():
     start_str = request.args.get('start')
@@ -397,11 +661,18 @@ def available_cameras_api():
         return jsonify({'error': 'Invalid date format'}), 400
     if end <= start:
         return jsonify({'error': 'End date must be after start date'}), 400
-    busy_ids = [r[0] for r in db.session.query(RentalBooking.camera_id).filter(
+    busy_ids = {r[0] for r in db.session.query(RentalBooking.camera_id).filter(
         RentalBooking.start_date < end,
         RentalBooking.end_date > start,
-    ).distinct().all()]
-    q = Camera.query.filter_by(type='Rent')
+    ).distinct().all()}
+    # also treat cameras with an overlapping buy-appointment as unavailable (matches /rent)
+    busy_ids |= {r[0] for r in db.session.query(Appointment.camera_id).filter(
+        Appointment.camera_id.isnot(None),
+        Appointment.status != 'cancelled',
+        Appointment.start_time < end,
+        Appointment.end_time > start,
+    ).distinct().all()}
+    q = Camera.query.filter_by(type='Rent').filter(Camera.is_sold.isnot(True))
     if busy_ids:
         q = q.filter(~Camera.id.in_(busy_ids))
     return jsonify([{'id': c.id, 'name': c.name, 'price': c.price} for c in q.all()])
@@ -437,8 +708,19 @@ def rent():
     rent_cameras = rent_cameras_ordered()
     camera_slug = request.args.get('camera', '')
     selected_camera = Camera.query.filter_by(slug=camera_slug).first() if camera_slug else None
+    # Carry over any info the homepage hero form sent via GET so the lead isn't lost.
+    def _dtl(arg):                       # normalise date/datetime → datetime-local value
+        d = parse_dt(request.args.get(arg))
+        return d.strftime('%Y-%m-%dT%H:%M') if d else ''
+    prefill = {
+        'customer_name': request.args.get('customer_name', ''),
+        'phone':         request.args.get('phone', ''),
+        'notes':         request.args.get('notes', ''),
+        'start_date':    _dtl('start_date'),
+        'end_date':      _dtl('end_date'),
+    }
     return render_template('rent.html', cameras=rent_cameras, message=message,
-                           error=error, selected_camera=selected_camera)
+                           error=error, selected_camera=selected_camera, prefill=prefill)
 
 
 # ── Admin helpers ─────────────────────────────────────────────────────────────
@@ -817,47 +1099,6 @@ class CalendarView(BaseView):
         return jsonify(events)
 
 
-def serialize_variant(v):
-    return {
-        'id': v.id, 'camera_id': v.camera_id, 'color': v.color or '',
-        'qty_available': v.qty_available or 0, 'qty_incoming': v.qty_incoming or 0,
-        'qty_broken': v.qty_broken or 0, 'qty_unfixable': v.qty_unfixable or 0,
-    }
-
-
-def serialize_sale(s):
-    return {
-        'id': s.id, 'camera_id': s.camera_id, 'variant_id': s.variant_id,
-        'color': s.color or '', 'quantity': s.quantity or 0, 'unit_price': s.unit_price or 0,
-        'unit_cost': s.unit_cost or 0, 'discount': s.discount or 0,
-        'total': s.line_total, 'note': s.note or '',
-        'customer_name': s.customer_name or '', 'phone': s.phone or '',
-        'payment_method': s.payment_method or 'cash', 'payment_status': s.payment_status or 'paid',
-        'serial': s.serial or '', 'condition': s.condition or '',
-        'warranty_until': s.warranty_until.strftime('%Y-%m-%d') if s.warranty_until else '',
-        'is_return': bool(s.is_return), 'return_of': s.return_of,
-        'margin': int(s.line_total - (s.quantity or 0) * (s.unit_cost or 0)),
-        'date': s.sale_date.strftime('%d/%m/%Y') if s.sale_date else '',
-    }
-
-
-def serialize_receipt(r):
-    return {
-        'id': r.id, 'camera_id': r.camera_id, 'variant_id': r.variant_id,
-        'supplier_id': r.supplier_id, 'supplier': r.supplier.name if r.supplier else '',
-        'color': r.color or '', 'quantity': r.quantity or 0, 'unit_cost': r.unit_cost or 0,
-        'total': (r.quantity or 0) * (r.unit_cost or 0), 'status': r.status or 'received',
-        'note': r.note or '',
-        'expected_date': r.expected_date.strftime('%Y-%m-%d') if r.expected_date else '',
-        'date': (r.received_date or r.created_at).strftime('%d/%m/%Y') if (r.received_date or r.created_at) else '',
-    }
-
-
-def serialize_supplier(s):
-    return {'id': s.id, 'name': s.name, 'phone': s.phone or '',
-            'note': s.note or '', 'total_purchased': s.total_purchased}
-
-
 def serialize_unit(cam):
     """A single for-sale camera unit (Selling ledger row)."""
     return {
@@ -866,6 +1107,7 @@ def serialize_unit(cam):
         'category': cam.category or '',
         'date_in': cam.date_in.strftime('%Y-%m-%d') if cam.date_in else '',
         'note': cam.description or '', 'sold_price': cam.sold_price or 0,
+        'deposit_amount': cam.deposit_amount or 0,
         'import_cost': cam.import_cost or 0, 'repair_cost': cam.repair_cost or 0, 'profit': cam.profit,
         'sale_state': cam.sale_state or 'stock',
         'sold_to': cam.sold_to or '', 'sold_phone': cam.sold_phone or '', 'sold_source': cam.sold_source or '',
@@ -908,11 +1150,6 @@ def camera_pnl(cam):
     }
 
 
-def camera_stock(cam):
-    return {'available': cam.total_available, 'incoming': cam.total_incoming,
-            'broken': cam.total_broken, 'unfixable': cam.total_unfixable}
-
-
 class CamerasView(BaseView):
     """Inventory manager. Renting tab = editable table; Selling tab = per-color/status stock."""
 
@@ -924,7 +1161,7 @@ class CamerasView(BaseView):
         'sold_source': str,
         'price':       int,   'price_d2':    int,   'price_d3':    int,  'price_d4': int,
         'stock':       int,   'import_cost': int,   'repair_cost': int,  'sold_price': int,
-        'reorder_point': int,
+        'deposit_amount': int, 'reorder_point': int,
         'is_broken':   bool,  'is_sold':     bool,  'featured':    bool,
     }
     SALE_STATES = ('stock', 'processing', 'deposit', 'sold', 'fixing', 'unfixable')
@@ -979,6 +1216,8 @@ class CamerasView(BaseView):
                 return jsonify({'ok': False, 'error': 'Trạng thái không hợp lệ'}), 400
             cam.sale_state = value
             cam.is_sold = (value == 'sold')
+            if value != 'deposit':                 # deposit amount only applies while đã cọc
+                cam.deposit_amount = 0
             if value in self.SELL_STATES:          # sold / đã cọc → realised sale
                 if not cam.sold_date:
                     cam.sold_date = datetime.now()
@@ -1007,6 +1246,13 @@ class CamerasView(BaseView):
             return jsonify({'ok': False, 'error': 'Giá trị không hợp lệ'}), 400
         if field == 'type' and cast not in ('Rent', 'Sale'):
             return jsonify({'ok': False, 'error': 'Loại máy không hợp lệ'}), 400
+        # Rental repair cost is cumulative & undated on the camera; log each change as a
+        # dated expense so it lands in the Finance period it was incurred.
+        if field == 'repair_cost' and cam.type == 'Rent':
+            delta = int(cast) - int(cam.repair_cost or 0)
+            if delta != 0:
+                db.session.add(RepairLog(camera_id=cam.id, amount=delta,
+                                         note=cam.name or '', created_at=datetime.now()))
         setattr(cam, field, cast)
         if field == 'is_sold':
             cam.sold_date = datetime.now() if cast else None
@@ -1050,7 +1296,8 @@ class CamerasView(BaseView):
     @expose('/sell', methods=['POST'])
     def sell(self):
         """Finalise a for-sale unit: sold (đã bán) or deposit (đã cọc), capturing
-        price + customer info. A deposit books the full amount into that day's finance."""
+        price + customer info. A deposit books the FULL price into that day's finance;
+        deposit_amount is recorded separately (how much cọc was collected) for reference."""
         d = request.get_json(silent=True) or {}
         cam = db.session.get(Camera, d.get('id'))
         if not cam:
@@ -1059,10 +1306,16 @@ class CamerasView(BaseView):
             price = max(0, int(d.get('sold_price') or 0))
         except (TypeError, ValueError):
             return jsonify({'ok': False, 'error': 'Giá bán không hợp lệ'}), 400
+        try:
+            deposit = max(0, int(d.get('deposit_amount') or 0))
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Số tiền cọc không hợp lệ'}), 400
         state = d.get('state') if d.get('state') in self.SELL_STATES else 'sold'
         cam.sale_state = state
         cam.is_sold = (state == 'sold')
         cam.sold_price = price
+        # deposit amount only meaningful while state='deposit'; a direct sale clears it
+        cam.deposit_amount = deposit if state == 'deposit' else 0
         cam.sold_to = (d.get('customer_name') or '').strip()
         cam.sold_phone = (d.get('phone') or '').strip()
         cam.sold_source = (d.get('source') or '').strip()
@@ -1135,8 +1388,9 @@ class CamerasView(BaseView):
             cell.font = head_font
             cell.alignment = Alignment(horizontal='center', vertical='center')
             ws.column_dimensions[cell.column_letter].width = max(14, len(title) + 4)
-        # one example row so the format is obvious
-        ws.append(['LUMIX FX60', 'Bạc', 'Compact', 'N', 'Flash, pin',
+        # one example row so the format is obvious — name flags it as a sample to delete,
+        # so it's never silently imported as a real camera if the operator forgets.
+        ws.append(['VÍ DỤ (xoá dòng này) LUMIX FX60', 'Bạc', 'Compact', 'N', 'Flash, pin',
                    '2026-06-01', 'Máy đẹp', 1750000, '', 'Còn hàng'])
         ws.freeze_panes = 'A2'
         # "Trạng thái" (last column) → in-cell dropdown so the shop picks a valid value
@@ -1217,6 +1471,7 @@ class CamerasView(BaseView):
         cam = db.session.get(Camera, d.get('id'))
         if not cam:
             return jsonify({'ok': False, 'error': 'Không tìm thấy máy'}), 404
+        self._restock_gifts(cam)     # return any gifted accessories to stock (same as bulk_delete)
         RentalBooking.query.filter_by(camera_id=cam.id).delete()
         db.session.delete(cam)   # variants cascade via relationship
         db.session.commit()
@@ -1242,249 +1497,6 @@ class CamerasView(BaseView):
             deleted += 1
         db.session.commit()
         return jsonify({'ok': True, 'deleted': deleted})
-
-    # ── Color/status variants (Selling tab) ──────────────────────────────────
-    @expose('/variant/save', methods=['POST'])
-    def variant_save(self):
-        d = request.get_json(silent=True) or {}
-        cam = db.session.get(Camera, d.get('camera_id'))
-        if not cam:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy máy'}), 404
-        vid = d.get('id')
-        if vid:
-            v = db.session.get(CameraVariant, vid)
-            if not v or v.camera_id != cam.id:
-                return jsonify({'ok': False, 'error': 'Không tìm thấy màu'}), 404
-        else:
-            v = CameraVariant(camera_id=cam.id)
-            db.session.add(v)
-        v.color = (d.get('color') or '').strip()
-        for q in self.VARIANT_QTY:
-            try:
-                setattr(v, q, max(0, int(d.get(q) or 0)))
-            except (TypeError, ValueError):
-                setattr(v, q, 0)
-        db.session.commit()
-        return jsonify({'ok': True, 'variant': serialize_variant(v),
-                        'totals': camera_stock(cam), 'pnl': camera_pnl(cam)})
-
-    @expose('/variant/delete', methods=['POST'])
-    def variant_delete(self):
-        d = request.get_json(silent=True) or {}
-        v = db.session.get(CameraVariant, d.get('id'))
-        if not v:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy màu'}), 404
-        cam = v.camera
-        db.session.delete(v)
-        db.session.commit()
-        return jsonify({'ok': True, 'totals': camera_stock(cam), 'pnl': camera_pnl(cam)})
-
-    # ── Receiving / import batches (logs cost → weighted-average COGS) ────────
-    @expose('/receive', methods=['POST'])
-    def receive(self):
-        d = request.get_json(silent=True) or {}
-        cam = db.session.get(Camera, d.get('camera_id'))
-        if not cam:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy máy'}), 404
-        try:
-            qty       = max(1, int(d.get('quantity') or 0))
-            unit_cost = max(0, int(d.get('unit_cost') or 0))
-        except (TypeError, ValueError):
-            return jsonify({'ok': False, 'error': 'Số lượng / giá nhập không hợp lệ'}), 400
-        status = 'ordered' if d.get('status') == 'ordered' else 'received'
-        color  = (d.get('color') or '').strip()
-
-        # locate or create the color variant
-        variant = None
-        vid = d.get('variant_id')
-        if vid:
-            variant = db.session.get(CameraVariant, vid)
-            if variant and variant.camera_id != cam.id:
-                variant = None
-        if not variant and color:
-            variant = next((v for v in cam.variants
-                            if (v.color or '').strip().lower() == color.lower()), None)
-        if not variant:
-            variant = CameraVariant(camera_id=cam.id, color=color)
-            db.session.add(variant)
-            db.session.flush()
-
-        supplier = db.session.get(Supplier, d.get('supplier_id')) if d.get('supplier_id') else None
-        rec = StockReceipt(
-            camera_id=cam.id, variant_id=variant.id, color=variant.color or color,
-            supplier_id=(supplier.id if supplier else None),
-            quantity=qty, unit_cost=unit_cost, status=status,
-            expected_date=parse_dt(d.get('expected_date')),
-            received_date=(datetime.now() if status == 'received' else None),
-            note=(d.get('note') or '').strip())
-        db.session.add(rec)
-        if status == 'received':
-            variant.qty_available = (variant.qty_available or 0) + qty
-        else:
-            variant.qty_incoming = (variant.qty_incoming or 0) + qty
-        db.session.commit()
-        return jsonify({'ok': True, 'receipt': serialize_receipt(rec),
-                        'variant': serialize_variant(variant),
-                        'totals': camera_stock(cam), 'pnl': camera_pnl(cam)})
-
-    @expose('/receipt/mark-received', methods=['POST'])
-    def receipt_mark_received(self):
-        d = request.get_json(silent=True) or {}
-        rec = db.session.get(StockReceipt, d.get('id'))
-        if not rec:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy phiếu nhập'}), 404
-        if rec.status != 'received':
-            rec.status = 'received'
-            rec.received_date = datetime.now()
-            variant = db.session.get(CameraVariant, rec.variant_id) if rec.variant_id else None
-            if variant:
-                variant.qty_incoming  = max(0, (variant.qty_incoming or 0) - (rec.quantity or 0))
-                variant.qty_available = (variant.qty_available or 0) + (rec.quantity or 0)
-            db.session.commit()
-        cam = rec.camera
-        return jsonify({'ok': True, 'receipt': serialize_receipt(rec),
-                        'totals': camera_stock(cam), 'pnl': camera_pnl(cam)})
-
-    # ── Move stock between statuses (đã về / hỏng / không sửa được) ───────────
-    @expose('/variant/move', methods=['POST'])
-    def variant_move(self):
-        d = request.get_json(silent=True) or {}
-        v = db.session.get(CameraVariant, d.get('id'))
-        if not v:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy màu'}), 404
-        src, dst = d.get('from'), d.get('to')
-        if src not in self.VARIANT_QTY or dst not in self.VARIANT_QTY:
-            return jsonify({'ok': False, 'error': 'Trạng thái không hợp lệ'}), 400
-        try:
-            qty = max(1, int(d.get('quantity') or 1))
-        except (TypeError, ValueError):
-            return jsonify({'ok': False, 'error': 'Số lượng không hợp lệ'}), 400
-        if (getattr(v, src) or 0) < qty:
-            return jsonify({'ok': False, 'error': 'Không đủ số lượng để chuyển'}), 400
-        setattr(v, src, (getattr(v, src) or 0) - qty)
-        setattr(v, dst, (getattr(v, dst) or 0) + qty)
-        cam = v.camera
-        db.session.commit()
-        return jsonify({'ok': True, 'variant': serialize_variant(v),
-                        'totals': camera_stock(cam), 'pnl': camera_pnl(cam)})
-
-    # ── Suppliers ─────────────────────────────────────────────────────────────
-    @expose('/supplier/add', methods=['POST'])
-    def supplier_add(self):
-        d = request.get_json(silent=True) or {}
-        name = (d.get('name') or '').strip()
-        if not name:
-            return jsonify({'ok': False, 'error': 'Tên nhà cung cấp bắt buộc'}), 400
-        s = Supplier(name=name, phone=(d.get('phone') or '').strip(), note=(d.get('note') or '').strip())
-        db.session.add(s)
-        db.session.commit()
-        return jsonify({'ok': True, 'supplier': serialize_supplier(s)})
-
-    # ── Sales log (Selling tab) ──────────────────────────────────────────────
-    @expose('/sale/add', methods=['POST'])
-    def sale_add(self):
-        d = request.get_json(silent=True) or {}
-        cam = db.session.get(Camera, d.get('camera_id'))
-        if not cam:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy máy'}), 404
-        try:
-            qty      = max(1, int(d.get('quantity') or 1))
-            price    = max(0, int(d.get('unit_price') or 0))
-            discount = max(0, int(d.get('discount') or 0))
-        except (TypeError, ValueError):
-            return jsonify({'ok': False, 'error': 'Số lượng / đơn giá không hợp lệ'}), 400
-
-        color, variant = (d.get('color') or '').strip(), None
-        vid = d.get('variant_id')
-        if vid:
-            variant = db.session.get(CameraVariant, vid)
-            if variant and variant.camera_id == cam.id:
-                if qty > (variant.qty_available or 0):       # oversell guard
-                    return jsonify({'ok': False, 'error':
-                        f'Chỉ còn {variant.qty_available or 0} máy màu “{variant.color or color}” — không đủ để bán {qty}.'}), 400
-                color = variant.color or color
-                variant.qty_available = (variant.qty_available or 0) - qty
-            else:
-                variant = None
-
-        line_total = qty * price - discount
-        status = (d.get('payment_status') or 'paid').strip()
-        if status == 'paid':
-            paid = line_total
-        elif status == 'unpaid':
-            paid = 0
-        else:                                                 # deposit / installment
-            paid = max(0, int(d.get('amount_paid') or 0))
-
-        rec = SaleRecord(
-            camera_id=cam.id, variant_id=(variant.id if variant else None),
-            color=color, quantity=qty, unit_price=price, discount=discount,
-            unit_cost=int(cam.avg_cost or 0),                 # immutable COGS snapshot
-            note=(d.get('note') or '').strip(),
-            customer_name=(d.get('customer_name') or '').strip(),
-            phone=(d.get('phone') or '').strip(),
-            payment_method=(d.get('payment_method') or 'cash').strip(),
-            payment_status=status, amount_paid=paid,
-            serial=(d.get('serial') or '').strip(),
-            condition=(d.get('condition') or '').strip(),
-            warranty_until=parse_dt(d.get('warranty_until')))
-        db.session.add(rec)
-        db.session.commit()
-        return jsonify({'ok': True, 'sale': serialize_sale(rec), 'pnl': camera_pnl(cam),
-                        'totals': camera_stock(cam),
-                        'variant': ({'id': variant.id, 'qty_available': variant.qty_available} if variant else None)})
-
-    @expose('/sale/return', methods=['POST'])
-    def sale_return(self):
-        d = request.get_json(silent=True) or {}
-        orig = db.session.get(SaleRecord, d.get('id'))
-        if not orig:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy đơn bán'}), 404
-        if orig.is_return:
-            return jsonify({'ok': False, 'error': 'Đây đã là phiếu trả hàng'}), 400
-        cam = orig.camera
-        try:
-            qty = max(1, min(int(d.get('quantity') or orig.quantity or 1), orig.quantity or 1))
-        except (TypeError, ValueError):
-            qty = orig.quantity or 1
-        ret = SaleRecord(
-            camera_id=cam.id, variant_id=orig.variant_id, color=orig.color,
-            quantity=qty, unit_price=orig.unit_price, discount=0,
-            unit_cost=orig.unit_cost, is_return=True, return_of=orig.id,
-            customer_name=orig.customer_name, phone=orig.phone,
-            payment_method=orig.payment_method, payment_status='paid',
-            note=(d.get('note') or 'Khách trả hàng').strip())
-        db.session.add(ret)
-        variant_info = None
-        if orig.variant_id:
-            variant = db.session.get(CameraVariant, orig.variant_id)
-            if variant:
-                variant.qty_available = (variant.qty_available or 0) + qty      # restock
-                variant_info = {'id': variant.id, 'qty_available': variant.qty_available}
-        db.session.commit()
-        return jsonify({'ok': True, 'sale': serialize_sale(ret), 'pnl': camera_pnl(cam),
-                        'totals': camera_stock(cam), 'variant': variant_info})
-
-    @expose('/sale/delete', methods=['POST'])
-    def sale_delete(self):
-        d = request.get_json(silent=True) or {}
-        rec = db.session.get(SaleRecord, d.get('id'))
-        if not rec:
-            return jsonify({'ok': False, 'error': 'Không tìm thấy đơn'}), 404
-        cam = rec.camera
-        variant_info = None
-        if rec.variant_id:
-            variant = db.session.get(CameraVariant, rec.variant_id)
-            if variant:
-                # reverse the stock effect: a sale removed qty (add back); a return added qty (remove)
-                delta = -(rec.quantity or 0) if rec.is_return else (rec.quantity or 0)
-                variant.qty_available = max(0, (variant.qty_available or 0) + delta)
-                variant_info = {'id': variant.id, 'qty_available': variant.qty_available}
-        db.session.delete(rec)
-        db.session.commit()
-        return jsonify({'ok': True, 'pnl': camera_pnl(cam),
-                        'totals': camera_stock(cam), 'variant': variant_info})
-
 
 class FinanceView(BaseView):
     """Revenue / cost / profit dashboard."""
@@ -1543,18 +1555,20 @@ class FinanceView(BaseView):
         sold_cams = [c for c in sale_cameras if c.sale_state in ('sold', 'deposit') and c.sold_date]
         store_costs = StoreCost.query.all()
         acc_sales = AccessorySale.query.all()
+        repair_logs = RepairLog.query.all()          # dated rental-repair expenses
 
         def window(start, end):
             """All money flows whose own date falls inside [start, end)."""
             rrev  = sum(int(b.total_price or 0) for b in bookings if b.start_date and start <= b.start_date < end)
+            rcost = sum(int(l.amount or 0) for l in repair_logs if l.created_at and start <= l.created_at < end)
             sold  = [c for c in sold_cams if start <= c.sold_date < end]
-            srev  = sum(int(c.sold_price or 0) for c in sold)
+            srev  = sum(int(c.sale_revenue) for c in sold)     # deposit books full price on cọc day
             scogs = sum(int(c.cost) for c in sold)
             scost = sum(int(x.amount or 0) for x in store_costs if x.cost_date and start <= x.cost_date < end)
             asales = [s for s in acc_sales if s.sale_date and start <= s.sale_date < end]
             arev  = sum(s.revenue for s in asales)
             acogs = sum(s.cost_total for s in asales)
-            return {'rrev': rrev, 'srev': srev, 'scogs': scogs, 'sprof': srev - scogs,
+            return {'rrev': rrev, 'rcost': rcost, 'srev': srev, 'scogs': scogs, 'sprof': srev - scogs,
                     'scost': scost, 'sold': sold,
                     'arev': arev, 'acogs': acogs, 'aprof': arev - acogs}
 
@@ -1580,7 +1594,7 @@ class FinanceView(BaseView):
         # ── totals for the SELECTED period only (dates now matter) ──
         w = window(astart, aend)
         rental_revenue = int(w['rrev'])
-        rental_cost    = 0                                # rental gear cost is not dated
+        rental_cost    = int(w['rcost'])                 # dated rental repair expenses (RepairLog)
         rental_profit  = rental_revenue - rental_cost
         sale_revenue   = int(w['srev'])
         sale_cost      = int(w['scogs'])
@@ -1648,6 +1662,140 @@ class FinanceView(BaseView):
                            rental_series=rental_series, sale_rev_series=sale_rev_series,
                            sale_profit_series=sale_profit_series, store_cost_series=store_cost_series,
                            top_profit=top_profit, aging=aging)
+
+    def _resolve_window(self):
+        """Parse ?period + ?anchor into (period, start, end, label) — mirrors index()."""
+        period = request.args.get('period', 'month')
+        if period not in ('day', 'month', 'year', 'all'):
+            period = 'month'
+        now = datetime.now()
+        anchor_raw = (request.args.get('anchor') or '').strip()
+        anchor = parse_dt(anchor_raw)
+        if not anchor:
+            if period == 'year' and anchor_raw.isdigit():
+                anchor = datetime(int(anchor_raw), 1, 1)
+            elif period == 'month' and len(anchor_raw) >= 7 and anchor_raw[:4].isdigit():
+                try:
+                    anchor = datetime(int(anchor_raw[:4]), int(anchor_raw[5:7]), 1)
+                except ValueError:
+                    anchor = None
+        if not anchor:
+            anchor = now
+        if period == 'all':
+            return period, datetime(1970, 1, 1), datetime(2999, 1, 1), 'Toàn thời gian', now
+        astart, aend = self._bucket(period, anchor)
+        label = {'day': 'Ngày ' + astart.strftime('%d/%m/%Y'),
+                 'month': 'Tháng ' + astart.strftime('%m/%Y'),
+                 'year': 'Năm ' + astart.strftime('%Y')}[period]
+        return period, astart, aend, label, now
+
+    @expose('/export')
+    def export(self):
+        """Download the finance dashboard + current inventory as a formatted .xlsx."""
+        if not HAS_OPENPYXL:
+            return jsonify({'ok': False, 'error': 'Thiếu thư viện openpyxl trên máy chủ.'}), 500
+        period, astart, aend, label, now = self._resolve_window()
+        cameras = Camera.query.order_by(Camera.brand, Camera.name).all()
+        sale_cameras = [c for c in cameras if c.type == 'Sale']
+        bookings = RentalBooking.query.all()
+        store_costs = StoreCost.query.all()
+        acc_sales = AccessorySale.query.all()
+
+        repair_logs = RepairLog.query.all()
+        in_win = lambda d: d and astart <= d < aend
+        sold = [c for c in sale_cameras if c.sale_state in ('sold', 'deposit') and in_win(c.sold_date)]
+        rrev = sum(int(b.total_price or 0) for b in bookings if in_win(b.start_date))
+        rcost = sum(int(l.amount or 0) for l in repair_logs if in_win(l.created_at))
+        srev = sum(int(c.sale_revenue) for c in sold)
+        scogs = sum(int(c.cost) for c in sold)
+        scost = sum(int(x.amount or 0) for x in store_costs if in_win(x.cost_date))
+        asales = [s for s in acc_sales if in_win(s.sale_date)]
+        arev = sum(s.revenue for s in asales)
+        acogs = sum(s.cost_total for s in asales)
+        inv = [c for c in sale_cameras if c.sale_state in ('stock', 'processing', 'fixing')]
+        inv_value = int(sum(c.inventory_value for c in sale_cameras))
+        total_rev = rrev + srev + arev
+        net = (rrev - rcost) + (srev - scogs) + (arev - acogs) - scost
+
+        wb = Workbook()
+        head_fill = PatternFill('solid', fgColor='B91C1C')
+        head_font = Font(bold=True, color='FFFFFF')
+        money_fmt = '#,##0'
+
+        def style_header(ws, ncols):
+            for ci in range(1, ncols + 1):
+                cell = ws.cell(row=1, column=ci)
+                cell.fill = head_fill
+                cell.font = head_font
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        def autosize(ws, widths):
+            for i, w in enumerate(widths, start=1):
+                ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
+
+        # ── Sheet 1: Tổng quan ──
+        ws = wb.active
+        ws.title = 'Tổng quan'
+        ws.append(['tintus.digicam — Báo cáo tài chính'])
+        ws.append(['Kỳ báo cáo', label])
+        ws.append(['Xuất lúc', now.strftime('%d/%m/%Y %H:%M')])
+        ws.append([])
+        ws.append(['Khoản mục', 'Doanh thu', 'Chi phí (giá vốn)', 'Lợi nhuận'])
+        hdr_row = ws.max_row
+        ws.append(['Cho thuê', rrev, rcost, rrev - rcost])
+        ws.append(['Bán máy', srev, scogs, srev - scogs])
+        ws.append(['Phụ kiện', arev, acogs, arev - acogs])
+        ws.append(['Tổng cộng', total_rev, rcost + scogs + acogs, (rrev - rcost) + (srev - scogs) + (arev - acogs)])
+        ws.append([])
+        ws.append(['Chi phí tiệm (kỳ này)', scost])
+        ws.append(['Lợi nhuận ròng', net])
+        ws.append(['Giá trị tồn kho (hiện tại)', inv_value])
+        ws.append(['Số máy bán trong kỳ', len(sold)])
+        ws.append(['Số máy còn trong kho', len(inv)])
+        for r in range(hdr_row, hdr_row + 4):
+            for c in (2, 3, 4):
+                ws.cell(row=r, column=c).number_format = money_fmt
+        for r in range(hdr_row + 6, hdr_row + 9):
+            ws.cell(row=r, column=2).number_format = money_fmt
+        for ci in range(1, 5):
+            ws.cell(row=hdr_row, column=ci).fill = head_fill
+            ws.cell(row=hdr_row, column=ci).font = head_font
+        ws['A1'].font = Font(bold=True, size=13, color='B91C1C')
+        autosize(ws, [30, 18, 18, 18])
+
+        # ── Sheet 2: Đã bán trong kỳ ──
+        ws2 = wb.create_sheet('Đã bán trong kỳ')
+        ws2.append(['Tên máy', 'Hãng', 'Ngày bán', 'Trạng thái', 'Giá bán', 'Đã cọc',
+                    'Giá nhập', 'Phí sửa', 'Lợi nhuận', 'Khách', 'SĐT', 'Nguồn'])
+        style_header(ws2, 12)
+        for c in sorted(sold, key=lambda x: x.sold_date or now, reverse=True):
+            ws2.append([c.name, c.brand or '', c.sold_date.strftime('%d/%m/%Y') if c.sold_date else '',
+                        c.state_label, int(c.sold_price or 0), int(c.deposit_amount or 0),
+                        int(c.import_cost or 0), int(c.repair_cost or 0), int(c.profit),
+                        c.sold_to or '', c.sold_phone or '', c.sold_source or ''])
+        for r in range(2, ws2.max_row + 1):
+            for ci in (5, 6, 7, 8, 9):
+                ws2.cell(row=r, column=ci).number_format = money_fmt
+        autosize(ws2, [26, 12, 13, 14, 14, 12, 12, 11, 14, 16, 13, 12])
+
+        # ── Sheet 3: Tồn kho hiện tại ──
+        ws3 = wb.create_sheet('Tồn kho hiện tại')
+        ws3.append(['Tên máy', 'Hãng', 'Dòng máy', 'Trạng thái', 'Giá nhập', 'Ngày về', 'Số ngày tồn'])
+        style_header(ws3, 7)
+        for c in inv:
+            days = (now - c.date_in).days if c.date_in else ''
+            ws3.append([c.name, c.brand or '', c.category or '', c.state_label,
+                        int(c.import_cost or 0), c.date_in.strftime('%d/%m/%Y') if c.date_in else '', days])
+        for r in range(2, ws3.max_row + 1):
+            ws3.cell(row=r, column=5).number_format = money_fmt
+        autosize(ws3, [26, 12, 14, 14, 12, 13, 12])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        stamp = now.strftime('%Y%m%d')
+        return send_file(buf, as_attachment=True, download_name=f'baocao-taichinh-{stamp}.xlsx',
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 class StoreCostView(BaseView):
@@ -1871,6 +2019,58 @@ class AccessoriesView(BaseView):
         return jsonify({'ok': True})
 
 
+def serialize_lead(l):
+    return {
+        'id': l.id, 'customer_name': l.customer_name or '', 'phone': l.phone or '',
+        'notes': l.notes or '', 'source': l.source or '', 'status': l.status or 'new',
+        'want_start': l.start_date.strftime('%d/%m/%Y') if l.start_date else '',
+        'want_end':   l.end_date.strftime('%d/%m/%Y') if l.end_date else '',
+        'created': l.created_at.strftime('%d/%m/%Y %H:%M') if l.created_at else '',
+        'created_iso': l.created_at.strftime('%Y-%m-%d') if l.created_at else '',
+    }
+
+
+class LeadView(BaseView):
+    """Khách quan tâm — inquiries captured from the public homepage form."""
+    STATUSES = ('new', 'contacted', 'done')
+    EDITABLE = ('customer_name', 'phone', 'notes', 'status')
+
+    @expose('/')
+    def index(self):
+        leads = Lead.query.order_by(Lead.created_at.desc(), Lead.id.desc()).all()
+        counts = {s: 0 for s in self.STATUSES}
+        for l in leads:
+            counts[l.status if l.status in counts else 'new'] += 1
+        return self.render('admin/leads.html',
+                           leads=[serialize_lead(l) for l in leads],
+                           counts=counts, total=len(leads))
+
+    @expose('/update', methods=['POST'])
+    def update(self):
+        d = request.get_json(silent=True) or {}
+        lead = db.session.get(Lead, d.get('id'))
+        if not lead:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy'}), 404
+        field, value = d.get('field'), d.get('value')
+        if field not in self.EDITABLE:
+            return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
+        if field == 'status' and value not in self.STATUSES:
+            return jsonify({'ok': False, 'error': 'Trạng thái không hợp lệ'}), 400
+        setattr(lead, field, (str(value) if value is not None else '').strip())
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @expose('/delete', methods=['POST'])
+    def delete(self):
+        d = request.get_json(silent=True) or {}
+        lead = db.session.get(Lead, d.get('id'))
+        if not lead:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy'}), 404
+        db.session.delete(lead)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+
 class SheetView(BaseView):
     """A free-form Google-Sheets-style scratch sheet."""
 
@@ -1910,12 +2110,83 @@ class SheetView(BaseView):
         return jsonify({'ok': True, 'updated_at': sheet.updated_at.isoformat() if sheet.updated_at else None})
 
 
+class ActivityView(BaseView):
+    """Nhật ký — chronological log of every admin action, with undo / redo."""
+
+    @expose('/')
+    def index(self):
+        logs = ActivityLog.query.order_by(ActivityLog.id.desc()).limit(300).all()
+        rows = []
+        for l in logs:
+            try:
+                changes = _act_loads(l.changes_json)
+            except Exception:
+                changes = []
+            rows.append({
+                'id': l.id, 'label': l.label or '(hoạt động)', 'undone': bool(l.undone),
+                'when': l.created_at.strftime('%d/%m/%Y %H:%M:%S') if l.created_at else '',
+                'count': len(changes), 'details': _act_detail_lines(changes),
+            })
+        return self.render('admin/activity.html', rows=rows,
+                           can_undo=any(not r['undone'] for r in rows),
+                           can_redo=any(r['undone'] for r in rows))
+
+    @expose('/undo', methods=['POST'])
+    def undo(self):
+        log = (ActivityLog.query.filter_by(undone=False)
+               .order_by(ActivityLog.id.desc()).first())
+        if not log:
+            return jsonify({'ok': False, 'error': 'Không có gì để hoàn tác'}), 400
+        try:
+            g._act_suspend = True
+            _act_reverse(_act_loads(log.changes_json))
+            log.undone = True
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': f'Không hoàn tác được: {exc}'}), 500
+        finally:
+            g._act_suspend = False
+        return jsonify({'ok': True, 'label': log.label})
+
+    @expose('/redo', methods=['POST'])
+    def redo(self):
+        log = (ActivityLog.query.filter_by(undone=True)
+               .order_by(ActivityLog.id.asc()).first())
+        if not log:
+            return jsonify({'ok': False, 'error': 'Không có gì để làm lại'}), 400
+        try:
+            g._act_suspend = True
+            _act_apply(_act_loads(log.changes_json))
+            log.undone = False
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': f'Không làm lại được: {exc}'}), 500
+        finally:
+            g._act_suspend = False
+        return jsonify({'ok': True, 'label': log.label})
+
+    @expose('/clear', methods=['POST'])
+    def clear(self):
+        """Wipe the whole history (does not touch the data itself)."""
+        try:
+            g._act_suspend = True
+            ActivityLog.query.delete()
+            db.session.commit()
+        finally:
+            g._act_suspend = False
+        return jsonify({'ok': True})
+
+
 admin.add_view(BookingGridView(name='Lịch thuê (Sheet)', endpoint='bookinggrid'))
 admin.add_view(CalendarView(name='Lịch (Calendar)',     endpoint='calendar'))
 admin.add_view(CamerasView(name='Quản lý máy',          endpoint='cameras'))
 admin.add_view(AccessoriesView(name='Phụ kiện',         endpoint='phukien'))
 admin.add_view(FinanceView(name='Tài chính',            endpoint='finance'))
 admin.add_view(StoreCostView(name='Chi phí tiệm',       endpoint='chiphi'))
+admin.add_view(LeadView(name='Khách quan tâm',          endpoint='leads'))
+admin.add_view(ActivityView(name='Nhật ký',             endpoint='activity'))
 admin.add_view(SheetView(name='Sổ tay',                 endpoint='sheet'))
 
 
@@ -1960,6 +2231,7 @@ def ensure_schema():
             'repair_cost':   'INTEGER DEFAULT 0',
             'is_sold':       'BOOLEAN DEFAULT 0',
             'sold_price':    'INTEGER DEFAULT 0',
+            'deposit_amount':'INTEGER DEFAULT 0',
             'sold_date':     'DATETIME',
             'category':      "VARCHAR(40) DEFAULT ''",
             'reorder_point': 'INTEGER DEFAULT 0',
@@ -1978,28 +2250,7 @@ def ensure_schema():
                 db.session.execute(text(f'ALTER TABLE camera ADD COLUMN {name} {ddl}'))
         db.session.commit()
 
-    if 'sale_record' in insp.get_table_names():
-        scols = {c['name'] for c in insp.get_columns('sale_record')}
-        sale_new = {
-            'unit_cost':      'INTEGER DEFAULT 0',
-            'discount':       'INTEGER DEFAULT 0',
-            'customer_name':  "VARCHAR(100) DEFAULT ''",
-            'phone':          "VARCHAR(20) DEFAULT ''",
-            'payment_method': "VARCHAR(20) DEFAULT 'cash'",
-            'payment_status': "VARCHAR(20) DEFAULT 'paid'",
-            'amount_paid':    'INTEGER DEFAULT 0',
-            'serial':         "VARCHAR(120) DEFAULT ''",
-            'warranty_until': 'DATETIME',
-            'condition':      "VARCHAR(20) DEFAULT ''",
-            'is_return':      'BOOLEAN DEFAULT 0',
-            'return_of':      'INTEGER',
-        }
-        for name, ddl in sale_new.items():
-            if name not in scols:
-                db.session.execute(text(f'ALTER TABLE sale_record ADD COLUMN {name} {ddl}'))
-        db.session.commit()
-
-    db.create_all()               # creates brand-new tables (Appointment, Sheet, Supplier…) in full
+    db.create_all()               # creates brand-new tables (Appointment, Sheet…) in full
     _auto_add_missing_columns()   # backfill any column added to an already-existing table
 
 

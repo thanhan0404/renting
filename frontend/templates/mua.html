@@ -55,14 +55,17 @@
             <p class="text-sm text-gray-500 mb-6">Hiển thị <strong class="text-gray-800">{{ cameras | length }} sản phẩm</strong></p>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+                {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50', 'Nikon': 'bg-yellow-50'} %}
                 {% for cam in cameras %}
-                {% set avail = cam.total_available %}
+                {# A for-sale unit is buyable when its state is "stock" (one physical unit).
+                   Do NOT gate on cam.total_available — that sums CameraVariant rows, which the
+                   current per-unit selling flow never creates, so it is always 0. #}
+                {% set avail = 1 if cam.sale_state == 'stock' else 0 %}
                 <div class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group flex flex-col ring-soft">
                     <div class="h-44 {{ brand_bg.get(cam.brand, 'bg-gray-50') }} flex items-center justify-center relative">
                         <span class="text-6xl group-hover:scale-110 transition-transform duration-300">📷</span>
                         {% if avail > 0 %}
-                        <span class="pill pill-available absolute top-3 left-3">● Còn {{ avail }}</span>
+                        <span class="pill pill-available absolute top-3 left-3">● Còn hàng</span>
                         {% else %}
                         <span class="pill pill-out absolute top-3 left-3">Hết hàng</span>
                         {% endif %}

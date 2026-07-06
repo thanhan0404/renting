@@ -9,22 +9,22 @@
   <button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Thêm máy cho thuê</button>
 </div>
 
-<!-- ── Stat cards ── -->
+<!-- ── Stat cards (reflect the active tab + day/month/year/all period) ── -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm px-4 py-3">
-    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng số máy</div>
-    <div class="text-lg font-black text-gray-900 mt-0.5">{{ (rent_cameras|length) + (sale_cameras|length) + (sold_cameras|length) }} <span class="text-xs font-bold text-gray-400">máy</span></div>
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Số máy <span class="stat-scope normal-case text-gray-300"></span></div>
+    <div class="text-lg font-black text-gray-900 mt-0.5"><span id="sumCount">0</span> <span class="text-xs font-bold text-gray-400">máy</span></div>
   </div>
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-emerald-500 rounded-2xl shadow-sm px-4 py-3">
-    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng doanh thu</div>
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Doanh thu <span class="stat-scope normal-case text-gray-300"></span></div>
     <div id="sumRevenue" class="text-lg font-black text-gray-900 mt-0.5">—</div>
   </div>
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
-    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng chi phí</div>
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Chi phí <span class="stat-scope normal-case text-gray-300"></span></div>
     <div id="sumCost" class="text-lg font-black text-gray-900 mt-0.5">—</div>
   </div>
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
-    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng lợi nhuận</div>
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Lợi nhuận <span class="stat-scope normal-case text-gray-300"></span></div>
     <div id="sumProfit" class="text-lg font-black mt-0.5">—</div>
   </div>
 </div>
@@ -121,7 +121,7 @@
             <td class="cam-sticky-cell px-3 py-1.5">
               <div class="flex items-center gap-1.5">
                 <button class="rent-toggle w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold shrink-0 transition-transform" title="Sửa chi tiết: giá ngày 2/3/4, mô tả, nhãn…">▸</button>
-                <span class="shrink-0 rounded-full inline-block w-3 h-3 cam-dot" data-dot="{{ dot }}"></span>
+                <span class="shrink-0 rounded-full inline-block w-3 h-3 cam-dot" style="background:{{ dot }}"></span>
                 <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
                 {% if c.is_sold %}<span class="cam-tag">đã bán</span>{% endif %}
               </div>
@@ -149,7 +149,6 @@
                 <div><label class="rd-lbl">Giá ngày 2</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d2" data-raw="{{ c.price_d2 or 0 }}"></div>
                 <div><label class="rd-lbl">Giá ngày 3</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d3" data-raw="{{ c.price_d3 or 0 }}"></div>
                 <div><label class="rd-lbl">Giá ngày 4+ / ngày</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d4" data-raw="{{ c.price_d4 or 0 }}"></div>
-                <div><label class="rd-lbl">Số lượng trong kho</label><input class="rd-field rd-num text-right tabular-nums" inputmode="numeric" data-field="stock" value="{{ c.stock or 0 }}"></div>
                 <div><label class="rd-lbl">Phí sửa chữa (luỹ kế)</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></div>
                 <div><label class="rd-lbl">Nhãn (badge)</label><input class="rd-field rd-text" type="text" data-field="badge" value="{{ c.badge or '' }}" placeholder="VD: HOT, MỚI…"></div>
                 <div class="flex items-end gap-4 pb-1"><label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer"><input class="rd-check" type="checkbox" data-field="featured" {% if c.featured %}checked{% endif %}> Nổi bật (trang chủ)</label></div>
@@ -381,7 +380,7 @@
 <div id="tabDeposit" class="hidden">
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
     <div class="overflow-x-auto" style="max-height:calc(100vh - 360px)">
-      <table class="inv-table w-full text-sm" style="min-width:1420px">
+      <table class="inv-table w-full text-sm" style="min-width:1540px">
         <thead>
           <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
             <th class="cam-sticky-head text-left px-3 py-3" style="min-width:200px">Tên máy</th>
@@ -391,7 +390,9 @@
             <th class="text-left px-3 py-3" style="min-width:140px">Khách</th>
             <th class="text-left px-3 py-3" style="min-width:120px">SĐT</th>
             <th class="text-center px-3 py-3" style="min-width:130px">Nguồn khách</th>
-            <th class="text-right px-3 py-3" style="min-width:120px">Giá / cọc</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Đã cọc</th>
+            <th class="text-right px-3 py-3" style="min-width:120px">Còn thiếu</th>
             <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
             <th class="text-right px-3 py-3" style="min-width:110px">Phí sửa</th>
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Lợi nhuận</th>
@@ -431,6 +432,9 @@
               </select>
             </td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="sold_price" data-raw="{{ c.sold_price or 0 }}"></td>
+            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-cyan-700" type="text" inputmode="numeric" data-field="deposit_amount" data-raw="{{ c.deposit_amount or 0 }}" title="Số tiền cọc đã nhận"></td>
+            {% set _remain = (c.sold_price or 0) - (c.deposit_amount or 0) %}
+            <td class="cell-remaining px-3 py-1.5 text-right tabular-nums font-bold bg-gray-50/70 {% if _remain > 0 %}text-brand-700{% else %}text-emerald-600{% endif %}" title="Còn thiếu = giá bán − tiền cọc đã thu">{{ _remain|money }}đ</td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money cam-repair text-right tabular-nums text-amber-700" type="text" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></td>
             <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
@@ -505,6 +509,11 @@
       <div>
         <label id="sell_price_lbl" class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá bán</label>
         <input id="sell_price" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+      </div>
+      <div id="sell_deposit_wrap" class="hidden">
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số tiền cọc đã nhận <span class="normal-case font-semibold text-gray-400">(để tính số còn lại — doanh thu vẫn tính đủ giá bán)</span></label>
+        <input id="sell_deposit" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        <p id="sell_balance" class="text-[11px] font-semibold text-gray-400 mt-1"></p>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -668,19 +677,47 @@
 
   document.querySelectorAll('.cam-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
 
-  // ── top financial summary (all tabs) ──
+  // ── top financial summary — reflects the ACTIVE tab and, on the sold/deposit
+  //    tabs, the selected day/month/year/all period (i.e. only the visible rows) ──
+  const TAB_BODY = { rent: '#rentBody .cam-row', sale: '#saleBody .sale-unit',
+                     sold: '#soldBody .sold-unit', deposit: '#depositBody .deposit-unit' };
+  function scopeLabel() {
+    const tab = activeTab();
+    if (tab === 'sold' || tab === 'deposit')
+      return { day: 'hôm nay', month: 'tháng này', year: 'năm nay', all: 'tất cả' }[periodSel] || '';
+    return { rent: 'cho thuê', sale: 'để bán' }[tab] || '';
+  }
   function recompute() {
-    let revenue = 0, cost = 0, profit = 0;
-    document.querySelectorAll('.cam-row').forEach(row => {
+    const tab = activeTab();
+    let revenue = 0, cost = 0, profit = 0, count = 0;
+    document.querySelectorAll(TAB_BODY[tab] || '.cam-row').forEach(row => {
+      if (row.style.display === 'none') return;         // only what the filter/period shows
       revenue += Number(row.dataset.revenue) || 0;
       cost    += Number(row.dataset.cost)    || 0;
       profit  += Number(row.dataset.profit)  || 0;
+      count++;
     });
+    $('sumCount').textContent   = count;
     $('sumRevenue').textContent = fmt(revenue);
     $('sumCost').textContent    = fmt(cost);
     const pEl = $('sumProfit');
     pEl.textContent = fmt(profit);
     pEl.className = 'text-lg font-black mt-0.5 ' + (profit >= 0 ? 'text-emerald-600' : 'text-brand-700');
+    const scope = scopeLabel();
+    document.querySelectorAll('.stat-scope').forEach(s => { s.textContent = scope ? '· ' + scope : ''; });
+  }
+
+  // ── "Còn thiếu" (deposit tab) = giá bán − tiền cọc đã thu ──
+  function updateRemaining(row) {
+    if (!row) return;
+    const cell = row.querySelector('.cell-remaining');
+    if (!cell) return;
+    const sp = row.querySelector('[data-field="sold_price"]');
+    const dp = row.querySelector('[data-field="deposit_amount"]');
+    const rem = num(sp ? sp.dataset.raw : 0) - num(dp ? dp.dataset.raw : 0);
+    cell.textContent = fmt(rem);
+    cell.classList.toggle('text-brand-700', rem > 0);
+    cell.classList.toggle('text-emerald-600', rem <= 0);
   }
 
   function applyPnl(row, pnl) {
@@ -723,7 +760,8 @@
         if (String(raw) === String(inp.dataset.raw)) { inp.value = fmt(raw); return; }
         const prev = inp.dataset.raw; inp.dataset.raw = raw; inp.value = fmt(raw);
         if (field === 'import_cost') rowEl.dataset.import = raw;   // keep import-price filter accurate
-        const res = await saveField(rowEl, field, raw, () => { inp.dataset.raw = prev; inp.value = fmt(num(prev)); if (field === 'import_cost') rowEl.dataset.import = prev; });
+        if (field === 'sold_price' || field === 'deposit_amount') updateRemaining(rowEl);
+        const res = await saveField(rowEl, field, raw, () => { inp.dataset.raw = prev; inp.value = fmt(num(prev)); if (field === 'import_cost') rowEl.dataset.import = prev; updateRemaining(rowEl); });
         // convenience: filling "Giá bán" on a still-in-stock unit marks it sold
         if (res && field === 'sold_price' && raw > 0 && rowEl.classList.contains('sale-unit') && rowEl.dataset.state === 'stock') {
           const st = rowEl.querySelector('.cam-state'); if (st) { st.value = 'sold'; st.dispatchEvent(new Event('change')); }
@@ -783,7 +821,7 @@
 
   // ════════════ per-unit: color rows / selects / dates / state ════════════
   function colorSaleRow(tr) {
-    tr.classList.remove('st-stock', 'st-sold', 'st-fixing', 'st-unfixable');
+    tr.classList.remove('st-stock', 'st-processing', 'st-deposit', 'st-sold', 'st-fixing', 'st-unfixable');
     tr.classList.add('st-' + (tr.dataset.state || 'stock'));
   }
   document.querySelectorAll('#saleBody .sale-unit').forEach(colorSaleRow);
@@ -833,16 +871,26 @@
     sellRow = rowEl; sellSel = sel; sellMode = (mode === 'deposit') ? 'deposit' : 'sold';
     const dep = sellMode === 'deposit';
     $('sellTitle').textContent   = dep ? 'Nhận cọc máy (đã cọc)' : 'Bán máy';
-    $('sell_price_lbl').textContent = dep ? 'Số tiền máy (tính vào doanh thu hôm nay)' : 'Giá bán';
+    $('sell_price_lbl').textContent = dep ? 'Giá bán (đầy đủ)' : 'Giá bán';
     $('sellSave').textContent    = dep ? 'Xác nhận cọc' : 'Xác nhận bán';
     $('sell_name').textContent = rowEl.querySelector('[data-field="name"]').value;
     const sp = rowEl.querySelector('[data-field="sold_price"]');
     $('sell_price').value = group(sp ? sp.dataset.raw : 0);
+    $('sell_deposit_wrap').classList.toggle('hidden', !dep);
+    $('sell_deposit').value = '';
+    $('sell_balance').textContent = '';
     $('sell_customer').value = ''; $('sell_phone').value = ''; $('sell_source').value = ''; $('sell_note').value = '';
     document.querySelectorAll('.sell-gift').forEach(cb => { cb.checked = false; });
     updateGiftSum();
     sellModal.style.display = 'flex'; $('sell_price').focus();
   }
+  // live "remaining balance" hint while taking a deposit
+  function updateSellBalance() {
+    if (sellMode !== 'deposit') return;
+    const bal = num($('sell_price').value) - num($('sell_deposit').value);
+    $('sell_balance').textContent = bal > 0 ? ('Còn lại khách phải trả khi nhận máy: ' + fmt(bal)) : (bal < 0 ? 'Cọc lớn hơn giá bán?' : 'Khách đã trả đủ.');
+  }
+  ['sell_price', 'sell_deposit'].forEach(id => $(id).addEventListener('input', updateSellBalance));
   function updateGiftSum() {
     const el = $('sell_gift_sum'); if (!el) return;
     let sum = 0, n = 0;
@@ -861,10 +909,11 @@
   $('sellSave').addEventListener('click', async () => {
     if (!sellRow) return;
     const price = num($('sell_price').value);
+    const deposit = sellMode === 'deposit' ? num($('sell_deposit').value) : 0;
     const gifts = Array.from(document.querySelectorAll('.sell-gift:checked')).map(cb => Number(cb.value));
     try {
       await TINTUS.api(SELL_URL, {
-        id: Number(sellRow.dataset.id), sold_price: price, state: sellMode,
+        id: Number(sellRow.dataset.id), sold_price: price, deposit_amount: deposit, state: sellMode,
         customer_name: $('sell_customer').value.trim(), phone: $('sell_phone').value.trim(),
         source: $('sell_source').value, note: $('sell_note').value.trim(), gifts: gifts });
       TINTUS.toast(sellMode === 'deposit' ? 'Đã nhận cọc' : 'Đã bán máy', 'ok');
@@ -1153,6 +1202,7 @@
     const filtering = (q || brand || state || cat || importMin.value || importMax.value
                        || ((tab === 'sold' || tab === 'deposit') && periodSel !== 'all'));
     $('filterCount').textContent = filtering ? (shown + ' kết quả') : '';
+    recompute();                                  // cards mirror the visible (filtered/period) rows
   }
   searchInput.addEventListener('input', applyFilter);
   brandFilter.addEventListener('change', applyFilter);
@@ -1186,6 +1236,7 @@
   });
 
   // ════════════ init ════════════
+  document.querySelectorAll('#depositBody .deposit-unit').forEach(updateRemaining);
   recompute();
   document.querySelectorAll('#periodSeg .per-btn').forEach(b => b.classList.toggle('active', b.dataset.per === periodSel));
   const saved = sessionStorage.getItem('camTab');

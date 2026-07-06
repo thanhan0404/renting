@@ -63,8 +63,13 @@
                 <h2 class="text-white font-black text-base uppercase tracking-wider">ĐẶT LỊCH THUÊ MÁY ẢNH</h2>
                 <p class="text-red-200 text-xs mt-1">Để lại thông tin – chúng tôi liên hệ ngay!</p>
             </div>
-            <div class="p-6 space-y-3">
-                <form action="/rent" method="GET">
+            <div class="p-6 space-y-3" id="dat-lich">
+                {% if request.args.get('sent') %}
+                <div class="bg-green-50 border border-green-200 text-green-800 rounded-xl px-4 py-3 text-sm font-bold">
+                    ✓ Đã nhận yêu cầu của bạn! Chúng tôi sẽ liên hệ lại sớm nhất.
+                </div>
+                {% endif %}
+                <form action="/lead" method="POST">
                     <input type="hidden" name="flow" value="date">
                     <div class="space-y-3">
                         <input type="text" name="customer_name" placeholder="👤 Họ và tên"
@@ -151,7 +156,7 @@
         <!-- Product Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
 
-            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50'} %}
+            {% set brand_bg = {'Canon': 'bg-red-50', 'Fujifilm': 'bg-green-50', 'Sony': 'bg-blue-50', 'DJI': 'bg-gray-100', 'Lumix': 'bg-indigo-50', 'Casio': 'bg-yellow-50', 'Nikon': 'bg-yellow-50'} %}
 
             {% for cam in featured %}
             <a href="/product/{{ cam.slug }}" class="product-card bg-white rounded-2xl border border-gray-100 overflow-hidden group block ring-soft">
