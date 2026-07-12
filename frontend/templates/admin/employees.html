@@ -1,0 +1,156 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Nhân viên</h1>
+    <p class="text-sm text-gray-500">Tạo / khoá tài khoản, đặt lại mật khẩu và theo dõi hiệu suất bán hàng của từng nhân viên.</p>
+  </div>
+  <button id="empAddBtn" class="px-4 h-10 rounded-xl bg-brand-700 text-white text-sm font-bold hover:bg-brand-800 shadow-sm">+ Thêm nhân viên</button>
+</div>
+
+<!-- add form (hidden until toggled) -->
+<div id="empAddForm" class="hidden bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-5">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div>
+      <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tên đăng nhập</label>
+      <input id="empUser" type="text" class="emp-inp" placeholder="vd: lan" autocomplete="off">
+    </div>
+    <div>
+      <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tên hiển thị</label>
+      <input id="empName" type="text" class="emp-inp" placeholder="vd: Lan Nguyễn">
+    </div>
+    <div>
+      <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Mật khẩu (≥ 6 ký tự)</label>
+      <input id="empPass" type="text" class="emp-inp" placeholder="mật khẩu" autocomplete="new-password">
+    </div>
+    <div>
+      <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Vai trò</label>
+      <select id="empRole" class="emp-inp">
+        <option value="employee" selected>Nhân viên</option>
+        <option value="admin">Quản lý</option>
+      </select>
+    </div>
+    <div class="flex items-end">
+      <button id="empSaveBtn" class="w-full px-4 h-[38px] rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-black">Tạo tài khoản</button>
+    </div>
+  </div>
+</div>
+
+<!-- table -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:1100px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3">Tài khoản</th>
+          <th class="text-left px-4 py-3">Tên hiển thị</th>
+          <th class="text-center px-4 py-3">Vai trò</th>
+          <th class="text-center px-4 py-3">Trạng thái</th>
+          <th class="text-center px-4 py-3" title="Đơn thuê đã tạo — tháng {{ this_month }}">Đơn thuê (tháng)</th>
+          <th class="text-center px-4 py-3" title="Máy đã bán — tháng {{ this_month }}">Bán máy (tháng)</th>
+          <th class="text-center px-4 py-3" title="Phụ kiện đã bán — tháng {{ this_month }}">Phụ kiện (tháng)</th>
+          <th class="text-right px-4 py-3">Doanh số tháng</th>
+          <th class="text-right px-4 py-3">Doanh số tổng</th>
+          <th class="px-4 py-3" style="min-width:200px"></th>
+        </tr>
+      </thead>
+      <tbody id="empBody">
+        {% for e in employees %}
+        <tr class="emp-row border-t border-gray-100 hover:bg-gray-50/60 {% if not e.active %}opacity-50{% endif %}" data-id="{{ e.id }}">
+          <td class="px-4 py-2 font-bold text-gray-900 whitespace-nowrap">{{ e.username }}
+            <div class="text-[11px] font-normal text-gray-400">tạo {{ e.created }}</div></td>
+          <td class="px-4 py-1.5"><input class="emp-cell" type="text" data-field="display_name" value="{{ e.display_name }}"></td>
+          <td class="px-4 py-1.5 text-center">
+            <select class="emp-sel" data-field="role">
+              <option value="employee" {% if e.role != 'admin' %}selected{% endif %}>Nhân viên</option>
+              <option value="admin" {% if e.role == 'admin' %}selected{% endif %}>Quản lý</option>
+            </select>
+          </td>
+          <td class="px-4 py-1.5 text-center">
+            <button class="emp-active inline-flex items-center justify-center whitespace-nowrap px-2.5 h-7 rounded-lg text-xs font-bold {{ 'bg-emerald-50 text-emerald-700' if e.active else 'bg-gray-100 text-gray-500' }}"
+                    data-active="{{ 1 if e.active else 0 }}">{{ 'Hoạt động' if e.active else 'Đã khoá' }}</button>
+          </td>
+          <td class="px-4 py-2 text-center text-gray-700">{{ e.month.rentals }}</td>
+          <td class="px-4 py-2 text-center text-gray-700">{{ e.month.cam_sales }}</td>
+          <td class="px-4 py-2 text-center text-gray-700">{{ e.month.acc_sales }}</td>
+          <td class="px-4 py-2 text-right font-bold text-gray-900 whitespace-nowrap">{{ (e.month.rental_total + e.month.cam_total + e.month.acc_total)|money }}đ</td>
+          <td class="px-4 py-2 text-right text-gray-500 whitespace-nowrap">{{ (e.all.rental_total + e.all.cam_total + e.all.acc_total)|money }}đ</td>
+          <td class="px-4 py-1.5 text-right whitespace-nowrap">
+            <button class="emp-reset px-2.5 h-7 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50">Đặt lại MK</button>
+            <button class="emp-del px-2.5 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700">Xoá</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not employees %}<div class="px-6 py-12 text-center text-gray-400">Chưa có tài khoản nhân viên nào. Bấm “+ Thêm nhân viên” để tạo.</div>{% endif %}
+</div>
+
+<style>
+  .emp-inp { width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; background:#fff; margin-top:3px; }
+  .emp-inp:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .emp-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:5px 8px; font-size:13px; outline:none; background:transparent; }
+  .emp-cell:hover { background:#f3f4f6; }
+  .emp-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .emp-sel { border:1px solid #e5e7eb; border-radius:8px; padding:4px 8px; font-size:12px; font-weight:700; color:#374151; background:#fff; cursor:pointer; outline:none; }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const ADD_URL   = "{{ url_for('employees.add') }}";
+  const UPD_URL   = "{{ url_for('employees.update') }}";
+  const RESET_URL = "{{ url_for('employees.reset_password') }}";
+  const DEL_URL   = "{{ url_for('employees.delete') }}";
+  const $ = id => document.getElementById(id);
+
+  $('empAddBtn').addEventListener('click', () => $('empAddForm').classList.toggle('hidden'));
+
+  $('empSaveBtn').addEventListener('click', async () => {
+    try {
+      await TINTUS.api(ADD_URL, {
+        username: $('empUser').value.trim(), display_name: $('empName').value.trim(),
+        password: $('empPass').value, role: $('empRole').value,
+      });
+      TINTUS.toast('Đã tạo tài khoản', 'ok');
+      location.reload();
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+
+  document.querySelectorAll('#empBody .emp-row').forEach(tr => {
+    const id = Number(tr.dataset.id);
+    tr.querySelectorAll('.emp-cell, .emp-sel').forEach(el => {
+      el.addEventListener('change', async () => {
+        try { await TINTUS.api(UPD_URL, { id, field: el.dataset.field, value: el.value }); TINTUS.toast('Đã lưu', 'ok'); }
+        catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+      });
+    });
+    tr.querySelector('.emp-active').addEventListener('click', async function () {
+      const next = this.dataset.active !== '1';
+      try {
+        await TINTUS.api(UPD_URL, { id, field: 'active', value: next });
+        this.dataset.active = next ? '1' : '0';
+        this.textContent = next ? 'Hoạt động' : 'Đã khoá';
+        this.className = 'emp-active inline-flex items-center justify-center whitespace-nowrap px-2.5 h-7 rounded-lg text-xs font-bold ' + (next ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500');
+        tr.classList.toggle('opacity-50', !next);
+        TINTUS.toast(next ? 'Đã mở khoá tài khoản' : 'Đã khoá tài khoản', 'ok');
+      } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+    tr.querySelector('.emp-reset').addEventListener('click', async () => {
+      const pw = prompt('Mật khẩu mới cho tài khoản này (≥ 6 ký tự):');
+      if (!pw) return;
+      try { await TINTUS.api(RESET_URL, { id, password: pw }); TINTUS.toast('Đã đặt lại mật khẩu', 'ok'); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+    tr.querySelector('.emp-del').addEventListener('click', async () => {
+      if (!confirm('Xoá hẳn tài khoản này? (Nên "khoá" thay vì xoá để giữ lịch sử.)')) return;
+      try { await TINTUS.api(DEL_URL, { id }); tr.remove(); TINTUS.toast('Đã xoá', 'ok'); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  });
+})();
+</script>
+{% endblock %}

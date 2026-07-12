@@ -1,0 +1,192 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Khách hàng</h1>
+    <p class="text-sm text-gray-500">Hồ sơ khách — lịch sử thuê / mua tra theo SĐT để hỗ trợ giao dịch nhanh hơn.{% if is_admin %} Quản lý có thể chặn khách vi phạm.{% endif %}</p>
+  </div>
+  <button id="cuAddBtn" class="px-4 h-10 rounded-xl bg-brand-700 text-white text-sm font-bold hover:bg-brand-800 shadow-sm">+ Thêm khách</button>
+</div>
+
+<!-- stat cards -->
+<div class="grid grid-cols-2 gap-3 mb-5" style="max-width:480px">
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng hồ sơ</div>
+    <div class="text-2xl font-black text-gray-900 mt-1">{{ customers|length }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Đang bị chặn</div>
+    <div class="text-2xl font-black text-gray-900 mt-1">{{ banned_count }}</div>
+  </div>
+</div>
+
+<!-- add form -->
+<div id="cuAddForm" class="hidden bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-5">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div><label class="cu-lbl">Tên khách</label><input id="cuName" type="text" class="cu-inp" placeholder="vd: Minh Trần"></div>
+    <div><label class="cu-lbl">SĐT</label><input id="cuPhone" type="text" class="cu-inp" placeholder="09xx…"></div>
+    <div><label class="cu-lbl">Email</label><input id="cuEmail" type="text" class="cu-inp" placeholder="tuỳ chọn"></div>
+    <div><label class="cu-lbl">Ghi chú</label><input id="cuNote" type="text" class="cu-inp" placeholder="tuỳ chọn"></div>
+    <div class="flex items-end"><button id="cuSaveBtn" class="w-full px-4 h-[38px] rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-black">Tạo hồ sơ</button></div>
+  </div>
+</div>
+
+<!-- table -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:1000px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3" style="min-width:160px">Khách</th>
+          <th class="text-left px-4 py-3" style="min-width:120px">SĐT</th>
+          <th class="text-left px-4 py-3">Email</th>
+          <th class="text-left px-4 py-3">Ghi chú</th>
+          <th class="text-center px-4 py-3">Lần thuê</th>
+          <th class="text-center px-4 py-3">Lần mua</th>
+          <th class="text-center px-4 py-3" style="min-width:110px">Trạng thái</th>
+          <th class="px-4 py-3" style="min-width:150px"></th>
+        </tr>
+      </thead>
+      <tbody id="cuBody">
+        {% for c in customers %}
+        <tr class="cu-row border-t border-gray-100 hover:bg-gray-50/60 {% if c.is_banned %}bg-red-50/60{% endif %}" data-id="{{ c.id }}" data-phone="{{ c.phone }}">
+          <td class="px-4 py-1.5"><input class="cu-cell font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="—">
+            <div class="text-[11px] text-gray-400 px-2">tạo {{ c.created }}{% if c.created_by %} · {{ c.created_by }}{% endif %}</div></td>
+          <td class="px-4 py-1.5"><input class="cu-cell" type="text" data-field="phone" value="{{ c.phone }}" placeholder="—"></td>
+          <td class="px-4 py-1.5"><input class="cu-cell" type="text" data-field="email" value="{{ c.email }}" placeholder="—"></td>
+          <td class="px-4 py-1.5"><input class="cu-cell" type="text" data-field="note" value="{{ c.note }}" placeholder="—"></td>
+          <td class="px-4 py-2 text-center text-gray-700">{{ c.rentals }}</td>
+          <td class="px-4 py-2 text-center text-gray-700">{{ c.purchases }}</td>
+          <td class="px-4 py-1.5 text-center">
+            {% if is_admin %}
+            <button class="cu-ban inline-flex items-center justify-center whitespace-nowrap px-2.5 h-7 rounded-lg text-xs font-bold {{ 'bg-red-100 text-red-700' if c.is_banned else 'bg-emerald-50 text-emerald-700' }}"
+                    data-banned="{{ 1 if c.is_banned else 0 }}"
+                    title="{{ c.ban_reason or 'Bấm để chặn / bỏ chặn' }}">{{ 'Đã chặn' if c.is_banned else 'Bình thường' }}</button>
+            {% else %}
+            <span class="inline-flex items-center justify-center whitespace-nowrap px-2.5 py-1 rounded-lg text-xs font-bold {{ 'bg-red-100 text-red-700' if c.is_banned else 'bg-emerald-50 text-emerald-700' }}">{{ 'Đã chặn' if c.is_banned else 'Bình thường' }}</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-1.5 text-right whitespace-nowrap">
+            <button class="cu-hist px-2.5 h-7 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50">Lịch sử</button>
+            {% if is_admin %}<button class="cu-del px-2.5 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700">Xoá</button>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if not customers %}<div class="px-6 py-12 text-center text-gray-400">Chưa có hồ sơ khách. Bấm “+ Thêm khách” để tạo hồ sơ đầu tiên.</div>{% endif %}
+</div>
+
+<!-- history modal -->
+<div id="cuHistWrap" class="fixed inset-0 z-[60] hidden items-center justify-center" style="background:rgba(17,24,39,.5);padding:20px">
+  <div class="bg-white rounded-2xl shadow-2xl w-full" style="max-width:720px;max-height:85vh;overflow-y:auto">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h2 id="cuHistTitle" class="font-black text-gray-900">Lịch sử khách</h2>
+      <button id="cuHistClose" class="w-8 h-8 rounded-lg hover:bg-gray-100 font-bold text-gray-500">✕</button>
+    </div>
+    <div id="cuHistBody" class="p-5 text-sm text-gray-700"></div>
+  </div>
+</div>
+
+<style>
+  .cu-lbl { font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:.05em; }
+  .cu-inp { width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; background:#fff; margin-top:3px; }
+  .cu-inp:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .cu-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:5px 8px; font-size:13px; outline:none; background:transparent; }
+  .cu-cell:hover { background:#f3f4f6; }
+  .cu-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const ADD_URL  = "{{ url_for('customers.add') }}";
+  const UPD_URL  = "{{ url_for('customers.update') }}";
+  const DEL_URL  = "{{ url_for('customers.delete') }}";
+  const HIST_URL = "{{ url_for('customers.history') }}";
+  const $ = id => document.getElementById(id);
+
+  $('cuAddBtn').addEventListener('click', () => $('cuAddForm').classList.toggle('hidden'));
+  $('cuSaveBtn').addEventListener('click', async () => {
+    try {
+      await TINTUS.api(ADD_URL, { name: $('cuName').value.trim(), phone: $('cuPhone').value.trim(),
+                                  email: $('cuEmail').value.trim(), note: $('cuNote').value.trim() });
+      TINTUS.toast('Đã tạo hồ sơ', 'ok'); location.reload();
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+
+  function closeHist() { $('cuHistWrap').style.display = 'none'; }
+  $('cuHistClose').addEventListener('click', closeHist);
+  $('cuHistWrap').addEventListener('click', e => { if (e.target === $('cuHistWrap')) closeHist(); });
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+  async function showHistory(phone, name) {
+    $('cuHistTitle').textContent = 'Lịch sử — ' + (name || phone || '');
+    $('cuHistBody').innerHTML = '<div class="text-gray-400 py-6 text-center">Đang tải…</div>';
+    $('cuHistWrap').style.display = 'flex';
+    try {
+      const d = await TINTUS.api(HIST_URL + '?phone=' + encodeURIComponent(phone));
+      let html = '';
+      html += '<div class="font-black text-gray-900 mb-2">Đơn thuê (' + d.rentals.length + ')</div>';
+      html += d.rentals.length ? d.rentals.map(r =>
+        '<div class="flex justify-between border-b border-gray-50 py-1.5"><span>' + esc(r.camera) + ' · ' + r.start_date + ' → ' + r.end_date +
+        (r.overdue ? ' <b class="text-red-600">QUÁ HẠN</b>' : '') + '</span><b>' + TINTUS.fmtVND(r.total) + '</b></div>').join('')
+        : '<div class="text-gray-400 mb-2">Chưa thuê lần nào.</div>';
+      html += '<div class="font-black text-gray-900 mt-4 mb-2">Máy đã mua (' + d.cameras.length + ')</div>';
+      html += d.cameras.length ? d.cameras.map(c =>
+        '<div class="flex justify-between border-b border-gray-50 py-1.5"><span>' + esc(c.name) + ' · ' + c.date + ' · ' + esc(c.state_label) + '</span><b>' + TINTUS.fmtVND(c.sold_price) + '</b></div>').join('')
+        : '<div class="text-gray-400 mb-2">Chưa mua máy nào.</div>';
+      html += '<div class="font-black text-gray-900 mt-4 mb-2">Phụ kiện đã mua (' + d.accessories.length + ')</div>';
+      html += d.accessories.length ? d.accessories.map(a =>
+        '<div class="flex justify-between border-b border-gray-50 py-1.5"><span>' + esc(a.name) + ' ×' + a.quantity + ' · ' + a.date + '</span><b>' + TINTUS.fmtVND(a.revenue) + '</b></div>').join('')
+        : '<div class="text-gray-400">Chưa mua phụ kiện nào.</div>';
+      $('cuHistBody').innerHTML = html;
+    } catch (e) { $('cuHistBody').innerHTML = '<div class="text-red-600">' + esc(e.message || 'Lỗi') + '</div>'; }
+  }
+
+  document.querySelectorAll('#cuBody .cu-row').forEach(tr => {
+    const id = Number(tr.dataset.id);
+    tr.querySelectorAll('.cu-cell').forEach(inp => {
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', async () => {
+        try {
+          await TINTUS.api(UPD_URL, { id, field: inp.dataset.field, value: inp.value.trim() });
+          if (inp.dataset.field === 'phone') tr.dataset.phone = inp.value.trim();
+          TINTUS.toast('Đã lưu', 'ok');
+        } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+      });
+    });
+    tr.querySelector('.cu-hist').addEventListener('click', () => {
+      const phone = tr.dataset.phone;
+      if (!phone) { TINTUS.toast('Hồ sơ chưa có SĐT — không tra được lịch sử', 'warn'); return; }
+      showHistory(phone, tr.querySelector('[data-field="name"]').value);
+    });
+    const banBtn = tr.querySelector('.cu-ban');
+    if (banBtn) banBtn.addEventListener('click', async function () {
+      const next = this.dataset.banned !== '1';
+      let reason = '';
+      if (next) { reason = prompt('Lý do chặn khách này (hiện khi khách cố đặt thuê):') || ''; if (reason === null) return; }
+      try {
+        await TINTUS.api(UPD_URL, { id, field: 'is_banned', value: next });
+        if (next && reason) await TINTUS.api(UPD_URL, { id, field: 'ban_reason', value: reason });
+        this.dataset.banned = next ? '1' : '0';
+        this.textContent = next ? 'Đã chặn' : 'Bình thường';
+        this.className = 'cu-ban inline-flex items-center justify-center whitespace-nowrap px-2.5 h-7 rounded-lg text-xs font-bold ' + (next ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700');
+        tr.classList.toggle('bg-red-50/60', next);
+        TINTUS.toast(next ? 'Đã chặn khách' : 'Đã bỏ chặn', 'ok');
+      } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+    const delBtn = tr.querySelector('.cu-del');
+    if (delBtn) delBtn.addEventListener('click', async () => {
+      if (!confirm('Xoá hồ sơ khách này? (Lịch sử giao dịch không bị xoá.)')) return;
+      try { await TINTUS.api(DEL_URL, { id }); tr.remove(); TINTUS.toast('Đã xoá', 'ok'); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  });
+})();
+</script>
+{% endblock %}

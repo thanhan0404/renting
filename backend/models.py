@@ -42,6 +42,7 @@ class Camera(db.Model):
     sold_phone  = db.Column(db.String(20),  default='')
     sold_source = db.Column(db.String(30),  default='')       # nguồn khách: Facebook/Instagram/Threads/TikTok…
     sold_note   = db.Column(db.String(300), default='')       # ghi chú khi bán (viết trong popup bán)
+    sold_by     = db.Column(db.String(60),  default='')       # nhân viên chốt bán (performance tracking)
     gift_json   = db.Column(db.Text,        default='')       # JSON list of gifted accessories [{id,name,cost}]
 
     @property
@@ -175,7 +176,19 @@ class RentalBooking(db.Model):
     start_date    = db.Column(db.DateTime, nullable=False)
     end_date      = db.Column(db.DateTime, nullable=False)
     total_price   = db.Column(db.Float)
+    # ── Rental agreement operations (POS) ────────────────────────────────────
+    security_deposit = db.Column(db.Integer, default=0)          # tiền cọc giữ máy
+    condition_out    = db.Column(db.String(300), default='')     # tình trạng máy lúc giao
+    condition_in     = db.Column(db.String(300), default='')     # tình trạng máy lúc nhận lại
+    returned_at      = db.Column(db.DateTime, nullable=True)     # khách trả máy lúc
+    staff            = db.Column(db.String(60), default='')      # nhân viên tạo đơn
     camera        = db.relationship('Camera', backref='bookings')
+
+    @property
+    def is_overdue(self):
+        """Rented out, past its return date, and not yet returned."""
+        return (self.returned_at is None and self.end_date
+                and self.end_date < datetime.now())
 
 
 class Appointment(db.Model):
@@ -273,6 +286,7 @@ class AccessorySale(db.Model):
     note         = db.Column(db.String(200), default='')      # optional note per sale
     customer_name = db.Column(db.String(100), default='')     # tên khách
     phone         = db.Column(db.String(20),  default='')     # sđt khách
+    staff         = db.Column(db.String(60),  default='')     # nhân viên bán (performance tracking)
     sale_date    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     @property
@@ -297,6 +311,40 @@ class PurchaseOrder(db.Model):
     quantity      = db.Column(db.Integer,     nullable=False, default=1)
     total_price   = db.Column(db.Float,       nullable=False)
     order_date    = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+
+class Employee(db.Model):
+    """A staff login account. role='admin' → full panel; role='employee' → operations
+    only (no finances, no import costs, no personnel/system management)."""
+    id            = db.Column(db.Integer, primary_key=True)
+    username      = db.Column(db.String(60), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    display_name  = db.Column(db.String(100), default='')
+    role          = db.Column(db.String(20), default='employee')   # employee | admin
+    active        = db.Column(db.Boolean, default=True)            # disabled accounts can't log in
+    created_at    = db.Column(db.DateTime, default=datetime.now)
+
+
+class Customer(db.Model):
+    """A customer profile (hồ sơ khách hàng). History is linked by phone number
+    across rentals, camera sales and accessory sales."""
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(100), default='')
+    phone      = db.Column(db.String(30),  default='')
+    email      = db.Column(db.String(120), default='')
+    address    = db.Column(db.String(200), default='')
+    note       = db.Column(db.String(300), default='')
+    is_banned  = db.Column(db.Boolean, default=False)     # blacklist (admin only)
+    ban_reason = db.Column(db.String(200), default='')
+    created_by = db.Column(db.String(60),  default='')    # staff who created the profile
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+
+class Setting(db.Model):
+    """System configuration key → value (store policies, tax rate, receipt
+    header/footer, employee discount limit…). Admin-managed."""
+    key   = db.Column(db.String(60), primary_key=True)
+    value = db.Column(db.Text, default='')
 
 
 class Sheet(db.Model):

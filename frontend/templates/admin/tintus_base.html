@@ -17,7 +17,11 @@
       corePlugins: { preflight: false, visibility: false, container: false },
       theme: {
         extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          fontFamily: {
+            sans:  ['Inter', 'system-ui', 'sans-serif'],
+            serif: ['Inter', 'system-ui', 'sans-serif'],
+            mono:  ['Inter', 'system-ui', 'sans-serif'],
+          },
           colors: {
             brand: {
               50:'#fef2f2',100:'#fee2e2',200:'#fecaca',500:'#ef4444',
@@ -30,56 +34,113 @@
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --background:#f3f4f6; --foreground:#1f2937; --muted:#f9fafb; --muted-fg:#6b7280;
+      --accent:#b91c1c; --accent-2:#dc2626; --rule:#e5e7eb; --card:#FFFFFF;
+    }
+
     /* ── Dashboard shell ─────────────────────────────────────────────── */
-    #tintus-app { font-family:'Inter',system-ui,sans-serif; color:#1f2937; }
+    #tintus-app { font-family:'Inter',system-ui,sans-serif; color:var(--foreground); letter-spacing:.01em; }
     #tintus-app *, #tintus-app *::before, #tintus-app *::after { box-sizing:border-box; }
-    #tintus-app h1,#tintus-app h2,#tintus-app h3 { margin:0; }
+    #tintus-app h1,#tintus-app h2,#tintus-app h3 { margin:0; font-family:'Inter',system-ui,sans-serif; letter-spacing:-.01em; }
     #tintus-app a { text-decoration:none; color:inherit; }
     #tintus-app table { border-collapse:separate; border-spacing:0; }
-    body { margin:0; background:#f3f4f6; }
+    body { margin:0; background:var(--background); }
+
+    /* Big display figures render in the serif — the editorial "voice". */
+    #tintus-app .text-2xl,#tintus-app .text-3xl,#tintus-app .text-4xl,
+    #tintus-app .text-5xl,#tintus-app .text-7xl,#tintus-app .font-display {
+      font-family:'Inter',system-ui,sans-serif; letter-spacing:-.015em;
+    }
+    /* Tracked uppercase micro-labels become mono small-caps everywhere. */
+    #tintus-app .uppercase.tracking-wide,
+    #tintus-app .uppercase.tracking-wider,
+    #tintus-app .uppercase.tracking-widest {
+      font-family:'Inter',system-ui,sans-serif; letter-spacing:.13em;
+    }
+    /* A single focus treatment for every field, regardless of page utility. */
+    #tintus-app input:focus,#tintus-app select:focus,#tintus-app textarea:focus {
+      border-color:var(--accent)!important; box-shadow:0 0 0 3px rgba(185,28,28,.12)!important; outline:none;
+    }
 
     .ta-shell { display:flex; min-height:100vh; }
 
     /* Sidebar */
     .ta-sidebar {
-      width:248px; flex-shrink:0; background:#fff; border-right:1px solid #e5e7eb;
-      padding:18px 14px; display:flex; flex-direction:column; gap:4px;
+      width:256px; flex-shrink:0; background:var(--card); border-right:1px solid var(--rule);
+      padding:20px 14px; display:flex; flex-direction:column; gap:2px;
       position:sticky; top:0; height:100vh; overflow-y:auto;
     }
-    .ta-brand { display:flex; align-items:center; gap:11px; padding:6px 8px 18px; }
-    .ta-brand-logo { width:38px; height:38px; border-radius:11px; background:#b91c1c; color:#fff;
-                     display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
-    .ta-navlabel { font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
-                   color:#9ca3af; padding:14px 14px 6px; }
-    .ta-navitem { display:flex; align-items:center; gap:12px; padding:11px 14px; border-radius:12px;
-                  font-weight:700; font-size:14px; color:#6b7280; transition:all .15s; white-space:nowrap; }
-    .ta-navitem:hover { background:#f9fafb; color:#111827; }
-    .ta-navitem.active { background:#b91c1c; color:#fff; box-shadow:0 6px 16px -6px rgba(185,28,28,.5); }
-    .ta-navitem svg { width:20px; height:20px; flex-shrink:0; }
-    .ta-spacer { flex:1; }
+    .ta-brand { display:flex; align-items:center; gap:11px; padding:4px 8px 20px; }
+    .ta-brand-logo { width:40px; height:40px; border-radius:10px;
+                     background:var(--accent); color:#fff;
+                     display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;
+                     box-shadow:0 4px 12px -4px rgba(185,28,28,.5); }
+    .ta-brand-word { font-family:'Inter',system-ui,sans-serif; font-weight:800; font-size:17px; color:var(--foreground); letter-spacing:-.01em; }
+    .ta-brand-tag  { display:block; font-family:'Inter',system-ui,sans-serif; font-size:9.5px; font-weight:500;
+                     letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-top:1px; }
+    .ta-navlabel { font-family:'Inter',system-ui,sans-serif; font-size:10px; font-weight:500; letter-spacing:.16em;
+                   text-transform:uppercase; color:#9ca3af; padding:18px 14px 8px; display:flex; align-items:center; gap:10px; }
+    .ta-navlabel::after { content:''; flex:1; height:1px; background:var(--rule); }
+    .ta-navitem { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px;
+                  font-weight:600; font-size:14px; color:var(--muted-fg); transition:all .18s ease-out; white-space:nowrap; }
+    .ta-navitem:hover { background:var(--muted); color:var(--foreground); }
+    .ta-navitem.active { background:var(--accent); color:#fff; box-shadow:0 6px 16px -6px rgba(185,28,28,.5); }
+    .ta-navitem svg { width:19px; height:19px; flex-shrink:0; }
+    .ta-spacer { flex:1; min-height:12px; }
+
+    /* Expandable group (Quản lý máy) */
+    .ta-group { display:flex; flex-direction:column; }
+    .ta-navitem.ta-haschild { gap:0; padding-right:6px; }
+    .ta-navmain { display:flex; align-items:center; gap:12px; flex:1; min-width:0; }
+    .ta-caret { display:flex; align-items:center; justify-content:center; width:26px; height:26px;
+                border-radius:7px; color:inherit; background:transparent; border:0; cursor:pointer; opacity:.7; transition:all .18s; }
+    .ta-caret:hover { opacity:1; background:rgba(0,0,0,.05); }
+    .ta-navitem.active .ta-caret:hover { background:rgba(255,255,255,.18); }
+    .ta-chev { width:15px; height:15px; transition:transform .22s ease-out; }
+    .ta-group.open .ta-chev { transform:rotate(180deg); }
+    .ta-subnav { display:flex; flex-direction:column; gap:1px; overflow:hidden; max-height:0;
+                 transition:max-height .26s ease-out; margin:2px 0 2px 25px; padding-left:11px;
+                 border-left:1px solid var(--rule); }
+    .ta-group.open .ta-subnav { max-height:260px; }
+    .ta-subitem { display:flex; align-items:center; gap:9px; padding:8px 12px; border-radius:8px;
+                  font-size:13px; font-weight:600; color:var(--muted-fg); transition:all .16s; }
+    .ta-subitem:hover { background:var(--muted); color:var(--foreground); }
+    .ta-subitem.active { color:var(--accent); background:var(--muted); }
+    .ta-subdot { width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.45; flex-shrink:0; }
+    .ta-subitem.active .ta-subdot { opacity:1; }
+    .ta-count { margin-left:auto; font-family:'Inter',system-ui,sans-serif; font-size:11px; font-weight:500; color:#9ca3af; }
+    .ta-subitem.active .ta-count { color:var(--accent); }
 
     /* Main column */
     .ta-main { flex:1; min-width:0; display:flex; flex-direction:column; }
-    .ta-topbar { height:64px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex;
-                 align-items:center; gap:14px; padding:0 24px; position:sticky; top:0; z-index:30; }
+    .ta-topbar { height:66px; background:var(--card);
+                 border-bottom:1px solid var(--rule); display:flex; align-items:center; gap:14px;
+                 padding:0 26px; position:sticky; top:0; z-index:30; }
     .ta-search { position:relative; flex:1; max-width:460px; }
-    .ta-search input { width:100%; padding:9px 14px 9px 38px; border:1px solid #e5e7eb; background:#f3f4f6;
-                       border-radius:11px; font-size:13.5px; outline:none; transition:all .15s; }
-    .ta-search input:focus { background:#fff; border-color:#fca5a5; }
+    .ta-search input { width:100%; padding:9px 14px 9px 38px; border:1px solid var(--rule); background:var(--muted);
+                       border-radius:9px; font-size:13.5px; color:var(--foreground); outline:none; transition:all .18s; }
+    .ta-search input::placeholder { color:#9ca3af; }
+    .ta-search input:focus { background:#fff; border-color:var(--accent); box-shadow:0 0 0 3px rgba(185,28,28,.12); }
     .ta-search svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; color:#9ca3af; }
-    .ta-avatar { width:36px; height:36px; border-radius:10px; background:#111827; color:#fff;
-                 display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; }
-    .ta-content { padding:24px; flex:1; }
+    .ta-avatar { width:38px; height:38px; border-radius:9px; background:var(--foreground); color:#fff;
+                 display:flex; align-items:center; justify-content:center; font-family:'Inter',system-ui,sans-serif;
+                 font-weight:700; font-size:14px; }
+    .ta-content { padding:30px 32px; flex:1; width:100%; min-width:0; }
 
     @media (max-width:880px){
-      .ta-sidebar { width:66px; padding:16px 8px; }
-      .ta-label, .ta-brand-text, .ta-navlabel { display:none; }
+      .ta-sidebar { width:64px; padding:16px 8px; }
+      .ta-label, .ta-brand-word, .ta-brand-tag, .ta-navlabel, .ta-caret, .ta-count { display:none; }
+      .ta-navlabel::after { display:none; }
       .ta-navitem { justify-content:center; padding:11px 0; }
-      .ta-brand { justify-content:center; padding:6px 0 16px; }
+      .ta-navitem.ta-haschild { padding-right:0; }
+      .ta-subnav { display:none; }
+      .ta-brand { justify-content:center; padding:4px 0 16px; }
+      .ta-content { padding:20px 16px; }
     }
 
-    /* Toast (unchanged API) */
-    #tintus-toast-wrap { position:fixed; top:18px; right:18px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+    /* Toast */
+    #tintus-toast-wrap { position:fixed; top:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
     .tintus-toast { background:#111827; color:#fff; padding:10px 16px; border-radius:10px; font-size:13px;
                     font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.25); opacity:0; transform:translateX(20px);
                     transition:all .25s; max-width:340px; }
@@ -90,29 +151,41 @@
 
     #tintus-app ::-webkit-scrollbar { height:9px; width:9px; }
     #tintus-app ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:6px; }
+    #tintus-app ::-webkit-scrollbar-thumb:hover { background:#9ca3af; }
     #tintus-app ::-webkit-scrollbar-track { background:#f3f4f6; }
   </style>
 {% endblock %}
 
 {% block page_body %}
 {% set nav = [
-  ('cameras',     'Quản lý máy', 'Kho máy',
+  ('cameras',     'Quản lý máy', 'Kho máy', 'all',
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10m0-10L4 7"/>'),
-  ('phukien',     'Phụ kiện',    'Hàng khác',
+  ('phukien',     'Phụ kiện',    'Hàng khác', 'all',
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>'),
-  ('bookinggrid', 'Lịch thuê',   'Thuê & hẹn',
+  ('bookinggrid', 'Lịch thuê',   'Thuê & hẹn', 'all',
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>'),
-  ('finance',     'Tài chính',   'Doanh thu',
-     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>'),
-  ('chiphi',      'Chi phí tiệm','Chi phí',
-     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 12h12m0 0l-3-3m3 3l-3 3"/>'),
-  ('leads',       'Khách quan tâm','Khách',
+  ('customers',   'Khách hàng',  'Hồ sơ khách', 'all',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>'),
+  ('leads',       'Khách quan tâm','Khách', 'all',
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2-5.24"/>'),
-  ('activity',    'Nhật ký',     'Hoàn tác',
+  ('my',          'Cá nhân',     'Của tôi', 'all',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>'),
+  ('finance',     'Tài chính',   'Doanh thu', 'admin',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>'),
+  ('chiphi',      'Chi phí tiệm','Chi phí', 'admin',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 12h12m0 0l-3-3m3 3l-3 3"/>'),
+  ('employees',   'Nhân viên',   'Tài khoản', 'admin',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197"/>'),
+  ('activity',    'Nhật ký',     'Hoàn tác', 'admin',
      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v5h5M3.05 13A9 9 0 106 5.3L3 8m9 0v5l4 2"/>'),
-  ('sheet',       'Sổ tay',      'Ghi chú',
-     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>')
+  ('sheet',       'Sổ tay',      'Ghi chú', 'admin',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>'),
+  ('settings',    'Cài đặt',     'Hệ thống', 'admin',
+     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>')
 ] %}
+{% set cam_tabs = [('rent','Cho thuê'),('sale','Để bán'),('deposit','Đã cọc'),('sold','Đã bán')] %}
+{% set cam_active = (admin_view.endpoint == 'cameras') %}
+{% set cur_tab = request.args.get('tab') %}
 <div id="tintus-app">
   <div class="ta-shell">
 
@@ -121,19 +194,53 @@
       <a href="/" class="ta-brand">
         <span class="ta-brand-logo">📷</span>
         <span class="ta-brand-text" style="line-height:1.1">
-          <span style="display:block;font-weight:900;font-size:15px;color:#111827">tintus.digicam</span>
-          <span style="display:block;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9ca3af">Admin</span>
+          <span class="ta-brand-word">tintus.digicam</span>
+          <span class="ta-brand-tag">{{ 'Quản trị' if is_admin else 'Vận hành' }}</span>
         </span>
       </a>
 
       <div class="ta-navlabel">Quản lý</div>
-      {% for ep, label, sub, icon in nav %}
+
+      <!-- Quản lý máy — expandable group -->
+      <div class="ta-group{% if cam_active %} open{% endif %}">
+        <div class="ta-navitem ta-haschild{% if cam_active %} active{% endif %}">
+          <a href="{{ url_for('cameras.index') }}" class="ta-navmain">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10m0-10L4 7"/></svg>
+            <span class="ta-label">Quản lý máy</span>
+          </a>
+          <button type="button" class="ta-caret" aria-label="Mở rộng danh mục máy">
+            <svg class="ta-chev" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+        </div>
+        <div class="ta-subnav">
+          {% for key, slabel in cam_tabs %}
+          <a href="{{ url_for('cameras.index', tab=key) }}" class="ta-subitem{% if cam_active and cur_tab == key %} active{% endif %}" data-camtab="{{ key }}">
+            <span class="ta-subdot"></span>
+            <span class="ta-label">{{ slabel }}</span>
+            <span class="ta-count">{{ (cam_tab_counts or {}).get(key, '') }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% for ep, label, sub, who, icon in nav if who == 'all' and ep != 'cameras' %}
       {% set active = (admin_view.endpoint == ep) %}
       <a href="{{ url_for(ep ~ '.index') }}" class="ta-navitem {% if active %}active{% endif %}">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ icon|safe }}</svg>
         <span class="ta-label">{{ label }}</span>
       </a>
       {% endfor %}
+
+      {% if is_admin %}
+      <div class="ta-navlabel">Quản trị</div>
+      {% for ep, label, sub, who, icon in nav if who == 'admin' %}
+      {% set active = (admin_view.endpoint == ep) %}
+      <a href="{{ url_for(ep ~ '.index') }}" class="ta-navitem {% if active %}active{% endif %}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ icon|safe }}</svg>
+        <span class="ta-label">{{ label }}</span>
+      </a>
+      {% endfor %}
+      {% endif %}
 
       <div class="ta-spacer"></div>
 
@@ -154,8 +261,13 @@
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
           <input id="ta-search" type="text" placeholder="Tìm trong trang (tên máy, khách, ghi chú)…" autocomplete="off">
         </div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
-          <span class="ta-avatar">TD</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:11px">
+          <span style="text-align:right;line-height:1.2">
+            <span style="display:block;font-weight:700;font-size:13.5px;color:var(--foreground)">{{ staff_name or 'Admin' }}</span>
+            <span style="display:block;font-family:'Inter',system-ui,sans-serif;font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:{{ '#b91c1c' if is_admin else '#6b7280' }}">
+              {{ 'Quản lý' if is_admin else 'Nhân viên' }}</span>
+          </span>
+          <span class="ta-avatar">{{ (staff_name or 'TD')[:2]|upper }}</span>
         </div>
       </header>
 
@@ -217,6 +329,17 @@
       while (pos < out.length && seen < digitsBefore) { if (/\d/.test(out[pos])) seen++; pos++; }
       try { inp.setSelectionRange(pos, pos); } catch (_) {}
     }, true);
+  })();
+
+  // ── Sidebar: expand / collapse the "Quản lý máy" group ──────────────────
+  (function () {
+    document.querySelectorAll('.ta-caret').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        const g = btn.closest('.ta-group');
+        if (g) g.classList.toggle('open');
+      });
+    });
   })();
 
   // ── Topbar search: live-filters any data table on the current page ──────

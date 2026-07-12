@@ -1,0 +1,67 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Cài đặt hệ thống</h1>
+    <p class="text-sm text-gray-500">Chính sách cửa hàng, thuế, hoá đơn, mức giảm giá cho nhân viên và sao lưu dữ liệu.</p>
+  </div>
+  <a href="{{ url_for('settings.backup') }}" class="px-4 h-10 inline-flex items-center rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-black shadow-sm">⬇ Tải bản sao lưu dữ liệu</a>
+</div>
+
+<div class="grid md:grid-cols-2 gap-4" style="max-width:1100px">
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+    <div class="font-black text-gray-900 mb-3">Cửa hàng</div>
+    <div class="grid gap-3">
+      <div><label class="st-lbl">Tên cửa hàng</label><input id="st_store_name" type="text" class="st-inp" value="{{ settings.store_name }}"></div>
+      <div><label class="st-lbl">Địa chỉ</label><input id="st_store_address" type="text" class="st-inp" value="{{ settings.store_address }}"></div>
+      <div><label class="st-lbl">SĐT cửa hàng</label><input id="st_store_phone" type="text" class="st-inp" value="{{ settings.store_phone }}"></div>
+      <div><label class="st-lbl">Chính sách cửa hàng (nội bộ + in trên hoá đơn nếu cần)</label>
+        <textarea id="st_store_policy" rows="4" class="st-inp">{{ settings.store_policy }}</textarea></div>
+    </div>
+  </div>
+
+  <div class="grid gap-4 self-start">
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+      <div class="font-black text-gray-900 mb-3">Bán hàng & thuế</div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="st-lbl">Thuế VAT trên hoá đơn (%)</label><input id="st_tax_rate" type="number" min="0" max="100" step="0.1" class="st-inp" value="{{ settings.tax_rate }}"></div>
+        <div><label class="st-lbl">NV giảm giá tối đa (%)</label><input id="st_max_discount_pct" type="number" min="0" max="100" step="1" class="st-inp" value="{{ settings.max_discount_pct }}">
+          <div class="text-[11px] text-gray-400 mt-1">Nhân viên không thể bán thấp hơn giá niêm yết trừ mức này.</div></div>
+      </div>
+    </div>
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+      <div class="font-black text-gray-900 mb-3">Hoá đơn</div>
+      <div class="grid gap-3">
+        <div><label class="st-lbl">Dòng đầu hoá đơn (header)</label><input id="st_receipt_header" type="text" class="st-inp" value="{{ settings.receipt_header }}"></div>
+        <div><label class="st-lbl">Dòng cuối hoá đơn (footer)</label><input id="st_receipt_footer" type="text" class="st-inp" value="{{ settings.receipt_footer }}"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mt-5">
+  <button id="stSaveBtn" class="px-6 h-11 rounded-xl bg-brand-700 text-white text-sm font-bold hover:bg-brand-800 shadow-sm">Lưu cài đặt</button>
+</div>
+
+<style>
+  .st-lbl { font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:.05em; }
+  .st-inp { width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; margin-top:3px; background:#fff; }
+  .st-inp:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const KEYS = ['store_name', 'store_address', 'store_phone', 'store_policy',
+                'tax_rate', 'max_discount_pct', 'receipt_header', 'receipt_footer'];
+  document.getElementById('stSaveBtn').addEventListener('click', async () => {
+    const body = {};
+    KEYS.forEach(k => { body[k] = document.getElementById('st_' + k).value; });
+    try { await TINTUS.api("{{ url_for('settings.save') }}", body); TINTUS.toast('Đã lưu cài đặt', 'ok'); }
+    catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+})();
+</script>
+{% endblock %}

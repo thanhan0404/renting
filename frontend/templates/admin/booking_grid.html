@@ -88,9 +88,31 @@
           <input id="f_end" type="datetime-local" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
         </div>
       </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tiền cọc giữ máy</label>
+          <input id="f_deposit" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tình trạng lúc giao</label>
+          <input id="f_cond_out" type="text" placeholder="VD: 99%, đủ pin sạc thẻ…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
       <div>
         <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú</label>
         <textarea id="f_notes" rows="2" placeholder="Ghi chú thêm..." class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500"></textarea>
+      </div>
+      <!-- return / check-in section (only when editing an existing rental) -->
+      <div id="returnWrap" class="hidden rounded-xl border border-gray-200 p-3 space-y-2.5" style="background:#f8fafc">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Trả máy</span>
+          <span id="returnState" class="text-xs font-black"></span>
+        </div>
+        <input id="f_cond_in" type="text" placeholder="Tình trạng máy khi nhận lại (trầy xước, thiếu phụ kiện…)" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        <div class="flex gap-2">
+          <button id="returnBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg">✓ Đã nhận máy về (hoàn cọc)</button>
+          <button id="unreturnBtn" class="hidden text-xs font-bold text-gray-500 hover:bg-gray-100 px-3 py-2 rounded-lg">↺ Hoàn tác trả máy</button>
+        </div>
       </div>
       <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
         <span class="text-sm font-semibold text-gray-500" id="daysPreview">— ngày</span>
@@ -99,6 +121,7 @@
     </div>
     <div class="flex items-center gap-2 px-5 py-4 border-t border-gray-100">
       <button id="deleteBtn" class="text-red-600 hover:bg-red-50 font-bold text-sm px-3 py-2.5 rounded-xl hidden">Xoá</button>
+      <a id="receiptBtn" target="_blank" class="hidden text-gray-600 hover:bg-gray-100 font-bold text-sm px-3 py-2.5 rounded-xl cursor-pointer">🖨 Hoá đơn</a>
       <div class="ml-auto flex gap-2">
         <button id="cancelBtn" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
         <button id="saveBtn" class="bg-brand-700 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Lưu</button>
@@ -364,11 +387,14 @@ function renderGrid(){
         const visStart = Math.max(0, s), visEnd = Math.min(N, endIdx);
         if(visEnd <= 0 || visStart >= N) return;
         const bar = document.createElement('div');
-        bar.title = `${b.customer} · ${b.phone}`;
+        bar.title = `${b.customer} · ${b.phone}`
+          + (b.overdue ? ' · QUÁ HẠN chưa trả' : '') + (b.returned_at ? ' · đã trả máy' : '');
         bar.style.cssText = `position:absolute; left:${LABEL_W + visStart*COL_W + 3}px; top:${ROW_PAD + b._lane*(BAR_H+BAR_GAP)}px; width:${(visEnd-visStart)*COL_W - 6}px; height:${BAR_H}px;
           background:${b.color}; color:#fff; border-radius:7px; padding:0 8px; display:flex; align-items:center;
           font-size:12px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.15); z-index:5`;
-        bar.textContent = `${b.customer || 'Khách'} · ${TINTUS.fmtVND(b.total)}`;
+        if(b.returned_at){ bar.style.opacity = '.55'; }
+        else if(b.overdue){ bar.style.outline = '2px solid #dc2626'; bar.style.outlineOffset = '1px'; }
+        bar.textContent = `${b.returned_at ? '✓ ' : (b.overdue ? '⚠ ' : '')}${b.customer || 'Khách'} · ${TINTUS.fmtVND(b.total)}`;
         bar.addEventListener('click', ev => { ev.stopPropagation(); openEdit(b); });
         row.appendChild(bar);
       });
@@ -431,14 +457,39 @@ function refreshPreview(){
     document.getElementById('totalPreview').textContent = TINTUS.fmtVND(total);
   } else { document.getElementById('daysPreview').textContent='— ngày'; document.getElementById('totalPreview').textContent='0đ'; }
 }
+const RECEIPT_RENTAL_URL = `{{ url_for('receipt.rental', bid=999999999) }}`;
+function setReturnUi(b){
+  const wrap = document.getElementById('returnWrap');
+  const state = document.getElementById('returnState');
+  const retBtn = document.getElementById('returnBtn'), unretBtn = document.getElementById('unreturnBtn');
+  if(!b || !b.id){ wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  document.getElementById('f_cond_in').value = b.condition_in || '';
+  if(b.returned_at){
+    state.textContent = '✓ Đã trả lúc ' + b.returned_at.replace('T',' ');
+    state.style.color = '#059669';
+    retBtn.classList.add('hidden'); unretBtn.classList.remove('hidden');
+  } else if(b.overdue){
+    state.textContent = '⚠ QUÁ HẠN — chưa trả máy';
+    state.style.color = '#dc2626';
+    retBtn.classList.remove('hidden'); unretBtn.classList.add('hidden');
+  } else {
+    state.textContent = 'Chưa trả máy';
+    state.style.color = '#6b7280';
+    retBtn.classList.remove('hidden'); unretBtn.classList.add('hidden');
+  }
+}
 function openCreate(camId, dateStr){
   document.getElementById('modalTitle').textContent = 'Đơn thuê mới';
   document.getElementById('f_id').value = '';
   document.getElementById('f_camera').value = camId;
   document.getElementById('f_name').value=''; document.getElementById('f_phone').value=''; document.getElementById('f_notes').value='';
+  document.getElementById('f_deposit').value=''; document.getElementById('f_cond_out').value=''; document.getElementById('f_cond_in').value='';
   document.getElementById('f_start').value = dateStr + 'T09:00';
   document.getElementById('f_end').value = ymd(addDays(new Date(dateStr),1)) + 'T09:00';
   document.getElementById('deleteBtn').classList.add('hidden');
+  document.getElementById('receiptBtn').classList.add('hidden');
+  setReturnUi(null);
   refreshPreview(); modal.style.display='flex';
 }
 function openEdit(b){
@@ -448,9 +499,15 @@ function openEdit(b){
   document.getElementById('f_name').value = b.customer || '';
   document.getElementById('f_phone').value = b.phone || '';
   document.getElementById('f_notes').value = b.notes || '';
+  document.getElementById('f_deposit').value = b.security_deposit ? Number(b.security_deposit).toLocaleString('vi-VN') : '';
+  document.getElementById('f_cond_out').value = b.condition_out || '';
   document.getElementById('f_start').value = (b.start || '').slice(0,16);
   document.getElementById('f_end').value = (b.end || '').slice(0,16);
   document.getElementById('deleteBtn').classList.remove('hidden');
+  const rb = document.getElementById('receiptBtn');
+  rb.classList.remove('hidden');
+  rb.href = RECEIPT_RENTAL_URL.replace('999999999', String(b.id));
+  setReturnUi(b);
   refreshPreview(); modal.style.display='flex';
 }
 async function saveBooking(){
@@ -462,12 +519,26 @@ async function saveBooking(){
     notes: document.getElementById('f_notes').value.trim(),
     start_date: document.getElementById('f_start').value,
     end_date: document.getElementById('f_end').value,
+    security_deposit: TINTUS.parseMoney(document.getElementById('f_deposit').value),
+    condition_out: document.getElementById('f_cond_out').value.trim(),
+    condition_in: document.getElementById('f_cond_in').value.trim(),
   };
   if(!payload.customer_name){ TINTUS.toast('Nhập tên khách hàng','warn'); return; }
   try {
     const res = await TINTUS.api(`{{ url_for('bookinggrid.save') }}`, payload);
     closeModal();
     TINTUS.toast(res.warning || 'Đã lưu đơn thuê', res.warning ? 'warn' : 'ok');
+    afterChange();
+  } catch(e){ TINTUS.toast(e.message,'err'); }
+}
+async function markReturn(returned){
+  const id = document.getElementById('f_id').value; if(!id) return;
+  const payload = { id: parseInt(id,10), returned };
+  if(returned) payload.condition_in = document.getElementById('f_cond_in').value.trim();
+  try {
+    const res = await TINTUS.api(`{{ url_for('bookinggrid.mark_return') }}`, payload);
+    closeModal();
+    TINTUS.toast(returned ? 'Đã nhận máy về — nhớ hoàn cọc cho khách' : 'Đã hoàn tác trả máy', 'ok');
     afterChange();
   } catch(e){ TINTUS.toast(e.message,'err'); }
 }
@@ -599,6 +670,8 @@ document.getElementById('modalClose').addEventListener('click', closeModal);
 document.getElementById('cancelBtn').addEventListener('click', closeModal);
 document.getElementById('saveBtn').addEventListener('click', saveBooking);
 document.getElementById('deleteBtn').addEventListener('click', deleteBooking);
+document.getElementById('returnBtn').addEventListener('click', ()=> markReturn(true));
+document.getElementById('unreturnBtn').addEventListener('click', ()=> markReturn(false));
 ['f_camera','f_start','f_end'].forEach(id => document.getElementById(id).addEventListener('change', refreshPreview));
 modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
 document.getElementById('apptClose').addEventListener('click', closeAppt);

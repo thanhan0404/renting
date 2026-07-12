@@ -4,38 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
-  <title>Đăng nhập quản trị</title>
+  <title>Đăng nhập quản trị · tintus.digicam</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <style> * { font-family:'Inter',system-ui,sans-serif; } </style>
+  <style>
+    :root { --accent:#b91c1c; --accent-2:#dc2626; --ink:#1f2937; --rule:#e5e7eb; --muted-fg:#6b7280; }
+    * { font-family:'Inter',system-ui,sans-serif; box-sizing:border-box; }
+    body { margin:0; background:#f3f4f6; color:var(--ink); }
+    .serif { font-family:'Inter',system-ui,sans-serif; font-weight:800; }
+    .smallcaps { font-family:'Inter',system-ui,sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.15em; }
+    /* subtle ambient glow */
+    .glow { position:fixed; width:520px; height:520px; border-radius:50%;
+            background:radial-gradient(circle, rgba(185,28,28,.06), transparent 70%); filter:blur(20px); pointer-events:none; }
+    .field { width:100%; height:48px; border:1px solid var(--rule); border-radius:6px; background:#fff;
+             padding:0 14px; font-size:15px; color:var(--ink); outline:none; transition:all .18s ease-out; }
+    .field::placeholder { color:#9ca3af; }
+    .field:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(185,28,28,.14); }
+    .btn { width:100%; min-height:48px; background:var(--accent); color:#fff; font-weight:600; font-size:15px;
+           letter-spacing:.03em; border:0; border-radius:6px; cursor:pointer; transition:all .2s ease-out;
+           box-shadow:0 1px 2px rgba(185,28,28,.2); }
+    .btn:hover { background:var(--accent-2); box-shadow:0 6px 18px -6px rgba(185,28,28,.6); transform:translateY(-1px); }
+    .btn:active { transform:translateY(0); }
+    .rule-label { display:flex; align-items:center; gap:14px; }
+    .rule-label::before, .rule-label::after { content:''; flex:1; height:1px; background:var(--rule); }
+  </style>
 </head>
-<body class="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-  <div class="w-full max-w-sm">
-    <div class="flex flex-col items-center mb-6">
-      <div class="w-14 h-14 bg-red-700 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-red-700/25">📷</div>
-      <h1 class="mt-3 text-lg font-black text-gray-900">tintus.digicam</h1>
-      <p class="text-xs font-bold uppercase tracking-widest text-gray-400">Khu vực quản trị</p>
+<body class="min-h-screen flex items-center justify-center px-4">
+  <div class="glow" style="top:-120px;left:-120px"></div>
+  <div class="glow" style="bottom:-160px;right:-140px"></div>
+
+  <div class="w-full max-w-[400px] relative">
+    <!-- brand -->
+    <div class="flex flex-col items-center mb-8">
+      <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg"
+           style="background:var(--accent);box-shadow:0 10px 30px -8px rgba(185,28,28,.5)">📷</div>
+      <h1 class="serif mt-5 text-3xl font-bold" style="letter-spacing:-.02em">tintus.digicam</h1>
+      <p class="smallcaps text-[11px] mt-2" style="color:var(--accent)">Khu vực quản trị</p>
     </div>
 
-    <form method="POST" class="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-4">
+    <form method="POST" class="bg-white rounded-2xl p-8"
+          style="border:1px solid var(--rule);box-shadow:0 8px 24px rgba(26,26,26,.06)">
+      <div class="rule-label mb-7">
+        <span class="smallcaps text-[10px]" style="color:var(--muted-fg)">Đăng nhập</span>
+      </div>
+
       {% if error %}
-      <div class="bg-red-50 border border-red-200 text-red-700 text-sm font-semibold rounded-xl px-4 py-2.5">{{ error }}</div>
+      <div class="text-sm font-semibold rounded-md px-4 py-2.5 mb-5"
+           style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c">{{ error }}</div>
       {% endif %}
-      <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tài khoản</label>
+
+      <div class="mb-4">
+        <label class="smallcaps block text-[10px] mb-2" style="color:var(--muted-fg)">Tài khoản</label>
         <input name="username" type="text" autocomplete="username" autofocus required
-               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+               class="field" placeholder="tên đăng nhập">
       </div>
-      <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Mật khẩu</label>
+      <div class="mb-6">
+        <label class="smallcaps block text-[10px] mb-2" style="color:var(--muted-fg)">Mật khẩu</label>
         <input name="password" type="password" autocomplete="current-password" required
-               class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+               class="field" placeholder="••••••••">
       </div>
-      <button type="submit"
-              class="w-full bg-red-700 hover:bg-red-800 text-white font-bold text-sm py-2.5 rounded-xl transition-colors">Đăng nhập</button>
+      <button type="submit" class="btn">Đăng nhập</button>
     </form>
 
-    <p class="text-center text-[11px] text-gray-400 mt-4">Chỉ dành cho nhân viên cửa hàng.</p>
+    <p class="text-center text-[12px] mt-6" style="color:var(--muted-fg)">Chỉ dành cho nhân viên cửa hàng.</p>
   </div>
 </body>
 </html>

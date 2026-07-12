@@ -18,10 +18,12 @@
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Tổng tồn kho</div>
     <div id="acStock" class="text-lg font-black text-gray-900 mt-0.5">{{ total_stock }} <span class="text-xs font-bold text-gray-400">cái</span></div>
   </div>
+  {% if is_admin %}
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Vốn tồn kho</div>
     <div id="acValue" class="text-lg font-black text-gray-900 mt-0.5">{{ stock_value|money }}đ</div>
   </div>
+  {% endif %}
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Doanh thu tháng này</div>
     <div class="text-lg font-black text-gray-900 mt-0.5">{{ month_rev|money }}đ</div>
@@ -36,6 +38,7 @@
 
 <div id="tabStock">
 
+{% if is_admin %}
 <!-- quick add -->
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 mb-4">
   <div class="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
@@ -66,6 +69,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- table -->
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -75,7 +79,7 @@
         <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
           <th class="text-left px-4 py-3" style="min-width:200px">Tên</th>
           <th class="text-center px-4 py-3" style="min-width:120px">Loại</th>
-          <th class="text-right px-4 py-3" style="min-width:120px">Giá nhập</th>
+          {% if is_admin %}<th class="text-right px-4 py-3" style="min-width:120px">Giá nhập</th>{% endif %}
           <th class="text-right px-4 py-3" style="min-width:120px">Giá bán</th>
           <th class="text-right px-4 py-3" style="min-width:90px">Tồn kho</th>
           <th class="text-left px-4 py-3" style="min-width:160px">Ghi chú</th>
@@ -93,13 +97,13 @@
               {% if a.category and a.category not in categories %}<option value="{{ a.category }}" selected>{{ a.category }}</option>{% endif %}
             </select>
           </td>
-          <td class="px-4 py-1.5"><input class="ac-cell ac-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="cost" data-raw="{{ a.cost }}"></td>
+          {% if is_admin %}<td class="px-4 py-1.5"><input class="ac-cell ac-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="cost" data-raw="{{ a.cost }}"></td>{% endif %}
           <td class="px-4 py-1.5"><input class="ac-cell ac-money text-right tabular-nums text-gray-900" inputmode="numeric" data-field="price" data-raw="{{ a.price }}"></td>
           <td class="px-4 py-1.5"><input class="ac-cell ac-stock text-right tabular-nums font-black {% if a.stock <= 0 %}text-brand-700{% else %}text-gray-900{% endif %}" inputmode="numeric" data-field="stock" value="{{ a.stock }}"></td>
           <td class="px-4 py-1.5"><input class="ac-cell text-gray-700" type="text" data-field="note" value="{{ a.note }}" placeholder="—"></td>
           <td class="px-4 py-1.5 text-center whitespace-nowrap">
             <button class="ac-sell bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">Bán</button>
-            <button class="ac-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 align-middle" title="Xoá">Xoá</button>
+            {% if is_admin %}<button class="ac-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 align-middle" title="Xoá">Xoá</button>{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -134,7 +138,7 @@
             <th class="text-center px-4 py-3" style="min-width:70px">SL</th>
             <th class="text-right px-4 py-3" style="min-width:120px">Giá bán/cái</th>
             <th class="text-right px-4 py-3" style="min-width:120px">Doanh thu</th>
-            <th class="text-right px-4 py-3" style="min-width:110px">Lãi</th>
+            {% if is_admin %}<th class="text-right px-4 py-3" style="min-width:110px">Lãi</th>{% endif %}
             <th class="text-left px-4 py-3" style="min-width:200px">Ghi chú</th>
             <th class="text-center px-4 py-3" style="min-width:48px"></th>
           </tr>
@@ -149,9 +153,9 @@
             <td class="px-4 py-1.5"><input class="hist-cell hist-qty text-center tabular-nums" inputmode="numeric" data-field="quantity" value="{{ s.quantity }}"></td>
             <td class="px-4 py-1.5"><input class="hist-cell hist-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="unit_price" data-raw="{{ s.unit_price }}"></td>
             <td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 hist-rev">{{ s.revenue|money }}đ</td>
-            <td class="px-4 py-1.5 text-right tabular-nums hist-profit {% if s.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ s.profit|money }}đ</td>
+            {% if is_admin %}<td class="px-4 py-1.5 text-right tabular-nums hist-profit {% if s.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ s.profit|money }}đ</td>{% endif %}
             <td class="px-4 py-1.5"><input class="hist-cell text-gray-600" type="text" data-field="note" value="{{ s.note }}" placeholder="—"></td>
-            <td class="px-4 py-1.5 text-center"><button class="hist-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button></td>
+            <td class="px-4 py-1.5 text-center">{% if is_admin %}<button class="hist-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -231,11 +235,23 @@
   const SALE_UPD_URL = "{{ url_for('phukien.sale_update') }}";
   const SALE_DEL_URL = "{{ url_for('phukien.sale_delete') }}";
   const TODAY = "{{ today }}", THIS_MONTH = "{{ this_month }}", THIS_YEAR = "{{ this_year }}";
+  const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
   let acPeriod = 'month';
   const fmt = TINTUS.fmtVND, num = TINTUS.parseMoney, group = TINTUS.group;
   const $ = id => document.getElementById(id);
 
   document.querySelectorAll('.ac-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
+
+  // ── employee mode: catalog is read-only (selling stays available); in the
+  //    sales history only customer info / notes are editable.
+  if (!IS_ADMIN) {
+    document.querySelectorAll('#acBody .ac-cell').forEach(el => {
+      el.disabled = true; el.title = 'Chỉ quản lý được sửa kho phụ kiện';
+    });
+    document.querySelectorAll('#histBody [data-field="quantity"], #histBody [data-field="unit_price"]').forEach(el => {
+      el.disabled = true; el.title = 'Chỉ quản lý được sửa số lượng / giá đã ghi';
+    });
+  }
 
   const esc = v => { const d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; };
 
@@ -256,17 +272,18 @@
     tr.className = 'hist-row border-t border-gray-100 hover:bg-gray-50/60';
     tr.dataset.id = s.id; tr.dataset.date = s.date_iso || '';
     const pc = (Number(s.profit) >= 0) ? 'text-emerald-600' : 'text-brand-700';
+    const qtyDis = IS_ADMIN ? '' : ' disabled';
     tr.innerHTML =
       `<td class="px-4 py-1.5 text-gray-500 whitespace-nowrap">${esc(s.date)}</td>` +
       `<td class="px-4 py-1.5 font-semibold text-gray-900">${esc(s.name)}</td>` +
       `<td class="px-4 py-1.5"><input class="hist-cell text-gray-700" type="text" data-field="customer_name" value="${esc(s.customer_name)}" placeholder="—"></td>` +
       `<td class="px-4 py-1.5"><input class="hist-cell text-gray-700" type="text" data-field="phone" value="${esc(s.phone)}" placeholder="—"></td>` +
-      `<td class="px-4 py-1.5"><input class="hist-cell hist-qty text-center tabular-nums" inputmode="numeric" data-field="quantity" value="${s.quantity}"></td>` +
-      `<td class="px-4 py-1.5"><input class="hist-cell hist-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="unit_price" data-raw="${s.unit_price}"></td>` +
+      `<td class="px-4 py-1.5"><input class="hist-cell hist-qty text-center tabular-nums" inputmode="numeric" data-field="quantity" value="${s.quantity}"${qtyDis}></td>` +
+      `<td class="px-4 py-1.5"><input class="hist-cell hist-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="unit_price" data-raw="${s.unit_price}"${qtyDis}></td>` +
       `<td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 hist-rev">${fmt(s.revenue)}</td>` +
-      `<td class="px-4 py-1.5 text-right tabular-nums hist-profit ${pc}">${fmt(s.profit)}</td>` +
+      (IS_ADMIN ? `<td class="px-4 py-1.5 text-right tabular-nums hist-profit ${pc}">${fmt(s.profit)}</td>` : '') +
       `<td class="px-4 py-1.5"><input class="hist-cell text-gray-600" type="text" data-field="note" value="${esc(s.note)}" placeholder="—"></td>` +
-      `<td class="px-4 py-1.5 text-center"><button class="hist-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button></td>`;
+      `<td class="px-4 py-1.5 text-center">` + (IS_ADMIN ? `<button class="hist-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button>` : '') + `</td>`;
     wireSaleRow(tr);
     return tr;
   }
@@ -358,12 +375,14 @@
     document.querySelectorAll('#acBody .ac-row').forEach(r => {
       count++;
       const st = num(r.querySelector('[data-field="stock"]').value);
-      const cost = num(r.querySelector('[data-field="cost"]').dataset.raw);
+      const costEl = r.querySelector('[data-field="cost"]');
+      const cost = costEl ? num(costEl.dataset.raw) : 0;
       stock += st; value += st * cost;
     });
     $('acCount').textContent = count;
     $('acStock').innerHTML = stock + ' <span class="text-xs font-bold text-gray-400">cái</span>';
-    $('acValue').textContent = fmt(value);
+    const v = $('acValue');
+    if (v) v.textContent = fmt(value);
   }
 
   function wireRow(tr) {
@@ -387,7 +406,8 @@
       });
     });
     tr.querySelector('.ac-sell').addEventListener('click', () => openSell(tr));
-    tr.querySelector('.ac-del').addEventListener('click', async () => {
+    const del = tr.querySelector('.ac-del');
+    if (del) del.addEventListener('click', async () => {
       if (!confirm('Xoá phụ kiện này?')) return;
       try { await TINTUS.api(DEL_URL, { id: Number(tr.dataset.id) }); tr.remove(); recalcCards(); TINTUS.toast('Đã xoá', 'ok'); }
       catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
@@ -395,16 +415,18 @@
   }
   document.querySelectorAll('#acBody .ac-row').forEach(wireRow);
 
-  // ── add ──
-  $('ac_add').addEventListener('click', async () => {
-    const name = $('ac_name').value.trim();
-    if (!name) { TINTUS.toast('Nhập tên phụ kiện', 'warn'); return; }
-    const payload = { name, category: $('ac_cat').value,
-      cost: num($('ac_cost').value), price: num($('ac_price').value), stock: num($('ac_stock').value) };
-    try { await TINTUS.api(ADD_URL, payload); TINTUS.toast('Đã thêm', 'ok'); location.reload(); }
-    catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
-  });
-  ['ac_name', 'ac_cost', 'ac_price', 'ac_stock'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('ac_add').click(); }));
+  // ── add (admin only) ──
+  if ($('ac_add')) {
+    $('ac_add').addEventListener('click', async () => {
+      const name = $('ac_name').value.trim();
+      if (!name) { TINTUS.toast('Nhập tên phụ kiện', 'warn'); return; }
+      const payload = { name, category: $('ac_cat').value,
+        cost: num($('ac_cost').value), price: num($('ac_price').value), stock: num($('ac_stock').value) };
+      try { await TINTUS.api(ADD_URL, payload); TINTUS.toast('Đã thêm', 'ok'); location.reload(); }
+      catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+    ['ac_name', 'ac_cost', 'ac_price', 'ac_stock'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('ac_add').click(); }));
+  }
 
   // ── sell popup ──
   const modal = $('acSellModal');

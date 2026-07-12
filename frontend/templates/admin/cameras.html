@@ -6,43 +6,36 @@
     <h1 class="text-xl font-black text-gray-900">Quản lý máy</h1>
     <p class="text-sm text-gray-500">Cho thuê: bảng sửa nhanh. Để bán: sổ nhập – bán theo từng máy (như file Excel). Máy đã bán chuyển sang tab “Đã bán”.</p>
   </div>
-  <button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Thêm máy cho thuê</button>
+  {% if is_admin %}<button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Thêm máy cho thuê</button>{% endif %}
 </div>
 
 <!-- ── Stat cards (reflect the active tab + day/month/year/all period) ── -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm px-4 py-3">
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Số máy <span class="stat-scope normal-case text-gray-300"></span></div>
-    <div class="text-lg font-black text-gray-900 mt-0.5"><span id="sumCount">0</span> <span class="text-xs font-bold text-gray-400">máy</span></div>
+    <div class="text-2xl font-black text-gray-900 mt-1"><span id="sumCount">0</span> <span class="text-xs font-sans font-bold text-gray-400">máy</span></div>
   </div>
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-emerald-500 rounded-2xl shadow-sm px-4 py-3">
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Doanh thu <span class="stat-scope normal-case text-gray-300"></span></div>
-    <div id="sumRevenue" class="text-lg font-black text-gray-900 mt-0.5">—</div>
+    <div id="sumRevenue" class="text-2xl font-black text-gray-900 mt-1">—</div>
   </div>
+  {% if is_admin %}
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm px-4 py-3">
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Chi phí <span class="stat-scope normal-case text-gray-300"></span></div>
-    <div id="sumCost" class="text-lg font-black text-gray-900 mt-0.5">—</div>
+    <div id="sumCost" class="text-2xl font-black text-gray-900 mt-1">—</div>
   </div>
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Lợi nhuận <span class="stat-scope normal-case text-gray-300"></span></div>
-    <div id="sumProfit" class="text-lg font-black mt-0.5">—</div>
+    <div id="sumProfit" class="text-2xl font-black mt-1">—</div>
   </div>
+  {% endif %}
 </div>
 
-<!-- ── Sub-tabs ── -->
-<div class="flex items-center gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-max">
-  <button id="tabBtnRent" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    Cho thuê <span class="opacity-60">({{ rent_cameras|length }})</span>
-  </button>
-  <button id="tabBtnSale" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    Để bán <span class="opacity-60">({{ sale_cameras|length }})</span>
-  </button>
-  <button id="tabBtnDeposit" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    Đã cọc <span class="opacity-60">({{ deposit_cameras|length }})</span>
-  </button>
-  <button id="tabBtnSold" class="subtab px-5 py-2 rounded-lg text-sm font-bold transition-colors">
-    Đã bán <span class="opacity-60">({{ sold_cameras|length }})</span>
-  </button>
+<!-- ── Active sub-view indicator (tabs live in the sidebar under “Quản lý máy”) ── -->
+<div class="flex items-center gap-4 mb-4">
+  <span id="tabIndicator" class="font-mono text-[11px] font-medium uppercase tracking-[0.15em] text-brand-700 whitespace-nowrap">Cho thuê</span>
+  <span class="text-[11px] text-gray-400 font-mono" id="tabCount"></span>
+  <span class="h-px flex-1 bg-[var(--rule)]"></span>
 </div>
 
 <!-- ── Toolbar ── -->
@@ -74,22 +67,26 @@
     <button class="per-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="year">Năm nay</button>
     <button class="per-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="all">Tất cả</button>
   </div>
+  {% if is_admin %}
   <div id="importFilter" class="hidden flex items-center gap-1.5 border border-gray-200 rounded-xl pl-3 pr-1.5 py-1">
     <span class="text-xs font-semibold text-gray-500 whitespace-nowrap">Giá nhập</span>
     <input id="importMin" type="text" inputmode="numeric" placeholder="từ" class="money-live w-24 text-sm text-right tabular-nums border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-brand-500">
     <span class="text-gray-300">–</span>
     <input id="importMax" type="text" inputmode="numeric" placeholder="đến" class="money-live w-24 text-sm text-right tabular-nums border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-brand-500">
   </div>
+  {% endif %}
   <button id="clearFilter" class="text-xs font-bold text-gray-400 hover:text-brand-700 px-2 py-2">Xoá lọc</button>
   <span id="filterCount" class="text-xs text-gray-400 ml-auto"></span>
 </div>
 
 <!-- ── Bulk-select action bar (Để bán / Đã cọc / Đã bán tabs) ── -->
+{% if is_admin %}
 <div id="bulkBar" class="hidden items-center gap-3 bg-brand-50 border border-brand-200 rounded-xl px-4 py-2.5 mb-3">
   <span class="text-sm font-bold text-brand-700"><span id="bulkCount">0</span> máy đã chọn</span>
   <button id="bulkClear" class="text-xs font-bold text-gray-500 hover:text-gray-800">Bỏ chọn</button>
   <button id="bulkDelete" class="ml-auto bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-1.5 rounded-lg">Xoá các máy đã chọn</button>
 </div>
+{% endif %}
 
 <!-- ════════════════ RENTING TAB ════════════════ -->
 <div id="tabRent">
@@ -102,14 +99,16 @@
             <th class="text-left px-3 py-3" style="min-width:120px">Hãng</th>
             <th class="text-center px-3 py-3" style="min-width:104px">Loại</th>
             <th class="text-right px-3 py-3" style="min-width:120px">Giá ngày 1</th>
-            <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
+            {% if is_admin %}<th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>{% endif %}
             <th class="text-center px-3 py-3" style="min-width:80px">Đã bán?</th>
             <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:130px">Doanh thu thuê</th>
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:130px">Tổng doanh thu</th>
+            {% if is_admin %}
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Chi phí</th>
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:130px">Lợi nhuận</th>
             <th class="text-center px-3 py-3" style="min-width:56px"></th>
+            {% endif %}
           </tr>
         </thead>
         <tbody id="rentBody">
@@ -117,7 +116,7 @@
           {% set dot = color_map.get(c.id, '#6b7280') %}
           <tr class="cam-row border-t border-gray-100 hover:bg-gray-50/60 {% if c.is_sold %}cam-row-sold{% endif %}"
               data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}"
-              data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
+              data-revenue="{{ c.revenue }}" {% if is_admin %}data-cost="{{ c.cost }}" data-profit="{{ c.profit }}"{% endif %}>
             <td class="cam-sticky-cell px-3 py-1.5">
               <div class="flex items-center gap-1.5">
                 <button class="rent-toggle w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold shrink-0 transition-transform" title="Sửa chi tiết: giá ngày 2/3/4, mô tả, nhãn…">▸</button>
@@ -134,22 +133,24 @@
               </select>
             </td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="price" data-raw="{{ c.price or 0 }}"></td>
-            <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
+            {% if is_admin %}<td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>{% endif %}
             <td class="px-3 py-1.5 text-center"><input class="cam-check cam-sold-chk" type="checkbox" data-field="is_sold" {% if c.is_sold %}checked{% endif %}></td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="sold_price" data-raw="{{ c.sold_price or 0 }}"></td>
             <td class="cam-calc cell-rental px-3 py-1.5 text-right tabular-nums font-semibold text-gray-700 bg-gray-50/70">{{ c.rental_revenue|money }}đ</td>
             <td class="cam-calc cell-revenue px-3 py-1.5 text-right tabular-nums font-semibold text-gray-900 bg-gray-50/70">{{ c.revenue|money }}đ</td>
+            {% if is_admin %}
             <td class="cam-calc cell-cost px-3 py-1.5 text-right tabular-nums font-semibold text-gray-700 bg-gray-50/70">{{ c.cost|money }}đ</td>
             <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
             <td class="px-3 py-1.5 text-center"><button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors" title="Xoá máy">Xoá</button></td>
+            {% endif %}
           </tr>
           <tr class="rent-detail-row hidden" data-id="{{ c.id }}">
-            <td colspan="12" class="bg-gray-50/60 px-5 py-4 border-t border-gray-100">
+            <td colspan="{{ 12 if is_admin else 8 }}" class="bg-gray-50/60 px-5 py-4 border-t border-gray-100">
               <div class="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-3">
                 <div><label class="rd-lbl">Giá ngày 2</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d2" data-raw="{{ c.price_d2 or 0 }}"></div>
                 <div><label class="rd-lbl">Giá ngày 3</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d3" data-raw="{{ c.price_d3 or 0 }}"></div>
                 <div><label class="rd-lbl">Giá ngày 4+ / ngày</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="price_d4" data-raw="{{ c.price_d4 or 0 }}"></div>
-                <div><label class="rd-lbl">Phí sửa chữa (luỹ kế)</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></div>
+                {% if is_admin %}<div><label class="rd-lbl">Phí sửa chữa (luỹ kế)</label><input class="rd-field rd-money text-right tabular-nums" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></div>{% endif %}
                 <div><label class="rd-lbl">Nhãn (badge)</label><input class="rd-field rd-text" type="text" data-field="badge" value="{{ c.badge or '' }}" placeholder="VD: HOT, MỚI…"></div>
                 <div class="flex items-end gap-4 pb-1"><label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer"><input class="rd-check" type="checkbox" data-field="featured" {% if c.featured %}checked{% endif %}> Nổi bật (trang chủ)</label></div>
                 <div class="flex items-end gap-4 pb-1"><label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer"><input class="rd-check" type="checkbox" data-field="is_broken" {% if c.is_broken %}checked{% endif %}> Đang hỏng</label></div>
@@ -169,6 +170,7 @@
 
 <!-- ════════════════ SELLING TAB (per-unit ledger) ════════════════ -->
 <div id="tabSale" class="hidden">
+  {% if is_admin %}
   <!-- quick add (fast import = type a row) + Excel import -->
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-3 mb-3">
     <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -213,6 +215,7 @@
     </div>
     <p class="text-[11px] text-gray-400 mt-2">Nhập nhanh: gõ tên + giá nhập rồi Enter. Mặc định trạng thái <b>“Còn hàng”</b>. Khi bán: đổi trạng thái sang <b>“Đã bán”</b> rồi điền giá bán & thông tin khách.</p>
   </div>
+  {% endif %}
 
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
     <div class="overflow-x-auto" style="max-height:calc(100vh - 420px)">
@@ -227,20 +230,22 @@
             <th class="text-center px-3 py-3" style="min-width:140px">Ngày về</th>
             <th class="text-left px-3 py-3" style="min-width:160px">Ghi chú</th>
             <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
+            {% if is_admin %}
             <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
             <th class="text-right px-3 py-3" style="min-width:110px">Phí sửa</th>
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Lợi nhuận</th>
+            {% endif %}
             <th class="text-center px-3 py-3" style="min-width:96px">Loại</th>
             <th class="text-center px-3 py-3" style="min-width:150px">Trạng thái</th>
-            <th class="text-center px-3 py-3" style="min-width:74px"><input type="checkbox" class="cam-check sel-all" data-body="saleBody" title="Chọn tất cả"></th>
+            {% if is_admin %}<th class="text-center px-3 py-3" style="min-width:74px"><input type="checkbox" class="cam-check sel-all" data-body="saleBody" title="Chọn tất cả"></th>{% endif %}
           </tr>
         </thead>
         <tbody id="saleBody">
           {% for c in sale_cameras %}
           <tr class="cam-row sale-unit border-t border-gray-100 hover:bg-gray-50/60"
               data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}" data-state="{{ c.sale_state or 'stock' }}" data-category="{{ c.category or '' }}"
-              data-import="{{ c.import_cost or 0 }}"
-              data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
+              {% if is_admin %}data-import="{{ c.import_cost or 0 }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}"{% endif %}
+              data-revenue="{{ c.revenue }}">
             <td class="cam-sticky-cell px-3 py-1.5"><input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy"></td>
             <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="color" value="{{ c.color or '' }}" placeholder="VD: Đen"></td>
             <td class="px-3 py-1.5 text-center">
@@ -260,9 +265,11 @@
             <td class="px-3 py-1.5 text-center"><input class="cam-date" type="date" data-field="date_in" value="{{ c.date_in.strftime('%Y-%m-%d') if c.date_in else '' }}"></td>
             <td class="px-3 py-1.5"><input class="cam-input text-gray-700" type="text" data-field="description" value="{{ c.description or '' }}" placeholder="Ghi chú / cần sửa…"></td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="sold_price" data-raw="{{ c.sold_price or 0 }}"></td>
+            {% if is_admin %}
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money cam-repair text-right tabular-nums text-amber-700" type="text" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></td>
             <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
+            {% endif %}
             <td class="px-3 py-1.5 text-center">
               <select class="cam-type" data-field="type">
                 <option value="Rent" {% if c.type == 'Rent' %}selected{% endif %}>Thuê</option>
@@ -279,16 +286,18 @@
                 <option value="unfixable" {% if c.sale_state == 'unfixable' %}selected{% endif %}>✕ Không sửa được</option>
               </select>
             </td>
+            {% if is_admin %}
             <td class="px-3 py-1.5 text-center whitespace-nowrap">
               <input type="checkbox" class="cam-check row-select align-middle" data-id="{{ c.id }}">
               <button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">Xoá</button>
             </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    {% if not sale_cameras %}<div id="saleEmptySeed" class="px-6 py-12 text-center text-gray-400">Chưa có máy để bán. Dùng ô “Nhập máy” ở trên để thêm.</div>{% endif %}
+    {% if not sale_cameras %}<div id="saleEmptySeed" class="px-6 py-12 text-center text-gray-400">Chưa có máy để bán.{% if is_admin %} Dùng ô “Nhập máy” ở trên để thêm.{% endif %}</div>{% endif %}
     <div id="saleEmpty" class="px-6 py-10 text-center text-gray-400 hidden">Không tìm thấy máy phù hợp.</div>
   </div>
   <p class="text-xs text-gray-400 mt-2">Mỗi dòng = một máy. Màu dòng theo trạng thái: trắng = còn hàng · cam = cần sửa · đỏ = không sửa được.</p>
@@ -309,11 +318,13 @@
             <th class="text-left px-3 py-3" style="min-width:120px">SĐT</th>
             <th class="text-center px-3 py-3" style="min-width:130px">Nguồn khách</th>
             <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
+            {% if is_admin %}
             <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
             <th class="text-right px-3 py-3" style="min-width:110px">Phí sửa</th>
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Lợi nhuận</th>
+            {% endif %}
             <th class="text-center px-3 py-3" style="min-width:150px">Trạng thái</th>
-            <th class="text-center px-3 py-3" style="min-width:74px"><input type="checkbox" class="cam-check sel-all" data-body="soldBody" title="Chọn tất cả"></th>
+            {% if is_admin %}<th class="text-center px-3 py-3" style="min-width:74px"><input type="checkbox" class="cam-check sel-all" data-body="soldBody" title="Chọn tất cả"></th>{% endif %}
           </tr>
         </thead>
         <tbody id="soldBody">
@@ -322,7 +333,7 @@
               data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}" data-state="{{ c.sale_state or 'sold' }}"
               data-category="{{ c.category or '' }}" data-soldmonth="{{ c.sold_date.strftime('%Y-%m') if c.sold_date else '' }}"
               data-solddate="{{ c.sold_date.strftime('%Y-%m-%d') if c.sold_date else '' }}"
-              data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
+              data-revenue="{{ c.revenue }}" {% if is_admin %}data-cost="{{ c.cost }}" data-profit="{{ c.profit }}"{% endif %}>
             <td class="cam-sticky-cell px-3 py-1.5">
               <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
               <div class="flex items-center gap-1 pl-2 mt-0.5">
@@ -348,9 +359,11 @@
               </select>
             </td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-900" type="text" inputmode="numeric" data-field="sold_price" data-raw="{{ c.sold_price or 0 }}"></td>
+            {% if is_admin %}
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money cam-repair text-right tabular-nums text-amber-700" type="text" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></td>
             <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
+            {% endif %}
             <td class="px-3 py-1.5 text-center">
               <select class="cam-state" data-field="sale_state">
                 <option value="stock" {% if c.sale_state == 'stock' %}selected{% endif %}>● Còn hàng</option>
@@ -361,10 +374,12 @@
                 <option value="unfixable" {% if c.sale_state == 'unfixable' %}selected{% endif %}>✕ Không sửa được</option>
               </select>
             </td>
+            {% if is_admin %}
             <td class="px-3 py-1.5 text-center whitespace-nowrap">
               <input type="checkbox" class="cam-check row-select align-middle" data-id="{{ c.id }}">
               <button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">Xoá</button>
             </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
@@ -393,11 +408,13 @@
             <th class="text-right px-3 py-3" style="min-width:120px">Giá bán</th>
             <th class="text-right px-3 py-3" style="min-width:120px">Đã cọc</th>
             <th class="text-right px-3 py-3" style="min-width:120px">Còn thiếu</th>
+            {% if is_admin %}
             <th class="text-right px-3 py-3" style="min-width:120px">Giá nhập</th>
             <th class="text-right px-3 py-3" style="min-width:110px">Phí sửa</th>
             <th class="text-right px-3 py-3 bg-gray-100" style="min-width:120px">Lợi nhuận</th>
+            {% endif %}
             <th class="text-center px-3 py-3" style="min-width:150px">Trạng thái</th>
-            <th class="text-center px-3 py-3" style="min-width:74px"><input type="checkbox" class="cam-check sel-all" data-body="depositBody" title="Chọn tất cả"></th>
+            {% if is_admin %}<th class="text-center px-3 py-3" style="min-width:74px"><input type="checkbox" class="cam-check sel-all" data-body="depositBody" title="Chọn tất cả"></th>{% endif %}
           </tr>
         </thead>
         <tbody id="depositBody">
@@ -406,7 +423,7 @@
               data-id="{{ c.id }}" data-name="{{ c.name }}" data-brand="{{ c.brand or '' }}" data-state="{{ c.sale_state or 'deposit' }}"
               data-category="{{ c.category or '' }}" data-soldmonth="{{ c.sold_date.strftime('%Y-%m') if c.sold_date else '' }}"
               data-solddate="{{ c.sold_date.strftime('%Y-%m-%d') if c.sold_date else '' }}"
-              data-revenue="{{ c.revenue }}" data-cost="{{ c.cost }}" data-profit="{{ c.profit }}">
+              data-revenue="{{ c.revenue }}" {% if is_admin %}data-cost="{{ c.cost }}" data-profit="{{ c.profit }}"{% endif %}>
             <td class="cam-sticky-cell px-3 py-1.5">
               <input class="cam-input font-semibold text-gray-900" type="text" data-field="name" value="{{ c.name }}" placeholder="Tên máy">
               <div class="flex items-center gap-1 pl-2 mt-0.5">
@@ -435,9 +452,11 @@
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-cyan-700" type="text" inputmode="numeric" data-field="deposit_amount" data-raw="{{ c.deposit_amount or 0 }}" title="Số tiền cọc đã nhận"></td>
             {% set _remain = (c.sold_price or 0) - (c.deposit_amount or 0) %}
             <td class="cell-remaining px-3 py-1.5 text-right tabular-nums font-bold bg-gray-50/70 {% if _remain > 0 %}text-brand-700{% else %}text-emerald-600{% endif %}" title="Còn thiếu = giá bán − tiền cọc đã thu">{{ _remain|money }}đ</td>
+            {% if is_admin %}
             <td class="px-3 py-1.5"><input class="cam-input cam-money text-right tabular-nums text-gray-700" type="text" inputmode="numeric" data-field="import_cost" data-raw="{{ c.import_cost or 0 }}"></td>
             <td class="px-3 py-1.5"><input class="cam-input cam-money cam-repair text-right tabular-nums text-amber-700" type="text" inputmode="numeric" data-field="repair_cost" data-raw="{{ c.repair_cost or 0 }}"></td>
             <td class="cam-calc cell-profit px-3 py-1.5 text-right tabular-nums font-black bg-gray-50/70 {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</td>
+            {% endif %}
             <td class="px-3 py-1.5 text-center">
               <select class="cam-state" data-field="sale_state">
                 <option value="stock" {% if c.sale_state == 'stock' %}selected{% endif %}>● Còn hàng</option>
@@ -448,10 +467,12 @@
                 <option value="unfixable" {% if c.sale_state == 'unfixable' %}selected{% endif %}>✕ Không sửa được</option>
               </select>
             </td>
+            {% if is_admin %}
             <td class="px-3 py-1.5 text-center whitespace-nowrap">
               <input type="checkbox" class="cam-check row-select align-middle" data-id="{{ c.id }}">
               <button class="cam-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 transition-colors align-middle" title="Xoá máy">Xoá</button>
             </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
@@ -464,6 +485,7 @@
 </div>
 
 <!-- ── Add-camera modal (Cho thuê) ── -->
+{% if is_admin %}
 <div id="modal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
   <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw] max-h-[92vh] overflow-y-auto">
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -496,6 +518,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- ── Sell modal (customer info) ── -->
 <div id="sellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
@@ -539,10 +562,10 @@
           {% for g in gift_options %}
           <label class="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
             <span class="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" class="sell-gift" value="{{ g.id }}" data-cost="{{ g.cost }}" style="width:16px;height:16px;accent-color:#b91c1c">
+              <input type="checkbox" class="sell-gift" value="{{ g.id }}" data-cost="{{ g.cost if is_admin else 0 }}" style="width:16px;height:16px;accent-color:#b91c1c">
               {{ g.name }}{% if g.category %} <span class="text-gray-400 text-xs">· {{ g.category }}</span>{% endif %}
             </span>
-            <span class="text-xs font-bold text-brand-700 whitespace-nowrap">−{{ g.cost|money }}đ</span>
+            {% if is_admin %}<span class="text-xs font-bold text-brand-700 whitespace-nowrap">−{{ g.cost|money }}đ</span>{% endif %}
           </label>
           {% endfor %}
         </div>
@@ -577,10 +600,10 @@
         {% for g in gift_options %}
         <label class="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
           <span class="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" class="gift-pick" value="{{ g.id }}" data-cost="{{ g.cost }}" style="width:16px;height:16px;accent-color:#b91c1c">
+            <input type="checkbox" class="gift-pick" value="{{ g.id }}" data-cost="{{ g.cost if is_admin else 0 }}" style="width:16px;height:16px;accent-color:#b91c1c">
             {{ g.name }}{% if g.category %} <span class="text-gray-400 text-xs">· {{ g.category }}</span>{% endif %}
           </span>
-          <span class="text-xs font-bold text-brand-700 whitespace-nowrap">−{{ g.cost|money }}đ</span>
+          {% if is_admin %}<span class="text-xs font-bold text-brand-700 whitespace-nowrap">−{{ g.cost|money }}đ</span>{% endif %}
         </label>
         {% endfor %}
       </div>
@@ -597,6 +620,7 @@
 </div>
 
 <!-- ── Import Excel modal ── -->
+{% if is_admin %}
 <div id="importModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
   <div class="bg-white rounded-2xl shadow-2xl w-[480px] max-w-[94vw]">
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -615,6 +639,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <style>
   .inv-table .cam-input { width:100%; background:transparent; border:1px solid transparent; outline:none; padding:5px 8px; border-radius:8px; font-size:13px; transition:background .12s, border-color .12s; }
@@ -668,6 +693,7 @@
   const GIFTS_URL  = "{{ url_for('cameras.gifts_update') }}";
   const IMPORT_URL = "{{ url_for('cameras.import_excel') }}";
   const TODAY = "{{ today }}", THIS_MONTH = "{{ this_month }}", THIS_YEAR = "{{ this_year }}";
+  const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
   let periodSel = 'month';   // sold/deposit tabs default to the current month
 
   const fmt = TINTUS.fmtVND;
@@ -676,6 +702,21 @@
   const $ = id => document.getElementById(id);
 
   document.querySelectorAll('.cam-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
+
+  // ── employee mode: inventory is read-only except a few operational fields.
+  //    (The server enforces the same whitelist — this just prevents dead-end edits.)
+  if (!IS_ADMIN) {
+    const EMP_FIELDS = new Set(['sold_to', 'sold_phone', 'sold_source', 'description', 'accessory', 'color']);
+    document.querySelectorAll('[data-field]').forEach(el => {
+      const f = el.dataset.field;
+      if (f === 'sale_state') return;          // selling (→ sell modal) stays available
+      if (!EMP_FIELDS.has(f)) {
+        el.disabled = true;
+        el.classList.add('cursor-not-allowed');
+        el.title = 'Chỉ quản lý được sửa trường này';
+      }
+    });
+  }
 
   // ── top financial summary — reflects the ACTIVE tab and, on the sold/deposit
   //    tabs, the selected day/month/year/all period (i.e. only the visible rows) ──
@@ -699,10 +740,13 @@
     });
     $('sumCount').textContent   = count;
     $('sumRevenue').textContent = fmt(revenue);
-    $('sumCost').textContent    = fmt(cost);
+    const cEl = $('sumCost');
+    if (cEl) cEl.textContent = fmt(cost);
     const pEl = $('sumProfit');
-    pEl.textContent = fmt(profit);
-    pEl.className = 'text-lg font-black mt-0.5 ' + (profit >= 0 ? 'text-emerald-600' : 'text-brand-700');
+    if (pEl) {
+      pEl.textContent = fmt(profit);
+      pEl.className = 'text-2xl font-black mt-1 ' + (profit >= 0 ? 'text-emerald-600' : 'text-brand-700');
+    }
     const scope = scopeLabel();
     document.querySelectorAll('.stat-scope').forEach(s => { s.textContent = scope ? '· ' + scope : ''; });
   }
@@ -923,8 +967,9 @@
     } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
   });
 
-  // ── quick add (fast import) → reload to show the saved row ──
+  // ── quick add (fast import) → reload to show the saved row (admin only) ──
   function quickAdd() {
+    if (!$('qa_name')) return;
     const name = $('qa_name').value.trim();
     if (!name) { TINTUS.toast('Nhập tên máy', 'warn'); return; }
     const payload = {
@@ -940,8 +985,10 @@
       location.reload();
     }).catch(e => TINTUS.toast(e.message || 'Lỗi khi thêm', 'err'));
   }
-  $('qa_add').addEventListener('click', quickAdd);
-  ['qa_name', 'qa_color', 'qa_acc', 'qa_cost'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') quickAdd(); }));
+  if ($('qa_add')) {
+    $('qa_add').addEventListener('click', quickAdd);
+    ['qa_name', 'qa_color', 'qa_acc', 'qa_cost'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') quickAdd(); }));
+  }
 
   // ════════════ gift editing (sold / deposit rows) ════════════
   const giftModal = $('giftModal');
@@ -994,6 +1041,7 @@
       .filter(cb => cb.checked && cb.closest('tr').style.display !== 'none');
   }
   function refreshBulkBar() {
+    if (!bulkBar) return;                       // employee mode: no bulk actions
     const n = selectedRows().length;
     bulkCount.textContent = n;
     bulkBar.classList.toggle('hidden', n === 0);
@@ -1010,11 +1058,11 @@
       refreshBulkBar();
     });
   });
-  $('bulkClear').addEventListener('click', () => {
+  if ($('bulkClear')) $('bulkClear').addEventListener('click', () => {
     document.querySelectorAll('.row-select, .sel-all').forEach(cb => cb.checked = false);
     refreshBulkBar();
   });
-  $('bulkDelete').addEventListener('click', async () => {
+  if ($('bulkDelete')) $('bulkDelete').addEventListener('click', async () => {
     const rows = selectedRows();
     const ids = rows.map(cb => Number(cb.dataset.id));
     if (!ids.length) return;
@@ -1028,10 +1076,11 @@
     } catch (e) { TINTUS.toast(e.message || 'Lỗi khi xoá', 'err'); }
   });
 
-  // ── Excel import modal ──
+  // ── Excel import modal (admin only) ──
   const importModal = $('importModal');
-  $('importBtn').addEventListener('click', () => { $('importFile').value = ''; $('importStatus').classList.add('hidden'); importModal.style.display = 'flex'; });
-  function closeImport() { importModal.style.display = 'none'; }
+  if ($('importBtn')) $('importBtn').addEventListener('click', () => { $('importFile').value = ''; $('importStatus').classList.add('hidden'); importModal.style.display = 'flex'; });
+  function closeImport() { if (importModal) importModal.style.display = 'none'; }
+  if (importModal) {
   $('importClose').addEventListener('click', closeImport);
   $('importCancel').addEventListener('click', closeImport);
   importModal.addEventListener('click', e => { if (e.target === importModal) closeImport(); });
@@ -1051,6 +1100,7 @@
       setTimeout(() => location.reload(), 700);
     } catch (e) { status.textContent = e.message || 'Lỗi'; TINTUS.toast(e.message || 'Lỗi', 'err'); }
   });
+  }
 
   // ── rent detail editor (expandable) ──
   document.querySelectorAll('#rentBody .rent-toggle').forEach(btn => {
@@ -1101,40 +1151,38 @@
     });
   });
 
-  // ════════════ tabs ════════════
+  // ════════════ tabs (driven from the sidebar “Quản lý máy” group) ════════════
   const tabRent = $('tabRent'), tabSale = $('tabSale'), tabSold = $('tabSold'), tabDeposit = $('tabDeposit');
-  const btnRent = $('tabBtnRent'), btnSale = $('tabBtnSale'), btnSold = $('tabBtnSold'), btnDeposit = $('tabBtnDeposit');
   const stateFilter = $('stateFilter'), categoryFilter = $('categoryFilter');
   const brandFilter = $('brandFilter'), soldMonth = $('soldMonth'), addBtn = $('addBtn');
   const importFilter = $('importFilter'), importMin = $('importMin'), importMax = $('importMax');
   const periodSeg = $('periodSeg');
+  const TAB_LABELS = { rent: 'Cho thuê', sale: 'Để bán', deposit: 'Đã cọc', sold: 'Đã bán' };
   function setTab(which) {
     const rent = which === 'rent', sale = which === 'sale', sold = which === 'sold', deposit = which === 'deposit';
     tabRent.classList.toggle('hidden', !rent);
     tabSale.classList.toggle('hidden', !sale);
     tabSold.classList.toggle('hidden', !sold);
     tabDeposit.classList.toggle('hidden', !deposit);
-    btnRent.classList.toggle('active', rent);
-    btnSale.classList.toggle('active', sale);
-    btnSold.classList.toggle('active', sold);
-    btnDeposit.classList.toggle('active', deposit);
     brandFilter.classList.toggle('hidden', !rent);          // brand filter: rent only
     stateFilter.classList.toggle('hidden', !sale);          // state filter: selling only
-    importFilter.classList.toggle('hidden', !sale);         // import-price range: selling only
+    if (importFilter) importFilter.classList.toggle('hidden', !sale);   // import-price range: selling, admin only
     categoryFilter.classList.toggle('hidden', rent);        // dòng máy: sale + sold + deposit
     soldMonth.classList.add('hidden');                      // replaced by the period toggle
     periodSeg.classList.toggle('hidden', !(sold || deposit));  // day/month/year/all: sold + deposit
     periodSeg.classList.toggle('flex', sold || deposit);
-    addBtn.classList.toggle('hidden', !rent);               // add button: rent only
+    if (addBtn) addBtn.classList.toggle('hidden', !rent);   // add button: rent only (admin)
+    // update the in-page section label
+    const ind = $('tabIndicator'); if (ind) ind.textContent = TAB_LABELS[which] || '';
+    // highlight the matching sidebar sub-item + keep the group open
+    document.querySelectorAll('.ta-subitem[data-camtab]').forEach(a =>
+      a.classList.toggle('active', a.dataset.camtab === which));
+    const grp = document.querySelector('.ta-group'); if (grp) grp.classList.add('open');
     document.querySelectorAll('.row-select, .sel-all').forEach(cb => cb.checked = false);
     refreshBulkBar();
     sessionStorage.setItem('camTab', which);
     applyFilter();
   }
-  btnRent.addEventListener('click', () => setTab('rent'));
-  btnSale.addEventListener('click', () => setTab('sale'));
-  btnSold.addEventListener('click', () => setTab('sold'));
-  btnDeposit.addEventListener('click', () => setTab('deposit'));
 
   // period toggle (Hôm nay / Tháng này / Năm nay / Tất cả) — sold + deposit tabs
   function inPeriod(dateIso) {
@@ -1161,8 +1209,8 @@
   function applyFilter() {
     const q = searchInput.value.trim().toLowerCase();
     const brand = brandFilter.value, state = stateFilter.value, cat = categoryFilter.value;
-    const impMin = num(importMin.value);                                  // empty → 0
-    const impMax = importMax.value.trim() ? num(importMax.value) : Infinity;
+    const impMin = importMin ? num(importMin.value) : 0;                  // empty → 0
+    const impMax = (importMax && importMax.value.trim()) ? num(importMax.value) : Infinity;
     const tab = activeTab();
     let shown = 0;
     document.querySelectorAll('#rentBody .cam-row').forEach(row => {
@@ -1199,7 +1247,7 @@
     if (saleEmpty) saleEmpty.classList.toggle('hidden', tab !== 'sale' || shown > 0);
     if (soldEmpty) soldEmpty.classList.toggle('hidden', tab !== 'sold' || shown > 0);
     if (depositEmpty) depositEmpty.classList.toggle('hidden', tab !== 'deposit' || shown > 0);
-    const filtering = (q || brand || state || cat || importMin.value || importMax.value
+    const filtering = (q || brand || state || cat || (importMin && importMin.value) || (importMax && importMax.value)
                        || ((tab === 'sold' || tab === 'deposit') && periodSel !== 'all'));
     $('filterCount').textContent = filtering ? (shown + ' kết quả') : '';
     recompute();                                  // cards mirror the visible (filtered/period) rows
@@ -1208,15 +1256,18 @@
   brandFilter.addEventListener('change', applyFilter);
   stateFilter.addEventListener('change', applyFilter);
   categoryFilter.addEventListener('change', applyFilter);
-  importMin.addEventListener('input', applyFilter);
-  importMax.addEventListener('input', applyFilter);
+  if (importMin) importMin.addEventListener('input', applyFilter);
+  if (importMax) importMax.addEventListener('input', applyFilter);
   $('clearFilter').addEventListener('click', () => {
     searchInput.value = ''; brandFilter.value = ''; stateFilter.value = ''; categoryFilter.value = '';
-    importMin.value = ''; importMax.value = ''; applyFilter();
+    if (importMin) importMin.value = '';
+    if (importMax) importMax.value = '';
+    applyFilter();
   });
 
-  // ════════════ add-camera modal (rent) ════════════
+  // ════════════ add-camera modal (rent, admin only) ════════════
   const modal = $('modal');
+  if (modal && addBtn) {
   function openModal() {
     ['a_name', 'a_brand', 'a_price', 'a_import'].forEach(id => $(id).value = '');
     modal.style.display = 'flex'; $('a_name').focus();
@@ -1234,16 +1285,22 @@
     try { await TINTUS.api(ADD_URL, payload); TINTUS.toast('Đã thêm máy', 'ok'); location.reload(); }
     catch (e) { TINTUS.toast(e.message || 'Lỗi khi thêm', 'err'); }
   });
+  }
 
   // ════════════ init ════════════
   document.querySelectorAll('#depositBody .deposit-unit').forEach(updateRemaining);
   recompute();
   document.querySelectorAll('#periodSeg .per-btn').forEach(b => b.classList.toggle('active', b.dataset.per === periodSel));
+  const VALID_TABS = ['rent', 'sale', 'sold', 'deposit'];
+  const urlTab = new URLSearchParams(location.search).get('tab');
   const saved = sessionStorage.getItem('camTab');
-  setTab(['rent', 'sale', 'sold', 'deposit'].includes(saved) ? saved : 'rent');
+  const initialTab = VALID_TABS.includes(urlTab) ? urlTab
+                   : (VALID_TABS.includes(saved) ? saved : 'rent');
+  setTab(initialTab);
   if (sessionStorage.getItem('focusQuickAdd')) {
     sessionStorage.removeItem('focusQuickAdd');
-    setTab('sale'); $('qa_name').focus();
+    setTab('sale');
+    if ($('qa_name')) $('qa_name').focus();
   }
 })();
 </script>

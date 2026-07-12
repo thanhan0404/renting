@@ -12,7 +12,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import (db, Camera, RentalBooking, PurchaseOrder, Sheet,
                     StoreCost, RepairLog, ActivityLog,
-                    Accessory, AccessorySale, Appointment, Lead)
+                    Accessory, AccessorySale, Appointment, Lead,
+                    Employee, Customer, Setting)
 from seed import seed as seed_db, backfill_costs
 
 try:
@@ -124,8 +125,11 @@ db.init_app(app)
 
 # Models whose row changes are tracked. ActivityLog itself is intentionally excluded
 # (so writing the log never logs itself, and undo/redo can never target the log).
+# Employee/Setting are intentionally NOT logged (snapshots would store password
+# hashes, and undo could silently roll back credentials / config).
 LOGGED_MODELS = [Camera, RentalBooking, Appointment, Lead, RepairLog,
-                 StoreCost, Accessory, AccessorySale, PurchaseOrder, Sheet]
+                 StoreCost, Accessory, AccessorySale, PurchaseOrder, Sheet,
+                 Customer]
 TABLE_MODELS = {m.__tablename__: m for m in LOGGED_MODELS}
 
 # Vietnamese labels for auto-generated activity descriptions.
@@ -133,7 +137,7 @@ _ACT_TABLE_VI = {
     'camera': 'máy ảnh', 'rental_booking': 'đơn thuê', 'appointment': 'lịch hẹn',
     'lead': 'khách quan tâm', 'repair_log': 'sửa chữa', 'store_cost': 'chi phí tiệm',
     'accessory': 'phụ kiện', 'accessory_sale': 'bán phụ kiện',
-    'purchase_order': 'đơn mua', 'sheet': 'sổ tay',
+    'purchase_order': 'đơn mua', 'sheet': 'sổ tay', 'customer': 'khách hàng',
 }
 _ACT_VERB = {'insert': 'Thêm', 'update': 'Sửa', 'delete': 'Xoá'}
 
@@ -268,8 +272,12 @@ def _act_persist(response):
         g._act_suspend = True
         # A new action truncates the redo tail (standard linear undo/redo).
         ActivityLog.query.filter_by(undone=True).delete()
+        label = getattr(g, '_act_label', '') or _act_auto_label(changes)
+        who = session.get('staff_user')
+        if who:
+            label += f' · {who}'
         db.session.add(ActivityLog(
-            label=(getattr(g, '_act_label', '') or _act_auto_label(changes))[:300],
+            label=label[:300],
             changes_json=_act_dumps(changes), created_at=datetime.now()))
         db.session.commit()
     except Exception as exc:                # never let logging break the real response
@@ -359,11 +367,100 @@ class RedirectIndexView(AdminIndexView):
         return redirect(url_for('cameras.index'))
 
 
+class StaffView(BaseView):
+    """Base for panel views reachable by every logged-in staff member."""
+    def is_accessible(self):
+        return current_role() in ('admin', 'employee')
+
+    def inaccessible_callback(self, name, **kwargs):
+        if not current_role():
+            return redirect(url_for('admin_login', next=request.path))
+        # logged in but not allowed (employee hitting an admin view) → their home
+        if request.accept_mimetypes.best == 'application/json' or request.method == 'POST':
+            return _forbidden()
+        return redirect(url_for('cameras.index'))
+
+
+class AdminOnlyView(StaffView):
+    """Base for panel views reserved for the admin role (finances, personnel…)."""
+    def is_accessible(self):
+        return is_admin()
+
+
+class SecureModelView(ModelView):
+    """Raw Flask-Admin model tables — admin only (they expose every column)."""
+    def is_accessible(self):
+        return is_admin()
+
+    def inaccessible_callback(self, name, **kwargs):
+        if not current_role():
+            return redirect(url_for('admin_login', next=request.path))
+        return redirect(url_for('cameras.index'))
+
+
 admin = Admin(app, name='tintus.digicam Admin',
               index_view=RedirectIndexView(url=ADMIN_URL_PREFIX, endpoint='admin'))
-admin.add_view(ModelView(Camera, db.session))
-admin.add_view(ModelView(RentalBooking, db.session))
-admin.add_view(ModelView(PurchaseOrder, db.session))
+admin.add_view(SecureModelView(Camera, db.session))
+admin.add_view(SecureModelView(RentalBooking, db.session))
+admin.add_view(SecureModelView(PurchaseOrder, db.session))
+
+
+# ── Roles & current-user helpers ──────────────────────────────────────────────
+# Two roles share the panel behind the same secret URL prefix:
+#   'admin'    — everything (finances, personnel, system config, full CRUD)
+#   'employee' — day-to-day operations only; never sees import costs / profit.
+
+def current_role():
+    role = session.get('role')
+    if role in ('admin', 'employee'):
+        return role
+    return 'admin' if session.get('is_admin') else None   # legacy sessions
+
+
+def is_admin():
+    return current_role() == 'admin'
+
+
+def current_staff():
+    """Display name of whoever is logged in (used for attribution & dashboards)."""
+    return session.get('staff_name') or session.get('staff_user') or ''
+
+
+def current_staff_user():
+    return session.get('staff_user') or ''
+
+
+def _forbidden(msg='Bạn không có quyền thực hiện thao tác này.'):
+    return jsonify({'ok': False, 'error': msg}), 403
+
+
+# ── System settings (key/value, admin-configurable) ───────────────────────────
+DEFAULT_SETTINGS = {
+    'store_name':       'tintus.digicam',
+    'store_address':    '',
+    'store_phone':      '',
+    'tax_rate':         '0',    # % VAT shown on receipts
+    'max_discount_pct': '10',   # employee sale-price floor: listed price minus this %
+    'receipt_header':   'tintus.digicam — Cho thuê & mua bán máy ảnh',
+    'receipt_footer':   'Cảm ơn quý khách! Hẹn gặp lại.',
+    'store_policy':     '',
+}
+
+
+def get_setting(key):
+    row = db.session.get(Setting, key)
+    return row.value if row and row.value is not None else DEFAULT_SETTINGS.get(key, '')
+
+
+def all_settings():
+    return {k: get_setting(k) for k in DEFAULT_SETTINGS}
+
+
+def setting_float(key):
+    try:
+        return float(get_setting(key) or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 # ── Gate every admin request behind the login ────────────────────────────────
@@ -374,28 +471,40 @@ def _require_admin_login():
         return                                  # public site → no gate
     if p in (LOGIN_PATH, LOGOUT_PATH):
         return                                  # auth endpoints stay reachable
-    if not session.get('is_admin'):
+    if not current_role():
         return redirect(url_for('admin_login', next=p))
 
 
 @app.route(LOGIN_PATH, methods=['GET', 'POST'])
 def admin_login():
-    if session.get('is_admin'):
+    if current_role():
         return redirect(url_for('cameras.index'))
     error = None
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
+        role = staff_user = staff_name = None
+        # 1) the env-configured owner account (always an admin)
         if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
+            role, staff_user, staff_name = 'admin', username, 'Chủ tiệm'
+        else:
+            # 2) staff accounts managed in the Nhân viên view
+            emp = Employee.query.filter(db.func.lower(Employee.username) == username.lower()).first()
+            if emp and emp.active and check_password_hash(emp.password_hash, password):
+                role = emp.role if emp.role in ('admin', 'employee') else 'employee'
+                staff_user, staff_name = emp.username, emp.display_name or emp.username
+        if role:
             session.clear()
-            session['is_admin'] = True
-            session['admin_user'] = username
+            session['role'] = role
+            session['is_admin'] = (role == 'admin')     # legacy flag, kept in sync
+            session['staff_user'] = staff_user
+            session['staff_name'] = staff_name
             session.permanent = True
             nxt = request.args.get('next') or url_for('cameras.index')
             if not nxt.startswith(ADMIN_URL_PREFIX):     # block open-redirects
                 nxt = url_for('cameras.index')
             return redirect(nxt)
-        error = 'Sai tài khoản hoặc mật khẩu.'
+        error = 'Sai tài khoản hoặc mật khẩu (hoặc tài khoản đã bị khoá).'
     return render_template('admin_login.html', error=error, login_action=LOGIN_PATH)
 
 
@@ -403,6 +512,33 @@ def admin_login():
 def admin_logout():
     session.clear()
     return redirect(LOGIN_PATH)
+
+
+# ── Role info available to every admin template ───────────────────────────────
+@app.context_processor
+def inject_role():
+    return {'is_admin': is_admin(), 'current_role': current_role(),
+            'staff_name': current_staff(), 'staff_user': current_staff_user()}
+
+
+# ── Camera sub-tab counts for the sidebar (Cho thuê / Để bán / Đã cọc / Đã bán) ─
+@app.context_processor
+def inject_nav_counts():
+    """Feeds the expandable "Quản lý máy" sidebar group. Only touches the DB for
+    logged-in admin requests, so public pages pay nothing."""
+    if not current_role():
+        return {}
+    try:
+        counts = {
+            'rent':    Camera.query.filter_by(type='Rent').count(),
+            'sale':    Camera.query.filter_by(type='Sale')
+                             .filter(~Camera.sale_state.in_(('sold', 'deposit'))).count(),
+            'deposit': Camera.query.filter_by(type='Sale', sale_state='deposit').count(),
+            'sold':    Camera.query.filter_by(type='Sale', sale_state='sold').count(),
+        }
+    except Exception:
+        counts = {'rent': 0, 'sale': 0, 'deposit': 0, 'sold': 0}
+    return {'cam_tab_counts': counts}
 
 
 # ── Jinja2 filter: 280000 → "280K" ─────────────────────────────────────────
@@ -687,6 +823,8 @@ def rent():
         end_date   = parse_dt(request.form.get('end_date'))
         if not camera or camera.type != 'Rent':
             error = 'Vui lòng chọn một máy hợp lệ để thuê.'
+        elif banned_customer(request.form.get('phone')):
+            error = 'Số điện thoại này hiện không thể đặt thuê online. Vui lòng liên hệ cửa hàng.'
         elif not start_date or not end_date or end_date <= start_date:
             error = 'Thời gian thuê không hợp lệ — giờ trả phải sau giờ nhận.'
         elif bookings_overlapping(start_date, end_date, camera.id) or appointments_overlapping(start_date, end_date, camera.id):
@@ -803,6 +941,12 @@ def serialize_booking(b, color=None):
         'start_date': b.start_date.strftime('%Y-%m-%d'),
         'end_date':   b.end_date.strftime('%Y-%m-%d'),
         'color':      color or '#6b7280',
+        'security_deposit': int(b.security_deposit or 0),
+        'condition_out':    b.condition_out or '',
+        'condition_in':     b.condition_in or '',
+        'returned_at':      b.returned_at.strftime('%Y-%m-%dT%H:%M') if b.returned_at else '',
+        'staff':            b.staff or '',
+        'overdue':          bool(b.is_overdue),
     }
 
 
@@ -870,7 +1014,15 @@ def confirm_rental_or_rollback(b):
 
 # ── Admin custom views (live inside the Flask-Admin panel) ─────────────────────
 
-class BookingGridView(BaseView):
+def banned_customer(phone):
+    """The blacklisted Customer profile matching this phone, if any."""
+    phone = (phone or '').strip()
+    if not phone:
+        return None
+    return Customer.query.filter_by(phone=phone, is_banned=True).first()
+
+
+class BookingGridView(StaffView):
     """Google-Sheets-style grid: rows = cameras, columns = days, cells = bookings."""
 
     @expose('/')
@@ -934,12 +1086,18 @@ class BookingGridView(BaseView):
             return jsonify({'ok': False,
                             'error': f'Máy “{cam.name}” đang được giữ cho lịch hẹn mua (khách: {who}). Chọn thời gian khác.'}), 409
 
+        # Blacklisted renters can't book (admin can override deliberately).
+        banned = banned_customer(d.get('phone'))
+        if banned and not is_admin():
+            return jsonify({'ok': False,
+                            'error': f'Khách này đã bị chặn thuê ({banned.ban_reason or "vi phạm chính sách"}). Liên hệ quản lý.'}), 403
+
         if bid:
             b = db.session.get(RentalBooking,bid)
             if not b:
                 return jsonify({'ok': False, 'error': 'Không tìm thấy đơn'}), 404
         else:
-            b = RentalBooking()
+            b = RentalBooking(staff=current_staff_user())
             db.session.add(b)
 
         b.camera_id     = cam.id
@@ -949,6 +1107,16 @@ class BookingGridView(BaseView):
         b.start_date    = start
         b.end_date      = end
         b.total_price   = compute_rental_total(cam, start, end)
+        # rental-agreement operations: security deposit + equipment condition
+        if 'security_deposit' in d:
+            try:
+                b.security_deposit = max(0, int(d.get('security_deposit') or 0))
+            except (TypeError, ValueError):
+                pass
+        if 'condition_out' in d:
+            b.condition_out = (d.get('condition_out') or '').strip()[:300]
+        if 'condition_in' in d:
+            b.condition_in = (d.get('condition_in') or '').strip()[:300]
         db.session.commit()
 
         race_err = confirm_rental_or_rollback(b)
@@ -967,6 +1135,24 @@ class BookingGridView(BaseView):
         db.session.delete(b)
         db.session.commit()
         return jsonify({'ok': True})
+
+    @expose('/return', methods=['POST'])
+    def mark_return(self):
+        """Check a rental back in: record the equipment's condition and the return
+        time (POST returned=false to undo an accidental check-in)."""
+        d = request.get_json(silent=True) or {}
+        b = db.session.get(RentalBooking, d.get('id'))
+        if not b:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy đơn'}), 404
+        if d.get('returned') is False:
+            b.returned_at = None
+        else:
+            b.returned_at = parse_dt(d.get('returned_at')) or datetime.now()
+            if 'condition_in' in d:
+                b.condition_in = (d.get('condition_in') or '').strip()[:300]
+        db.session.commit()
+        cmap = color_map_for(rent_cameras_ordered())
+        return jsonify({'ok': True, 'booking': serialize_booking(b, cmap.get(b.camera_id))})
 
     # ── Combined calendar feed: rentals + buy-appointments ───────────────────
     @expose('/events')
@@ -1063,7 +1249,7 @@ class BookingGridView(BaseView):
         return jsonify({'ok': True})
 
 
-class CalendarView(BaseView):
+class CalendarView(StaffView):
     """FullCalendar week / 3-day time-grid view."""
 
     @expose('/')
@@ -1115,9 +1301,51 @@ def serialize_unit(cam):
         'sold_at': cam.sold_date.strftime('%Y-%m-%dT%H:%M') if cam.sold_date else '',
         'sold_date': cam.sold_date.strftime('%Y-%m-%d') if cam.sold_date else '',
         'sold_month': cam.sold_date.strftime('%Y-%m') if cam.sold_date else '',
-        'state_label': cam.state_label,
+        'state_label': cam.state_label, 'sold_by': cam.sold_by or '',
         'gift_cost': cam.gift_cost, 'gift_label': cam.gift_label, 'gifts': cam.gifts,
     }
+
+
+# ── Financial redaction: employees never see acquisition costs or profit ──────
+def redact_unit(u):
+    """Employee-safe copy of a serialized camera unit."""
+    if is_admin():
+        return u
+    u = dict(u)
+    for k in ('import_cost', 'repair_cost', 'profit', 'gift_cost'):
+        u.pop(k, None)
+    u['gifts'] = [{'id': g.get('id'), 'name': g.get('name')} for g in (u.get('gifts') or [])]
+    return u
+
+
+def redact_pnl(p):
+    """Employee-safe copy of a camera P&L dict."""
+    if is_admin():
+        return p
+    p = dict(p)
+    for k in ('cost', 'profit', 'inventory_value'):
+        p.pop(k, None)
+    return p
+
+
+def redact_accessory(a):
+    """Employee-safe copy of a serialized accessory (no cost / stock value)."""
+    if is_admin():
+        return a
+    a = dict(a)
+    for k in ('cost', 'stock_value'):
+        a.pop(k, None)
+    return a
+
+
+def redact_accessory_sale(s):
+    """Employee-safe copy of a logged accessory sale (no COGS / profit)."""
+    if is_admin():
+        return s
+    s = dict(s)
+    for k in ('unit_cost', 'profit'):
+        s.pop(k, None)
+    return s
 
 
 def serialize_cost(c):
@@ -1150,8 +1378,10 @@ def camera_pnl(cam):
     }
 
 
-class CamerasView(BaseView):
-    """Inventory manager. Renting tab = editable table; Selling tab = per-color/status stock."""
+class CamerasView(StaffView):
+    """Inventory manager. Renting tab = editable table; Selling tab = per-color/status stock.
+    Employees get read-only inventory + POS selling; pricing, costs and stock
+    overrides stay admin-only."""
 
     # Whitelist of editable fields → caster (prevents mass-assignment).
     EDITABLE = {
@@ -1164,6 +1394,11 @@ class CamerasView(BaseView):
         'deposit_amount': int, 'reorder_point': int,
         'is_broken':   bool,  'is_sold':     bool,  'featured':    bool,
     }
+    # Operational, non-financial fields an employee may still inline-edit
+    # (customer info on a sale they processed, cosmetic details). Pricing, costs
+    # and stock overrides are admin-only.
+    EMPLOYEE_EDITABLE = ('sold_to', 'sold_phone', 'sold_source',
+                         'description', 'accessory', 'color')
     SALE_STATES = ('stock', 'processing', 'deposit', 'sold', 'fixing', 'unfixable')
     SELL_STATES = ('sold', 'deposit')    # states that finalise a sale (capture price/customer)
 
@@ -1192,7 +1427,7 @@ class CamerasView(BaseView):
                            today=datetime.now().strftime('%Y-%m-%d'),
                            this_month=datetime.now().strftime('%Y-%m'),
                            this_year=datetime.now().strftime('%Y'),
-                           gift_options=[serialize_accessory(a) for a in gift_options])
+                           gift_options=[redact_accessory(serialize_accessory(a)) for a in gift_options])
 
     @expose('/update', methods=['POST'])
     def update(self):
@@ -1202,18 +1437,30 @@ class CamerasView(BaseView):
         if not cam:
             return jsonify({'ok': False, 'error': 'Không tìm thấy máy'}), 404
 
+        # Employees: read-only inventory except a few operational fields.
+        # sale_state is allowed here (POS + re-classify); the one restriction —
+        # un-finalising a sale — is enforced inside the sale_state branch below.
+        if not is_admin() and field != 'sale_state' and field not in self.EMPLOYEE_EDITABLE:
+            return _forbidden('Chỉ quản lý được sửa trường này.')
+
         # ── per-unit special fields ──
         if field == 'date_in':
             cam.date_in = parse_dt(value) if value else None
             db.session.commit()
-            return jsonify({'ok': True, 'pnl': camera_pnl(cam)})
+            return jsonify({'ok': True, 'pnl': redact_pnl(camera_pnl(cam))})
         if field == 'sold_date':
             cam.sold_date = parse_dt(value) if value else None
             db.session.commit()
-            return jsonify({'ok': True, 'pnl': camera_pnl(cam)})
+            return jsonify({'ok': True, 'pnl': redact_pnl(camera_pnl(cam))})
         if field == 'sale_state':
             if value not in self.SALE_STATES:
                 return jsonify({'ok': False, 'error': 'Trạng thái không hợp lệ'}), 400
+            # Employees may sell and re-classify freely, but must NOT un-finalise a
+            # sale: đã bán / đã cọc → còn hàng / đang xử lý is admin-only.
+            if (not is_admin() and cam.sale_state in Camera.SOLD_STATES
+                    and value in ('stock', 'processing')):
+                return _forbidden('Chỉ quản lý được chuyển máy “đã bán / đã cọc” '
+                                  'về “còn hàng / đang xử lý”.')
             cam.sale_state = value
             cam.is_sold = (value == 'sold')
             if value != 'deposit':                 # deposit amount only applies while đã cọc
@@ -1230,7 +1477,7 @@ class CamerasView(BaseView):
                     cam.sold_price = 0
                     cam.sold_to = cam.sold_phone = cam.sold_source = cam.sold_note = ''
             db.session.commit()
-            return jsonify({'ok': True, 'pnl': camera_pnl(cam), 'unit': serialize_unit(cam)})
+            return jsonify({'ok': True, 'pnl': redact_pnl(camera_pnl(cam)), 'unit': redact_unit(serialize_unit(cam))})
 
         if field not in self.EDITABLE:
             return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
@@ -1257,7 +1504,7 @@ class CamerasView(BaseView):
         if field == 'is_sold':
             cam.sold_date = datetime.now() if cast else None
         db.session.commit()
-        return jsonify({'ok': True, 'pnl': camera_pnl(cam)})
+        return jsonify({'ok': True, 'pnl': redact_pnl(camera_pnl(cam))})
 
     # ── Gift helpers (shared by sell + gift editing + revert) ────────────────
     @staticmethod
@@ -1310,6 +1557,14 @@ class CamerasView(BaseView):
             deposit = max(0, int(d.get('deposit_amount') or 0))
         except (TypeError, ValueError):
             return jsonify({'ok': False, 'error': 'Số tiền cọc không hợp lệ'}), 400
+        # Employees may only apply the standard, pre-approved discount: the sale
+        # price can't drop below listed price minus max_discount_pct (admin-set).
+        if not is_admin() and (cam.price or 0) > 0:
+            pct = setting_float('max_discount_pct')
+            floor_price = int((cam.price or 0) * (100 - pct) / 100)
+            if price < floor_price:
+                return _forbidden(f'Giá bán thấp hơn mức cho phép (giảm tối đa {pct:g}% '
+                                  f'→ tối thiểu {floor_price:,.0f}đ). Liên hệ quản lý.'.replace(',', '.'))
         state = d.get('state') if d.get('state') in self.SELL_STATES else 'sold'
         cam.sale_state = state
         cam.is_sold = (state == 'sold')
@@ -1320,13 +1575,14 @@ class CamerasView(BaseView):
         cam.sold_phone = (d.get('phone') or '').strip()
         cam.sold_source = (d.get('source') or '').strip()
         cam.sold_note = (d.get('note') or '').strip()
+        cam.sold_by = current_staff_user()
         cam.sold_date = datetime.now()
         # gifted accessories: restock any previous gifts first, then apply the new selection
         self._restock_gifts(cam)
         gifts = self._apply_gifts(cam, d.get('gifts'))
         cam.gift_json = json.dumps(gifts, ensure_ascii=False) if gifts else ''
         db.session.commit()
-        return jsonify({'ok': True, 'pnl': camera_pnl(cam), 'unit': serialize_unit(cam)})
+        return jsonify({'ok': True, 'pnl': redact_pnl(camera_pnl(cam)), 'unit': redact_unit(serialize_unit(cam))})
 
     @expose('/gifts', methods=['POST'])
     def gifts_update(self):
@@ -1339,10 +1595,12 @@ class CamerasView(BaseView):
         gifts = self._apply_gifts(cam, d.get('gifts'))    # apply new selection
         cam.gift_json = json.dumps(gifts, ensure_ascii=False) if gifts else ''
         db.session.commit()
-        return jsonify({'ok': True, 'pnl': camera_pnl(cam), 'unit': serialize_unit(cam)})
+        return jsonify({'ok': True, 'pnl': redact_pnl(camera_pnl(cam)), 'unit': redact_unit(serialize_unit(cam))})
 
     @expose('/add', methods=['POST'])
     def add(self):
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được thêm máy vào kho.')
         d = request.get_json(silent=True) or {}
         name = (d.get('name') or '').strip()
         if not name:
@@ -1375,6 +1633,8 @@ class CamerasView(BaseView):
     @expose('/import-template')
     def import_template(self):
         """Download a blank .xlsx the shop can fill in and re-upload."""
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được nhập kho hàng loạt.')
         if not HAS_OPENPYXL:
             return jsonify({'ok': False, 'error': 'Thiếu thư viện openpyxl trên máy chủ.'}), 500
         wb = Workbook()
@@ -1416,6 +1676,8 @@ class CamerasView(BaseView):
     @expose('/import-excel', methods=['POST'])
     def import_excel(self):
         """Bulk-create for-sale units from an uploaded .xlsx (same columns as the template)."""
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được nhập kho hàng loạt.')
         if not HAS_OPENPYXL:
             return jsonify({'ok': False, 'error': 'Thiếu thư viện openpyxl trên máy chủ.'}), 500
         f = request.files.get('file')
@@ -1467,6 +1729,8 @@ class CamerasView(BaseView):
 
     @expose('/delete', methods=['POST'])
     def delete(self):
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được xoá máy khỏi kho.')
         d = request.get_json(silent=True) or {}
         cam = db.session.get(Camera, d.get('id'))
         if not cam:
@@ -1480,6 +1744,8 @@ class CamerasView(BaseView):
     @expose('/bulk-delete', methods=['POST'])
     def bulk_delete(self):
         """Delete several cameras at once (multi-select on the Selling / Sold tabs)."""
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được xoá máy khỏi kho.')
         d = request.get_json(silent=True) or {}
         ids = d.get('ids') or []
         try:
@@ -1498,8 +1764,8 @@ class CamerasView(BaseView):
         db.session.commit()
         return jsonify({'ok': True, 'deleted': deleted})
 
-class FinanceView(BaseView):
-    """Revenue / cost / profit dashboard."""
+class FinanceView(AdminOnlyView):
+    """Revenue / cost / profit dashboard (admin only)."""
 
     @staticmethod
     def _bucket(period, dt):
@@ -1798,7 +2064,7 @@ class FinanceView(BaseView):
                          mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
-class StoreCostView(BaseView):
+class StoreCostView(AdminOnlyView):
     """Shop overhead / operating costs (Chi phí tiệm) — rent, ads, shipping…"""
 
     CATEGORIES = ['Tiền nhà', 'Quảng cáo', 'Vận chuyển', 'Phụ kiện', 'Lương', 'Điện nước', 'Sửa chữa', 'Khác']
@@ -1867,8 +2133,9 @@ class StoreCostView(BaseView):
         return jsonify({'ok': True})
 
 
-class AccessoriesView(BaseView):
-    """Phụ kiện / hàng hoá khác — sold by quantity (lens, pin, thẻ nhớ…)."""
+class AccessoriesView(StaffView):
+    """Phụ kiện / hàng hoá khác — sold by quantity (lens, pin, thẻ nhớ…).
+    Employees can check stock and sell (POS); catalog CRUD and costs are admin-only."""
 
     EDITABLE = {'name': str, 'category': str, 'note': str,
                 'cost': int, 'price': int, 'stock': int}
@@ -1884,16 +2151,19 @@ class AccessoriesView(BaseView):
         month_rev = int(sum(s.revenue for s in month_sales))
         sales = (AccessorySale.query.order_by(AccessorySale.sale_date.desc()).limit(300).all())
         return self.render('admin/phukien.html',
-                           accessories=[serialize_accessory(a) for a in items],
-                           sales=[serialize_accessory_sale(s) for s in sales],
+                           accessories=[redact_accessory(serialize_accessory(a)) for a in items],
+                           sales=[redact_accessory_sale(serialize_accessory_sale(s)) for s in sales],
                            categories=ACCESSORY_CATEGORIES,
-                           total_stock=total_stock, stock_value=stock_value,
+                           total_stock=total_stock,
+                           stock_value=stock_value if is_admin() else 0,
                            item_count=len(items), month_rev=month_rev,
                            today=now.strftime('%Y-%m-%d'),
                            this_month=now.strftime('%Y-%m'), this_year=now.strftime('%Y'))
 
     @expose('/add', methods=['POST'])
     def add(self):
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được thêm phụ kiện vào kho.')
         d = request.get_json(silent=True) or {}
         name = (d.get('name') or '').strip()
         if not name:
@@ -1912,6 +2182,8 @@ class AccessoriesView(BaseView):
 
     @expose('/update', methods=['POST'])
     def update(self):
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được sửa thông tin phụ kiện.')
         d = request.get_json(silent=True) or {}
         a = db.session.get(Accessory, d.get('id'))
         if not a:
@@ -1944,17 +2216,25 @@ class AccessoriesView(BaseView):
             return jsonify({'ok': False, 'error': 'Số lượng phải ≥ 1'}), 400
         if qty > (a.stock or 0):
             return jsonify({'ok': False, 'error': f'Chỉ còn {a.stock or 0} cái trong kho'}), 400
+        # Employee discount floor: listed price minus the admin-set max %.
+        if not is_admin() and (a.price or 0) > 0:
+            pct = setting_float('max_discount_pct')
+            floor_price = int((a.price or 0) * (100 - pct) / 100)
+            if price < floor_price:
+                return _forbidden(f'Giá bán thấp hơn mức cho phép (giảm tối đa {pct:g}%). Liên hệ quản lý.')
         a.stock -= qty
         rec = AccessorySale(accessory_id=a.id, name=a.name, quantity=qty,
                             unit_price=price, unit_cost=int(a.cost or 0),
                             note=(d.get('note') or '').strip(),
                             customer_name=(d.get('customer_name') or '').strip(),
                             phone=(d.get('phone') or '').strip(),
+                            staff=current_staff_user(),
                             sale_date=datetime.now())
         db.session.add(rec)
         db.session.commit()
-        return jsonify({'ok': True, 'accessory': serialize_accessory(a),
-                        'sold': qty, 'revenue': rec.revenue, 'sale': serialize_accessory_sale(rec)})
+        return jsonify({'ok': True, 'accessory': redact_accessory(serialize_accessory(a)),
+                        'sold': qty, 'revenue': rec.revenue,
+                        'sale': redact_accessory_sale(serialize_accessory_sale(rec))})
 
     # ── Sales-history editing (Lịch sử bán) ──────────────────────────────────
     SALE_EDITABLE = {'quantity': int, 'unit_price': int, 'note': str,
@@ -1970,6 +2250,9 @@ class AccessoriesView(BaseView):
         field, value = d.get('field'), d.get('value')
         if field not in self.SALE_EDITABLE:
             return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
+        # Employees may fix customer info / notes; money & quantity edits are admin-only.
+        if not is_admin() and field not in ('note', 'customer_name', 'phone'):
+            return _forbidden('Chỉ quản lý được sửa số lượng / giá của giao dịch đã ghi.')
         if field == 'quantity':
             try:
                 new_qty = max(1, int(value or 1))
@@ -1991,12 +2274,14 @@ class AccessoriesView(BaseView):
             setattr(rec, field, (str(value) if value is not None else '').strip())
         db.session.commit()
         acc = db.session.get(Accessory, rec.accessory_id) if rec.accessory_id else None
-        return jsonify({'ok': True, 'sale': serialize_accessory_sale(rec),
-                        'accessory': serialize_accessory(acc) if acc else None})
+        return jsonify({'ok': True, 'sale': redact_accessory_sale(serialize_accessory_sale(rec)),
+                        'accessory': redact_accessory(serialize_accessory(acc)) if acc else None})
 
     @expose('/sale/delete', methods=['POST'])
     def sale_delete(self):
         """Delete a logged accessory sale and return its units to stock."""
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được xoá giao dịch đã ghi.')
         d = request.get_json(silent=True) or {}
         rec = db.session.get(AccessorySale, d.get('id'))
         if not rec:
@@ -2010,6 +2295,8 @@ class AccessoriesView(BaseView):
 
     @expose('/delete', methods=['POST'])
     def delete(self):
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được xoá phụ kiện khỏi kho.')
         d = request.get_json(silent=True) or {}
         a = db.session.get(Accessory, d.get('id'))
         if not a:
@@ -2030,7 +2317,7 @@ def serialize_lead(l):
     }
 
 
-class LeadView(BaseView):
+class LeadView(StaffView):
     """Khách quan tâm — inquiries captured from the public homepage form."""
     STATUSES = ('new', 'contacted', 'done')
     EDITABLE = ('customer_name', 'phone', 'notes', 'status')
@@ -2071,8 +2358,9 @@ class LeadView(BaseView):
         return jsonify({'ok': True})
 
 
-class SheetView(BaseView):
-    """A free-form Google-Sheets-style scratch sheet."""
+class SheetView(AdminOnlyView):
+    """A free-form Google-Sheets-style scratch sheet (admin only — may hold
+    financial notes)."""
 
     def _get_sheet(self):
         sheet = Sheet.query.first()
@@ -2110,8 +2398,9 @@ class SheetView(BaseView):
         return jsonify({'ok': True, 'updated_at': sheet.updated_at.isoformat() if sheet.updated_at else None})
 
 
-class ActivityView(BaseView):
-    """Nhật ký — chronological log of every admin action, with undo / redo."""
+class ActivityView(AdminOnlyView):
+    """Nhật ký — chronological log of every admin action, with undo / redo.
+    Admin only: change details include import costs and profits."""
 
     @expose('/')
     def index(self):
@@ -2179,15 +2468,417 @@ class ActivityView(BaseView):
         return jsonify({'ok': True})
 
 
+def serialize_employee(e):
+    return {'id': e.id, 'username': e.username, 'display_name': e.display_name or '',
+            'role': e.role or 'employee', 'active': bool(e.active),
+            'created': e.created_at.strftime('%d/%m/%Y') if e.created_at else ''}
+
+
+class EmployeesView(AdminOnlyView):
+    """Nhân viên — staff accounts (create / edit / disable / reset password)
+    plus per-employee performance (sales volume, rental contracts processed)."""
+
+    @expose('/')
+    def index(self):
+        emps = Employee.query.order_by(Employee.created_at.asc()).all()
+        now = datetime.now()
+        month_start = datetime(now.year, now.month, 1)
+
+        def perf(username, since=None):
+            bq = RentalBooking.query.filter(RentalBooking.staff == username)
+            if since:
+                bq = bq.filter(RentalBooking.start_date >= since)
+            bookings = bq.all()
+            cams = Camera.query.filter(Camera.sold_by == username,
+                                       Camera.sale_state.in_(Camera.SOLD_STATES)).all()
+            if since:
+                cams = [c for c in cams if c.sold_date and c.sold_date >= since]
+            accq = AccessorySale.query.filter(AccessorySale.staff == username)
+            accs = [s for s in accq.all() if not since or (s.sale_date and s.sale_date >= since)]
+            return {
+                'rentals': len(bookings),
+                'rental_total': int(sum(b.total_price or 0 for b in bookings)),
+                'cam_sales': len(cams),
+                'cam_total': int(sum(c.sold_price or 0 for c in cams)),
+                'acc_sales': len(accs),
+                'acc_total': int(sum(s.revenue for s in accs)),
+            }
+
+        rows = []
+        for e in emps:
+            rows.append(serialize_employee(e) | {
+                'month': perf(e.username, month_start),
+                'all':   perf(e.username),
+            })
+        return self.render('admin/employees.html', employees=rows,
+                           this_month=now.strftime('%m/%Y'))
+
+    @expose('/add', methods=['POST'])
+    def add(self):
+        d = request.get_json(silent=True) or {}
+        username = (d.get('username') or '').strip().lower()
+        password = d.get('password') or ''
+        if not username or len(username) < 3:
+            return jsonify({'ok': False, 'error': 'Tên đăng nhập tối thiểu 3 ký tự'}), 400
+        if len(password) < 6:
+            return jsonify({'ok': False, 'error': 'Mật khẩu tối thiểu 6 ký tự'}), 400
+        if username == ADMIN_USERNAME.lower() or \
+           Employee.query.filter(db.func.lower(Employee.username) == username).first():
+            return jsonify({'ok': False, 'error': 'Tên đăng nhập đã tồn tại'}), 400
+        role = d.get('role') if d.get('role') in ('admin', 'employee') else 'employee'
+        e = Employee(username=username, password_hash=generate_password_hash(password),
+                     display_name=(d.get('display_name') or '').strip() or username,
+                     role=role, active=True)
+        db.session.add(e)
+        db.session.commit()
+        return jsonify({'ok': True, 'employee': serialize_employee(e)})
+
+    @expose('/update', methods=['POST'])
+    def update(self):
+        d = request.get_json(silent=True) or {}
+        e = db.session.get(Employee, d.get('id'))
+        if not e:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy nhân viên'}), 404
+        field, value = d.get('field'), d.get('value')
+        if field == 'display_name':
+            e.display_name = (str(value) if value else '').strip()[:100]
+        elif field == 'role':
+            if value not in ('admin', 'employee'):
+                return jsonify({'ok': False, 'error': 'Vai trò không hợp lệ'}), 400
+            e.role = value
+        elif field == 'active':
+            e.active = bool(value) if isinstance(value, bool) else str(value).lower() in ('1', 'true', 'on')
+        else:
+            return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
+        db.session.commit()
+        return jsonify({'ok': True, 'employee': serialize_employee(e)})
+
+    @expose('/reset-password', methods=['POST'])
+    def reset_password(self):
+        d = request.get_json(silent=True) or {}
+        e = db.session.get(Employee, d.get('id'))
+        if not e:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy nhân viên'}), 404
+        password = d.get('password') or ''
+        if len(password) < 6:
+            return jsonify({'ok': False, 'error': 'Mật khẩu tối thiểu 6 ký tự'}), 400
+        e.password_hash = generate_password_hash(password)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @expose('/delete', methods=['POST'])
+    def delete(self):
+        d = request.get_json(silent=True) or {}
+        e = db.session.get(Employee, d.get('id'))
+        if not e:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy nhân viên'}), 404
+        db.session.delete(e)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+
+def serialize_customer(c):
+    return {'id': c.id, 'name': c.name or '', 'phone': c.phone or '',
+            'email': c.email or '', 'address': c.address or '', 'note': c.note or '',
+            'is_banned': bool(c.is_banned), 'ban_reason': c.ban_reason or '',
+            'created_by': c.created_by or '',
+            'created': c.created_at.strftime('%d/%m/%Y') if c.created_at else ''}
+
+
+class CustomersView(StaffView):
+    """Khách hàng — customer profiles with full purchase & rental history
+    (linked by phone). Banning / blacklisting is admin-only."""
+
+    EDITABLE = ('name', 'phone', 'email', 'address', 'note')
+
+    @expose('/')
+    def index(self):
+        customers = Customer.query.order_by(Customer.created_at.desc(), Customer.id.desc()).all()
+        # quick counts by phone so the list shows activity at a glance
+        rental_counts, buy_counts = {}, {}
+        for (phone,) in db.session.query(RentalBooking.phone).all():
+            if phone:
+                rental_counts[phone] = rental_counts.get(phone, 0) + 1
+        for (phone,) in db.session.query(Camera.sold_phone).filter(
+                Camera.sale_state.in_(Camera.SOLD_STATES)).all():
+            if phone:
+                buy_counts[phone] = buy_counts.get(phone, 0) + 1
+        for (phone,) in db.session.query(AccessorySale.phone).all():
+            if phone:
+                buy_counts[phone] = buy_counts.get(phone, 0) + 1
+        rows = [serialize_customer(c) | {
+            'rentals': rental_counts.get(c.phone or '', 0),
+            'purchases': buy_counts.get(c.phone or '', 0),
+        } for c in customers]
+        return self.render('admin/customers.html', customers=rows,
+                           banned_count=sum(1 for c in customers if c.is_banned))
+
+    @expose('/add', methods=['POST'])
+    def add(self):
+        d = request.get_json(silent=True) or {}
+        name = (d.get('name') or '').strip()
+        phone = (d.get('phone') or '').strip()
+        if not (name or phone):
+            return jsonify({'ok': False, 'error': 'Cần ít nhất tên hoặc SĐT'}), 400
+        if phone and Customer.query.filter_by(phone=phone).first():
+            return jsonify({'ok': False, 'error': 'Đã có hồ sơ với SĐT này'}), 400
+        c = Customer(name=name, phone=phone,
+                     email=(d.get('email') or '').strip(),
+                     address=(d.get('address') or '').strip(),
+                     note=(d.get('note') or '').strip(),
+                     created_by=current_staff_user())
+        db.session.add(c)
+        db.session.commit()
+        return jsonify({'ok': True, 'customer': serialize_customer(c)})
+
+    @expose('/update', methods=['POST'])
+    def update(self):
+        d = request.get_json(silent=True) or {}
+        c = db.session.get(Customer, d.get('id'))
+        if not c:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy khách hàng'}), 404
+        field, value = d.get('field'), d.get('value')
+        if field in self.EDITABLE:
+            setattr(c, field, (str(value) if value is not None else '').strip())
+        elif field == 'is_banned':                     # blacklist — admin only
+            if not is_admin():
+                return _forbidden('Chỉ quản lý được chặn / bỏ chặn khách.')
+            c.is_banned = bool(value) if isinstance(value, bool) else str(value).lower() in ('1', 'true', 'on')
+            if not c.is_banned:
+                c.ban_reason = ''
+        elif field == 'ban_reason':
+            if not is_admin():
+                return _forbidden('Chỉ quản lý được sửa lý do chặn.')
+            c.ban_reason = (str(value) if value is not None else '').strip()[:200]
+        else:
+            return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
+        db.session.commit()
+        return jsonify({'ok': True, 'customer': serialize_customer(c)})
+
+    @expose('/delete', methods=['POST'])
+    def delete(self):
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được xoá hồ sơ khách hàng.')
+        d = request.get_json(silent=True) or {}
+        c = db.session.get(Customer, d.get('id'))
+        if not c:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy khách hàng'}), 404
+        db.session.delete(c)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+    @expose('/history')
+    def history(self):
+        """Full rental + purchase history for one phone number (assists POS)."""
+        phone = (request.args.get('phone') or '').strip()
+        if not phone:
+            return jsonify({'ok': False, 'error': 'Thiếu SĐT'}), 400
+        rentals = (RentalBooking.query.filter_by(phone=phone)
+                   .order_by(RentalBooking.start_date.desc()).limit(100).all())
+        cams = (Camera.query.filter(Camera.sold_phone == phone,
+                                    Camera.sale_state.in_(Camera.SOLD_STATES))
+                .order_by(Camera.sold_date.desc()).limit(100).all())
+        accs = (AccessorySale.query.filter_by(phone=phone)
+                .order_by(AccessorySale.sale_date.desc()).limit(100).all())
+        return jsonify({'ok': True,
+            'rentals': [serialize_booking(b) for b in rentals],
+            'cameras': [{'id': c.id, 'name': c.name, 'sold_price': int(c.sold_price or 0),
+                         'state_label': c.state_label,
+                         'date': c.sold_date.strftime('%d/%m/%Y') if c.sold_date else ''} for c in cams],
+            'accessories': [redact_accessory_sale(serialize_accessory_sale(s)) for s in accs]})
+
+
+class MyView(StaffView):
+    """Cá nhân — the logged-in person's own daily/monthly numbers and
+    account settings (password change for staff accounts)."""
+
+    @expose('/')
+    def index(self):
+        username = current_staff_user()
+        now = datetime.now()
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        month_start = datetime(now.year, now.month, 1)
+
+        def window(since):
+            bookings = [b for b in RentalBooking.query.filter(RentalBooking.staff == username).all()
+                        if b.start_date and b.start_date >= since]
+            cams = [c for c in Camera.query.filter(Camera.sold_by == username,
+                                                   Camera.sale_state.in_(Camera.SOLD_STATES)).all()
+                    if c.sold_date and c.sold_date >= since]
+            accs = [s for s in AccessorySale.query.filter(AccessorySale.staff == username).all()
+                    if s.sale_date and s.sale_date >= since]
+            return {
+                'rentals': len(bookings),
+                'rental_total': int(sum(b.total_price or 0 for b in bookings)),
+                'cam_sales': len(cams),
+                'cam_total': int(sum(c.sold_price or 0 for c in cams)),
+                'acc_sales': len(accs),
+                'acc_total': int(sum(s.revenue for s in accs)),
+            }
+
+        # recent transactions for the "my activity" list
+        recent = []
+        for b in (RentalBooking.query.filter(RentalBooking.staff == username)
+                  .order_by(RentalBooking.id.desc()).limit(10).all()):
+            recent.append({'kind': 'Thuê', 'label': (b.camera.name if b.camera else '—') + ' · ' + (b.customer_name or ''),
+                           'amount': int(b.total_price or 0), '_ts': b.start_date,
+                           'when': b.start_date.strftime('%d/%m/%Y') if b.start_date else ''})
+        for c in (Camera.query.filter(Camera.sold_by == username,
+                                      Camera.sale_state.in_(Camera.SOLD_STATES))
+                  .order_by(Camera.sold_date.desc()).limit(10).all()):
+            recent.append({'kind': 'Bán máy', 'label': c.name + (' · ' + c.sold_to if c.sold_to else ''),
+                           'amount': int(c.sold_price or 0), '_ts': c.sold_date,
+                           'when': c.sold_date.strftime('%d/%m/%Y') if c.sold_date else ''})
+        for s in (AccessorySale.query.filter(AccessorySale.staff == username)
+                  .order_by(AccessorySale.id.desc()).limit(10).all()):
+            recent.append({'kind': 'Phụ kiện', 'label': f'{s.name} ×{s.quantity}' + (' · ' + s.customer_name if s.customer_name else ''),
+                           'amount': s.revenue, '_ts': s.sale_date,
+                           'when': s.sale_date.strftime('%d/%m/%Y') if s.sale_date else ''})
+        # Sort by the real timestamp — NOT the "%d/%m/%Y" display string (which would
+        # order lexicographically, e.g. 03/07 before 25/06).
+        recent.sort(key=lambda r: r['_ts'] or datetime.min, reverse=True)
+
+        is_env_admin = (username == ADMIN_USERNAME and
+                        not Employee.query.filter(db.func.lower(Employee.username) == username.lower()).first())
+        return self.render('admin/my.html',
+                           today_stats=window(day_start), month_stats=window(month_start),
+                           recent=recent[:15], is_env_admin=is_env_admin,
+                           today_label=now.strftime('%d/%m/%Y'),
+                           month_label=now.strftime('%m/%Y'))
+
+    @expose('/change-password', methods=['POST'])
+    def change_password(self):
+        d = request.get_json(silent=True) or {}
+        old, new = d.get('old') or '', d.get('new') or ''
+        emp = Employee.query.filter(
+            db.func.lower(Employee.username) == current_staff_user().lower()).first()
+        if not emp:
+            return jsonify({'ok': False, 'error': 'Tài khoản chủ tiệm đổi mật khẩu qua biến môi trường ADMIN_PASSWORD.'}), 400
+        if not check_password_hash(emp.password_hash, old):
+            return jsonify({'ok': False, 'error': 'Mật khẩu hiện tại không đúng'}), 400
+        if len(new) < 6:
+            return jsonify({'ok': False, 'error': 'Mật khẩu mới tối thiểu 6 ký tự'}), 400
+        emp.password_hash = generate_password_hash(new)
+        db.session.commit()
+        return jsonify({'ok': True})
+
+
+class SettingsView(AdminOnlyView):
+    """Cài đặt — store policies, tax rate, receipt header/footer, discount
+    ceiling, and a one-click database backup download."""
+
+    @expose('/')
+    def index(self):
+        return self.render('admin/settings.html', settings=all_settings())
+
+    @expose('/save', methods=['POST'])
+    def save(self):
+        d = request.get_json(silent=True) or {}
+        for key in DEFAULT_SETTINGS:
+            if key not in d:
+                continue
+            value = str(d.get(key) if d.get(key) is not None else '').strip()
+            if key in ('tax_rate', 'max_discount_pct'):
+                try:
+                    value = str(max(0.0, min(100.0, float(value or 0))))
+                except (TypeError, ValueError):
+                    return jsonify({'ok': False, 'error': f'Giá trị "{key}" phải là số 0–100'}), 400
+            row = db.session.get(Setting, key)
+            if row:
+                row.value = value
+            else:
+                db.session.add(Setting(key=key, value=value))
+        db.session.commit()
+        return jsonify({'ok': True, 'settings': all_settings()})
+
+    @expose('/backup')
+    def backup(self):
+        """Download the SQLite database file (offline backup for accounting)."""
+        path = db.engine.url.database
+        if not path or not os.path.isfile(path):
+            return jsonify({'ok': False, 'error': 'Không tìm thấy file cơ sở dữ liệu.'}), 404
+        stamp = datetime.now().strftime('%Y%m%d-%H%M')
+        return send_file(path, as_attachment=True,
+                         download_name=f'camerashop-backup-{stamp}.db')
+
+
+class ReceiptView(StaffView):
+    """Hoá đơn — printable invoices / receipts for rentals, camera sales and
+    accessory sales (browser print → paper or PDF for email)."""
+
+    def _ctx(self):
+        s = all_settings()
+        return {'settings': s, 'tax_rate': setting_float('tax_rate'),
+                'printed_at': datetime.now().strftime('%d/%m/%Y %H:%M'),
+                'staff': current_staff()}
+
+    @expose('/')
+    def index(self):
+        # no standalone receipt list — receipts are opened from a transaction
+        return redirect(url_for('cameras.index'))
+
+    @expose('/rental/<int:bid>')
+    def rental(self, bid):
+        b = db.session.get(RentalBooking, bid)
+        if not b:
+            return 'Không tìm thấy đơn thuê', 404
+        days = max(1, math.ceil((b.end_date - b.start_date).total_seconds() / 86400))
+        items = [{'label': f'Thuê {b.camera.name if b.camera else "máy ảnh"} ({days} ngày, '
+                           f'{b.start_date.strftime("%d/%m")} → {b.end_date.strftime("%d/%m/%Y")})',
+                  'qty': 1, 'amount': int(b.total_price or 0)}]
+        # A security deposit is refunded on return — show it as info, don't net it off.
+        note_parts = []
+        if b.security_deposit:
+            note_parts.append('Tiền cọc giữ máy: {:,.0f}đ (hoàn khi trả máy).'
+                              .format(b.security_deposit).replace(',', '.'))
+        if b.condition_out:
+            note_parts.append(f'Tình trạng máy lúc giao: {b.condition_out}')
+        if b.notes:
+            note_parts.append(b.notes)
+        return self.render('admin/receipt.html', kind='Hoá đơn thuê máy', ref=f'R{b.id:05d}',
+                           customer=b.customer_name or '', phone=b.phone or '',
+                           items=items, deposit=0,
+                           note='\n'.join(note_parts), **self._ctx())
+
+    @expose('/sale/<int:cid>')
+    def sale(self, cid):
+        c = db.session.get(Camera, cid)
+        if not c or c.sale_state not in Camera.SOLD_STATES:
+            return 'Không tìm thấy giao dịch bán', 404
+        items = [{'label': f'{c.name}' + (f' ({c.color})' if c.color else ''),
+                  'qty': 1, 'amount': int(c.sold_price or 0)}]
+        gifts = c.gift_label
+        return self.render('admin/receipt.html', kind='Hoá đơn bán máy', ref=f'S{c.id:05d}',
+                           customer=c.sold_to or '', phone=c.sold_phone or '',
+                           items=items, deposit=int(c.deposit_amount or 0),
+                           note=(('Tặng kèm: ' + gifts) if gifts else '') or c.sold_note or '',
+                           **self._ctx())
+
+    @expose('/accessory/<int:sid>')
+    def accessory(self, sid):
+        s = db.session.get(AccessorySale, sid)
+        if not s:
+            return 'Không tìm thấy giao dịch', 404
+        items = [{'label': s.name or 'Phụ kiện', 'qty': s.quantity or 1, 'amount': s.revenue}]
+        return self.render('admin/receipt.html', kind='Hoá đơn phụ kiện', ref=f'A{s.id:05d}',
+                           customer=s.customer_name or '', phone=s.phone or '',
+                           items=items, deposit=0, note=s.note or '', **self._ctx())
+
+
 admin.add_view(BookingGridView(name='Lịch thuê (Sheet)', endpoint='bookinggrid'))
 admin.add_view(CalendarView(name='Lịch (Calendar)',     endpoint='calendar'))
 admin.add_view(CamerasView(name='Quản lý máy',          endpoint='cameras'))
 admin.add_view(AccessoriesView(name='Phụ kiện',         endpoint='phukien'))
+admin.add_view(CustomersView(name='Khách hàng',         endpoint='customers'))
 admin.add_view(FinanceView(name='Tài chính',            endpoint='finance'))
 admin.add_view(StoreCostView(name='Chi phí tiệm',       endpoint='chiphi'))
 admin.add_view(LeadView(name='Khách quan tâm',          endpoint='leads'))
+admin.add_view(EmployeesView(name='Nhân viên',          endpoint='employees'))
 admin.add_view(ActivityView(name='Nhật ký',             endpoint='activity'))
 admin.add_view(SheetView(name='Sổ tay',                 endpoint='sheet'))
+admin.add_view(SettingsView(name='Cài đặt',             endpoint='settings'))
+admin.add_view(MyView(name='Cá nhân',                   endpoint='my'))
+admin.add_view(ReceiptView(name='Hoá đơn',              endpoint='receipt'))
 
 
 # ── Schema migration (non-destructive) ─────────────────────────────────────────

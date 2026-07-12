@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ kind }} {{ ref }} — {{ settings.store_name }}</title>
+<style>
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:'Segoe UI', system-ui, sans-serif; background:#f3f4f6; color:#111827; padding:24px; }
+  .sheet { background:#fff; max-width:420px; margin:0 auto; border:1px solid #e5e7eb; border-radius:14px;
+           padding:26px 24px; box-shadow:0 8px 30px rgba(0,0,0,.07); }
+  .head { text-align:center; border-bottom:2px dashed #d1d5db; padding-bottom:14px; margin-bottom:14px; }
+  .head h1 { font-size:16px; font-weight:900; }
+  .head .sub { font-size:12px; color:#6b7280; margin-top:3px; white-space:pre-line; }
+  .kind { text-align:center; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.08em;
+          color:#b91c1c; margin-bottom:12px; }
+  .meta { font-size:12.5px; color:#374151; display:grid; gap:3px; margin-bottom:14px; }
+  .meta b { color:#111827; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#9ca3af;
+       border-bottom:1px solid #e5e7eb; padding:6px 0; }
+  th:last-child, td:last-child { text-align:right; }
+  td { padding:8px 0; border-bottom:1px solid #f3f4f6; vertical-align:top; }
+  .tot td { border-bottom:none; padding:5px 0; font-size:13px; }
+  .tot .grand td { font-size:15px; font-weight:900; padding-top:8px; }
+  .note { font-size:12px; color:#6b7280; margin-top:12px; white-space:pre-line; }
+  .foot { text-align:center; font-size:12px; color:#6b7280; border-top:2px dashed #d1d5db;
+          padding-top:12px; margin-top:16px; white-space:pre-line; }
+  .actions { max-width:420px; margin:16px auto 0; display:flex; gap:10px; }
+  .actions button, .actions a { flex:1; padding:11px; border-radius:11px; border:none; font-size:14px; font-weight:800;
+        cursor:pointer; text-align:center; text-decoration:none; }
+  .print-btn { background:#b91c1c; color:#fff; }
+  .back-btn { background:#e5e7eb; color:#374151; }
+  @media print {
+    body { background:#fff; padding:0; }
+    .sheet { border:none; box-shadow:none; max-width:100%; border-radius:0; }
+    .actions { display:none; }
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="head">
+      <h1>{{ settings.receipt_header or settings.store_name }}</h1>
+      <div class="sub">{% if settings.store_address %}{{ settings.store_address }}
+{% endif %}{% if settings.store_phone %}ĐT: {{ settings.store_phone }}{% endif %}</div>
+    </div>
+    <div class="kind">{{ kind }} · {{ ref }}</div>
+    <div class="meta">
+      <span>Khách: <b>{{ customer or '—' }}</b>{% if phone %} · {{ phone }}{% endif %}</span>
+      <span>Ngày in: <b>{{ printed_at }}</b>{% if staff %} · NV: <b>{{ staff }}</b>{% endif %}</span>
+    </div>
+
+    <table>
+      <thead><tr><th>Nội dung</th><th style="width:36px">SL</th><th>Thành tiền</th></tr></thead>
+      <tbody>
+        {% for it in items %}
+        <tr><td>{{ it.label }}</td><td>{{ it.qty }}</td><td>{{ it.amount|money }}đ</td></tr>
+        {% endfor %}
+      </tbody>
+      {% set subtotal = items|sum(attribute='amount') %}
+      {% set tax = (subtotal * tax_rate / 100)|round|int %}
+      <tfoot class="tot">
+        <tr><td colspan="2">Tạm tính</td><td>{{ subtotal|money }}đ</td></tr>
+        {% if tax_rate > 0 %}<tr><td colspan="2">VAT ({{ tax_rate|round(1) }}%)</td><td>{{ tax|money }}đ</td></tr>{% endif %}
+        {% if deposit > 0 %}<tr><td colspan="2">Đã cọc / đặt cọc</td><td>−{{ deposit|money }}đ</td></tr>{% endif %}
+        <tr class="grand"><td colspan="2">TỔNG CỘNG</td><td>{{ (subtotal + tax - deposit)|money }}đ</td></tr>
+      </tfoot>
+    </table>
+
+    {% if note %}<div class="note">Ghi chú: {{ note }}</div>{% endif %}
+    <div class="foot">{{ settings.receipt_footer }}</div>
+  </div>
+  <div class="actions">
+    <button class="print-btn" onclick="window.print()">🖨 In / Lưu PDF</button>
+    <a class="back-btn" href="javascript:history.back()">← Quay lại</a>
+  </div>
+</body>
+</html>

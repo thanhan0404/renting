@@ -24,6 +24,23 @@ The old `/admin/...` path now returns **404** — the panel is invisible there.
 
 > **Change the password before going live.** The default is only for first login.
 
+### Roles: admin vs. employee
+
+The same login screen accepts two kinds of accounts:
+
+- **The owner account** (env-configured, table above) — always the `admin` role.
+- **Staff accounts** created in the panel under **Nhân viên** (admin-only view).
+  Each has a role:
+  - `admin` — full access: finances, costs, personnel, activity log, settings.
+  - `employee` — day-to-day operations only (POS selling within the configured
+    discount limit, rentals/returns, read-only inventory, customer profiles,
+    a personal dashboard). Employees **never see import costs or profit** —
+    those columns/values are stripped server-side, not just hidden in the UI.
+
+Employee passwords are hashed (Werkzeug). Admins can reset them or disable an
+account (disabled accounts can't log in). Employees can change their own
+password from the **Cá nhân** page.
+
 ---
 
 ## 2. Set your own secret URL + credentials (do this for production)
