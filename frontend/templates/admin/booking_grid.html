@@ -12,14 +12,19 @@
   <div class="flex flex-wrap items-center gap-2">
     <!-- mode toggle -->
     <div class="seg-group" id="modeGroup">
-      <button class="seg" data-mode="grid">▦ Lưới</button>
-      <button class="seg" data-mode="cal">🕐 Lịch giờ</button>
+      <button class="seg" data-mode="grid">▦ Lưới (ngày)</button>
+      <button class="seg" data-mode="hour">🕐 Lịch giờ</button>
     </div>
     <!-- show filter -->
     <div class="seg-group" id="showGroup">
       <button class="seg" data-show="both">Cả hai</button>
       <button class="seg" data-show="rent">Thuê máy</button>
       <button class="seg" data-show="appt">Hẹn mua</button>
+    </div>
+    <!-- hour-view style toggle (only shown in Lịch giờ mode) -->
+    <div class="seg-group hidden" id="styleGroup">
+      <button class="seg" data-style="lanes">▤ Theo máy</button>
+      <button class="seg" data-style="fc">🕐 Dòng giờ</button>
     </div>
     <!-- shared navigation (both modes) -->
     <div class="flex items-center gap-2">
@@ -42,13 +47,20 @@
   </div>
 </div>
 
-<!-- ── CALENDAR MODE ── -->
+<!-- ── HOUR MODE · style "Theo máy" (per-camera lanes × hours of the day) ── -->
+<div id="hourWrap" class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden hidden">
+  <div class="overflow-x-auto overflow-y-auto" style="max-height:calc(100vh - 240px)">
+    <div id="hourGrid" class="relative select-none"></div>
+  </div>
+</div>
+
+<!-- ── HOUR MODE · style "Dòng giờ" (classic FullCalendar time-grid) ── -->
 <div id="calWrap" class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 hidden">
   <div id="tintus-fc"></div>
 </div>
 
 <p class="text-xs text-gray-400 mt-3">
-  Mẹo: ở chế độ Lưới, bấm ô trống trên hàng máy để tạo đơn thuê, bấm hàng “🛒 Hẹn mua” để đặt lịch hẹn · ở chế độ Lịch giờ, bấm vào khung giờ để tạo lịch hẹn.
+  Mẹo: ở chế độ <b>Lưới (ngày)</b>, mỗi cột là một ngày · ở chế độ <b>Lịch giờ</b>, mỗi hàng là một máy và các cột là giờ trong ngày — bấm khung giờ trên hàng máy để tạo đơn thuê, bấm hàng “🛒 Hẹn mua” để đặt lịch hẹn.
 </p>
 
 <!-- ── Rental modal ── -->
@@ -219,7 +231,11 @@
   .seg.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.1); }
   #showGroup .seg.active { color:#0e7490; }
 
-  /* ── FullCalendar theming (scoped) ── */
+  /* ── Hour-grid (“Theo máy”): “now” marker ── */
+  #hourGrid .hour-now { position:absolute; top:0; bottom:0; width:2px; background:#dc2626; z-index:8; pointer-events:none; }
+  #hourGrid .hour-now::before { content:''; position:absolute; top:-3px; left:-3px; width:8px; height:8px; border-radius:50%; background:#dc2626; }
+
+  /* ── FullCalendar theming (“Dòng giờ”), scoped ── */
   #tintus-fc { font-family:'Inter',system-ui,sans-serif; }
   #tintus-fc .fc { --fc-border-color:#f3f4f6; --fc-page-bg-color:#fff; --fc-neutral-bg-color:#f9fafb; }
   #tintus-fc .fc-theme-standard td, #tintus-fc .fc-theme-standard th, #tintus-fc .fc-theme-standard .fc-scrollgrid { border-color:#f3f4f6; }
@@ -257,12 +273,22 @@ const CAM_PRICES = {
 };
 
 const LABEL_W = 190, COL_W = 132, HEAD_H = 40, BAR_H = 26, BAR_GAP = 4, ROW_PAD = 8;
+// Hour-grid geometry: rows = cameras, columns = hours of the shop day.
+const HOUR_MIN = 7, HOUR_MAX = 23, HOUR_W = 40;
+const HOURS = HOUR_MAX - HOUR_MIN;      // hour columns per day
+const DAY_W = HOURS * HOUR_W;           // width of one day block
 const WD = ['CN','Th 2','Th 3','Th 4','Th 5','Th 6','Th 7'];
+
+let _savedMode = localStorage.getItem('lichMode') || 'grid';
+if(_savedMode === 'cal') _savedMode = 'hour';    // migrate the old FullCalendar mode
 
 const State = {
   start: startOfDay(new Date()), days: 14,
+  // "Theo máy" hour view span (days). Fresh key → default is a full week.
+  hourDays: parseInt(localStorage.getItem('lichHourSpan') || '7', 10) || 7,
+  hourStyle: localStorage.getItem('lichHourStyle') || 'lanes',   // 'lanes' | 'fc'
   calView: localStorage.getItem('lichCalView') || 'timeGridWeek',
-  mode: localStorage.getItem('lichMode') || 'grid',
+  mode: _savedMode,                                // 'grid' | 'hour'
   show: localStorage.getItem('lichShow') || 'both',
   bookings: [], appointments: [], cameras: []
 };
@@ -292,9 +318,65 @@ function updateGridLabel(){
 }
 
 async function loadData(){
-  const data = await TINTUS.api(`{{ url_for('bookinggrid.data') }}?start=${ymd(State.start)}&days=${State.days}`);
+  // Classic FullCalendar style feeds itself from bookinggrid.events — just (re)draw it.
+  if(State.mode === 'hour' && State.hourStyle === 'fc'){
+    ensureCalendar();
+    if(calendar){ setTimeout(()=>{ calendar.updateSize(); calendar.refetchEvents(); }, 20); }
+    return;
+  }
+  const span = State.mode === 'grid' ? State.days : State.hourDays;
+  const data = await TINTUS.api(`{{ url_for('bookinggrid.data') }}?start=${ymd(State.start)}&days=${span}`);
   State.bookings = data.bookings; State.appointments = data.appointments || []; State.cameras = data.cameras;
   if(State.mode === 'grid'){ renderGrid(); updateGridLabel(); }
+  else { renderHourGrid(); updateHourLabel(); }
+}
+
+function updateHourLabel(){
+  const end = addDays(State.start, State.hourDays-1);
+  const span = State.hourDays === 1
+    ? `${WD[State.start.getDay()]} ${State.start.getDate()}/${State.start.getMonth()+1}`
+    : `${ymd(State.start)} → ${ymd(end)}`;
+  document.getElementById('rangeLabel').textContent =
+    `${span} · giờ ${String(HOUR_MIN).padStart(2,'0')}:00–${String(HOUR_MAX).padStart(2,'0')}:00 · ${State.cameras.length} máy · ${State.appointments.length} lịch hẹn`;
+}
+
+// ════════════ hour mode · style "Dòng giờ" (FullCalendar) ════════════
+let calendar = null;
+function ensureCalendar(){
+  if(calendar) return;
+  const el = document.getElementById('tintus-fc');
+  calendar = new FullCalendar.Calendar(el, {
+    initialView: State.calView, locale: 'vi', firstDay: 1, timeZone: 'local',
+    height: 'calc(100vh - 240px)', expandRows: true, nowIndicator: true, allDaySlot: false,
+    slotMinTime: '07:00:00', slotMaxTime: '23:00:00', scrollTime: '08:00:00',
+    slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+    eventTimeFormat:  { hour: '2-digit', minute: '2-digit', hour12: false },
+    headerToolbar: false,   // we drive nav from the shared top toolbar for a consistent look
+    views: { timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 } } },
+    datesSet: function(info){
+      State.calView = info.view.type;
+      localStorage.setItem('lichCalView', info.view.type);
+      if(State.mode === 'hour' && State.hourStyle === 'fc'){
+        document.getElementById('rangeLabel').textContent = info.view.title;
+        document.getElementById('rangeSel').value = info.view.type;
+      }
+    },
+    events: function(info, success, failure){
+      fetch(`{{ url_for('bookinggrid.events') }}?show=${State.show}&start=${encodeURIComponent(info.startStr)}&end=${encodeURIComponent(info.endStr)}`)
+        .then(r => r.json()).then(success).catch(()=>{ TINTUS.toast('Không tải được lịch','err'); failure(); });
+    },
+    eventClick: function(info){
+      info.jsEvent.preventDefault();
+      const p = info.event.extendedProps || {};
+      if(p.kind === 'appt') openApptEdit(p); else openEdit(p);
+    },
+    dateClick: function(info){
+      const s = info.dateStr;
+      if(s.indexOf('T') >= 0){ const [d,t] = s.split('T'); openPick(d, (t||'10:00').slice(0,5)); }
+      else openPick(s, '10:00');
+    }
+  });
+  calendar.render();
 }
 
 function renderGrid(){
@@ -407,43 +489,170 @@ function renderGrid(){
   updateGridLabel();
 }
 
-// ════════════ calendar mode ════════════
-let calendar = null;
-function ensureCalendar(){
-  if(calendar) return;
-  const el = document.getElementById('tintus-fc');
-  calendar = new FullCalendar.Calendar(el, {
-    initialView: State.calView, locale: 'vi', firstDay: 1, timeZone: 'local',
-    height: 'calc(100vh - 240px)', expandRows: true, nowIndicator: true, allDaySlot: false,
-    slotMinTime: '07:00:00', slotMaxTime: '23:00:00', scrollTime: '08:00:00',
-    slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
-    eventTimeFormat:  { hour: '2-digit', minute: '2-digit', hour12: false },
-    headerToolbar: false,   // we drive nav from the shared top toolbar for a consistent look
-    views: { timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 } } },
-    datesSet: function(info){
-      State.calView = info.view.type;
-      localStorage.setItem('lichCalView', info.view.type);
-      if(State.mode === 'cal'){
-        document.getElementById('rangeLabel').textContent = info.view.title;
-        document.getElementById('rangeSel').value = info.view.type;
-      }
-    },
-    events: function(info, success, failure){
-      fetch(`{{ url_for('bookinggrid.events') }}?show=${State.show}&start=${encodeURIComponent(info.startStr)}&end=${encodeURIComponent(info.endStr)}`)
-        .then(r => r.json()).then(success).catch(()=>{ TINTUS.toast('Không tải được lịch','err'); failure(); });
-    },
-    eventClick: function(info){
-      info.jsEvent.preventDefault();
-      const p = info.event.extendedProps || {};
-      if(p.kind === 'appt') openApptEdit(p); else openEdit(p);
-    },
-    dateClick: function(info){
-      const s = info.dateStr;
-      if(s.indexOf('T') >= 0){ const [d,t] = s.split('T'); openPick(d, (t||'10:00').slice(0,5)); }
-      else openPick(s, '10:00');
+// ════════════ hour mode (per-camera lanes × hours) ════════════
+// Continuous x-position (px from the track's left edge, excluding LABEL_W) of a
+// datetime inside the visible hour window. Hours before HOUR_MIN / after HOUR_MAX
+// clamp to the day's edge; days outside the window clamp to the window edge.
+function hourPos(dt){
+  const off = dayDiff(State.start, dt);              // whole days from the window start
+  let h = dt.getHours() + dt.getMinutes()/60;
+  h = Math.max(HOUR_MIN, Math.min(HOUR_MAX, h));
+  const pos = off*DAY_W + (h - HOUR_MIN)*HOUR_W;
+  return Math.max(0, Math.min(State.hourDays*DAY_W, pos));
+}
+// Which (date, hour) a click on a track maps to.
+function hourFromClick(ev, track){
+  const rect = track.getBoundingClientRect();
+  const x = ev.clientX - rect.left;
+  const day = Math.max(0, Math.min(State.hourDays-1, Math.floor(x / DAY_W)));
+  const within = x - day*DAY_W;
+  const hour = Math.max(HOUR_MIN, Math.min(HOUR_MAX-1, HOUR_MIN + Math.floor(within / HOUR_W)));
+  return { date: ymd(addDays(State.start, day)), time: String(hour).padStart(2,'0')+':00' };
+}
+function hourTrack(clickHandler){
+  const track = document.createElement('div');
+  const line = `#f3f4f6 ${HOUR_W-1}px, #f3f4f6 ${HOUR_W}px`;
+  track.style.cssText = `position:relative; width:${State.hourDays*DAY_W}px; flex:0 0 ${State.hourDays*DAY_W}px;
+    background:repeating-linear-gradient(to right, transparent 0, transparent ${HOUR_W-1}px, ${line});`;
+  // stronger separators between day blocks + today shading + "now" marker
+  const today = ymd(new Date());
+  for(let di=0; di<State.hourDays; di++){
+    if(ymd(addDays(State.start,di)) === today){
+      const shade = document.createElement('div');
+      shade.style.cssText = `position:absolute; top:0; bottom:0; left:${di*DAY_W}px; width:${DAY_W}px; background:#fff7ed; z-index:0`;
+      track.appendChild(shade);
     }
-  });
-  calendar.render();
+    if(di>0){
+      const sep = document.createElement('div');
+      sep.style.cssText = `position:absolute; top:0; bottom:0; left:${di*DAY_W}px; width:1px; background:#e5e7eb; z-index:1`;
+      track.appendChild(sep);
+    }
+  }
+  const now = new Date();
+  const nowOff = dayDiff(State.start, now);
+  const nowH = now.getHours() + now.getMinutes()/60;
+  if(nowOff >= 0 && nowOff < State.hourDays && nowH >= HOUR_MIN && nowH <= HOUR_MAX){
+    const marker = document.createElement('div');
+    marker.className = 'hour-now';
+    marker.style.left = (nowOff*DAY_W + (nowH-HOUR_MIN)*HOUR_W) + 'px';
+    track.appendChild(marker);
+  }
+  if(clickHandler) track.addEventListener('click', ev => clickHandler(hourFromClick(ev, track)));
+  return track;
+}
+
+function renderHourGrid(){
+  const grid = document.getElementById('hourGrid');
+  const ND = State.hourDays;
+  grid.style.width = (LABEL_W + ND*DAY_W) + 'px';
+  grid.innerHTML = '';
+  const today = ymd(new Date());
+  const HH = 56;
+
+  // ── header: day label (top) + hour ticks (bottom) ──
+  const head = document.createElement('div');
+  head.style.cssText = `display:flex; position:sticky; top:0; z-index:20; background:#f9fafb; border-bottom:1px solid #e5e7eb; height:${HH}px`;
+  const corner = document.createElement('div');
+  corner.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:21; background:#f9fafb; border-right:1px solid #e5e7eb; display:flex; align-items:center; padding:0 14px; font-weight:800; font-size:12px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em`;
+  corner.textContent = 'Máy ảnh';
+  head.appendChild(corner);
+  for(let di=0; di<ND; di++){
+    const d = addDays(State.start, di), isToday = ymd(d)===today;
+    const col = document.createElement('div');
+    col.style.cssText = `width:${DAY_W}px; flex:0 0 ${DAY_W}px; ${di<ND-1?'border-right:1px solid #e5e7eb;':''} display:flex; flex-direction:column; ${isToday?'background:#fff7ed':''}`;
+    const dl = document.createElement('div');
+    dl.style.cssText = `height:24px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:${isToday?'#b91c1c':'#374151'}`;
+    dl.textContent = `${WD[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;
+    const hr = document.createElement('div');
+    hr.style.cssText = 'flex:1; display:flex';
+    for(let h=HOUR_MIN; h<HOUR_MAX; h++){
+      const t = document.createElement('div');
+      t.style.cssText = `width:${HOUR_W}px; flex:0 0 ${HOUR_W}px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:#9ca3af; border-right:1px solid #f3f4f6`;
+      t.textContent = h;
+      hr.appendChild(t);
+    }
+    col.appendChild(dl); col.appendChild(hr);
+    head.appendChild(col);
+  }
+  grid.appendChild(head);
+
+  // ── appointment row ──
+  if(State.show !== 'rent'){
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex; position:relative; border-bottom:2px solid #a5f3fc; background:#ecfeff; min-height:52px`;
+    const label = document.createElement('div');
+    label.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:10; background:#ecfeff; border-right:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; padding:0 14px`;
+    label.innerHTML = `<span style="font-size:15px">🛒</span><span style="font-size:13px;font-weight:800;color:#0e7490;line-height:1.15">Hẹn mua máy</span>`;
+    row.appendChild(label);
+    const track = hourTrack(({date, time}) => openApptCreate(date, time));
+    // lane-pack appointments by a nominal 45-min block
+    const appts = State.appointments.slice().sort((a,b)=> new Date(a.start)-new Date(b.start));
+    const laneEnds = [];
+    appts.forEach(a => {
+      const s = new Date(a.start), e = a.end ? new Date(a.end) : new Date(s.getTime()+45*60000);
+      let lane=0; while(lane<laneEnds.length && laneEnds[lane]>s) lane++;
+      a._lane=lane; laneEnds[lane]=e; a._s=s; a._e=e;
+    });
+    appts.forEach(a => {
+      const sVal = hourPos(a._s), eVal = Math.max(hourPos(a._e), sVal + 46);   // ensure legible min width
+      const done = a.status === 'done';
+      const chip = document.createElement('div');
+      chip.title = `${a.time||''} · ${a.customer||'Khách'}` + (a.interest?` · ${a.interest}`:'') + (a.phone?` · ${a.phone}`:'') + (done?' · đã xong':'');
+      chip.style.cssText = `position:absolute; left:${sVal+2}px; top:${ROW_PAD + a._lane*(BAR_H+BAR_GAP)}px; width:${Math.max(46, eVal-sVal-4)}px; height:${BAR_H}px;
+        background:${done?APPT_DONE_COLOR:APPT_COLOR}; color:#fff; border-radius:6px; padding:0 7px; display:flex; align-items:center;
+        font-size:11.5px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.15); z-index:5`;
+      chip.textContent = `${done?'✅ ':''}${a.time||''} ${a.customer||'Khách'}`;
+      chip.addEventListener('click', ev => { ev.stopPropagation(); openApptEdit(a); });
+      track.appendChild(chip);
+    });
+    row.appendChild(track);
+    grid.appendChild(row);
+  }
+
+  // ── camera rows ──
+  if(State.show !== 'appt'){
+    const byCam = {};
+    State.bookings.forEach(b => { (byCam[b.camera_id] = byCam[b.camera_id] || []).push(b); });
+    State.cameras.forEach(cam => {
+      const list = (byCam[cam.id] || []).slice().sort((a,b)=> new Date(a.start)-new Date(b.start));
+      const laneEnds = [];
+      list.forEach(b => {
+        let lane = 0;
+        while(lane < laneEnds.length && laneEnds[lane] > new Date(b.start)) lane++;
+        b._lane = lane; laneEnds[lane] = new Date(b.end);
+      });
+      const lanes = Math.max(1, laneEnds.length);
+      const rowH = Math.max(48, ROW_PAD*2 + lanes*BAR_H + (lanes-1)*BAR_GAP);
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex; position:relative; border-bottom:1px solid #f3f4f6; min-height:${rowH}px`;
+      const label = document.createElement('div');
+      label.style.cssText = `width:${LABEL_W}px; flex:0 0 ${LABEL_W}px; position:sticky; left:0; z-index:10; background:#fff; border-right:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; padding:0 14px`;
+      label.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${cam.color};flex:0 0 10px"></span>
+                         <span style="font-size:13px;font-weight:700;color:#1f2937;line-height:1.2">${esc(cam.name)}</span>`;
+      row.appendChild(label);
+      const track = hourTrack(({date, time}) => openCreate(cam.id, date, time));
+      list.forEach(b => {
+        const sVal = hourPos(new Date(b.start)), eVal = hourPos(new Date(b.end));
+        if(eVal <= sVal) return;
+        const bar = document.createElement('div');
+        bar.title = `${b.customer} · ${b.phone} · ${b.start_date}→${b.end_date}`
+          + (b.overdue ? ' · QUÁ HẠN chưa trả' : '') + (b.returned_at ? ' · đã trả máy' : '');
+        bar.style.cssText = `position:absolute; left:${sVal+2}px; top:${ROW_PAD + b._lane*(BAR_H+BAR_GAP)}px; width:${Math.max(10, eVal-sVal-4)}px; height:${BAR_H}px;
+          background:${b.color}; color:#fff; border-radius:7px; padding:0 8px; display:flex; align-items:center;
+          font-size:12px; font-weight:700; cursor:pointer; overflow:hidden; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,.15); z-index:5`;
+        if(b.returned_at){ bar.style.opacity = '.55'; }
+        else if(b.overdue){ bar.style.outline = '2px solid #dc2626'; bar.style.outlineOffset = '1px'; }
+        bar.textContent = `${b.returned_at ? '✓ ' : (b.overdue ? '⚠ ' : '')}${b.customer || 'Khách'} · ${TINTUS.fmtVND(b.total)}`;
+        bar.addEventListener('click', ev => { ev.stopPropagation(); openEdit(b); });
+        track.appendChild(bar);
+      });
+      row.appendChild(track);
+      grid.appendChild(row);
+    });
+    if(State.cameras.length===0){
+      grid.insertAdjacentHTML('beforeend', '<div style="padding:40px;text-align:center;color:#9ca3af">Chưa có máy ảnh nào.</div>');
+    }
+  }
 }
 
 // ════════════ rental modal ════════════
@@ -479,14 +688,15 @@ function setReturnUi(b){
     retBtn.classList.remove('hidden'); unretBtn.classList.add('hidden');
   }
 }
-function openCreate(camId, dateStr){
+function openCreate(camId, dateStr, timeStr){
+  const t = timeStr || '09:00';
   document.getElementById('modalTitle').textContent = 'Đơn thuê mới';
   document.getElementById('f_id').value = '';
   document.getElementById('f_camera').value = camId;
   document.getElementById('f_name').value=''; document.getElementById('f_phone').value=''; document.getElementById('f_notes').value='';
   document.getElementById('f_deposit').value=''; document.getElementById('f_cond_out').value=''; document.getElementById('f_cond_in').value='';
-  document.getElementById('f_start').value = dateStr + 'T09:00';
-  document.getElementById('f_end').value = ymd(addDays(new Date(dateStr),1)) + 'T09:00';
+  document.getElementById('f_start').value = dateStr + 'T' + t;
+  document.getElementById('f_end').value = ymd(addDays(new Date(dateStr),1)) + 'T' + t;
   document.getElementById('deleteBtn').classList.add('hidden');
   document.getElementById('receiptBtn').classList.add('hidden');
   setReturnUi(null);
@@ -606,7 +816,7 @@ async function deleteAppt(){
 }
 
 // refresh whichever view is active
-function afterChange(){ if(State.mode==='cal' && calendar){ calendar.refetchEvents(); } loadData(); }
+function afterChange(){ loadData(); }
 
 // ════════════ chooser (rental vs appointment) ════════════
 let pickWhen = { date: null, time: '10:00' };
@@ -621,44 +831,66 @@ function defaultCam(){ return State.cameras[0] ? State.cameras[0].id : Object.ke
 // ════════════ mode + filter ════════════
 function rebuildRangeSelect(mode){
   const sel = document.getElementById('rangeSel');
-  const opts = mode === 'grid'
-    ? [['7','7 ngày'], ['14','14 ngày'], ['30','30 ngày']]
-    : [['timeGridWeek','Tuần'], ['timeGridThreeDay','3 ngày'], ['dayGridMonth','Tháng']];
-  const cur = mode === 'grid' ? String(State.days) : State.calView;
+  let opts, cur;
+  if(mode === 'grid'){
+    opts = [['7','7 ngày'], ['14','14 ngày'], ['30','30 ngày']]; cur = String(State.days);
+  } else if(State.hourStyle === 'fc'){
+    opts = [['timeGridWeek','Tuần'], ['timeGridThreeDay','3 ngày'], ['dayGridMonth','Tháng']]; cur = State.calView;
+  } else {
+    opts = [['1','1 ngày'], ['3','3 ngày'], ['7','1 tuần']]; cur = String(State.hourDays);
+  }
   sel.innerHTML = '';
   opts.forEach(([v,l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; sel.appendChild(o); });
   sel.value = cur;
 }
 
+// Show the right panel for the current mode + hour style, and sync the toggles.
+function applyWraps(){
+  const lanes = State.mode==='hour' && State.hourStyle==='lanes';
+  const fc    = State.mode==='hour' && State.hourStyle==='fc';
+  document.getElementById('gridWrap').classList.toggle('hidden', State.mode!=='grid');
+  document.getElementById('hourWrap').classList.toggle('hidden', !lanes);
+  document.getElementById('calWrap').classList.toggle('hidden', !fc);
+  document.getElementById('styleGroup').classList.toggle('hidden', State.mode!=='hour');
+  document.querySelectorAll('#styleGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.style===State.hourStyle));
+}
+
 function setMode(m){
   State.mode = m; localStorage.setItem('lichMode', m);
-  document.getElementById('gridWrap').classList.toggle('hidden', m!=='grid');
-  document.getElementById('calWrap').classList.toggle('hidden', m!=='cal');
   document.querySelectorAll('#modeGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
+  applyWraps();
   rebuildRangeSelect(m);
-  if(m==='cal'){ ensureCalendar(); setTimeout(()=>{ calendar.updateSize(); calendar.refetchEvents(); }, 30); }
-  else { renderGrid(); }
+  loadData();                       // span/style differs per mode → refetch, then render
+}
+function setHourStyle(st){
+  State.hourStyle = st; localStorage.setItem('lichHourStyle', st);
+  applyWraps();
+  rebuildRangeSelect('hour');
+  loadData();
 }
 function setShow(s){
   State.show = s; localStorage.setItem('lichShow', s);
   document.querySelectorAll('#showGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.show===s));
-  if(State.mode==='cal' && calendar) calendar.refetchEvents(); else renderGrid();
+  loadData();
 }
 
 // ════════════ wire up ════════════
+function isFc(){ return State.mode==='hour' && State.hourStyle==='fc'; }
+function navStep(){ return State.mode==='grid' ? State.days : State.hourDays; }
 document.getElementById('prevBtn').addEventListener('click', ()=>{
-  if(State.mode==='cal' && calendar){ calendar.prev(); } else { State.start = addDays(State.start, -State.days); loadData(); }
+  if(isFc()){ if(calendar) calendar.prev(); } else { State.start = addDays(State.start, -navStep()); loadData(); }
 });
 document.getElementById('nextBtn').addEventListener('click', ()=>{
-  if(State.mode==='cal' && calendar){ calendar.next(); } else { State.start = addDays(State.start, State.days); loadData(); }
+  if(isFc()){ if(calendar) calendar.next(); } else { State.start = addDays(State.start,  navStep()); loadData(); }
 });
 document.getElementById('todayBtn').addEventListener('click', ()=>{
-  if(State.mode==='cal' && calendar){ calendar.today(); } else { State.start = startOfDay(new Date()); loadData(); }
+  if(isFc()){ if(calendar) calendar.today(); } else { State.start = startOfDay(new Date()); loadData(); }
 });
 document.getElementById('rangeSel').addEventListener('change', e=>{
   const val = e.target.value;
   if(State.mode==='grid'){ State.days = parseInt(val,10); loadData(); }
-  else { State.calView = val; localStorage.setItem('lichCalView', val); if(calendar) calendar.changeView(val); }
+  else if(State.hourStyle==='fc'){ State.calView = val; localStorage.setItem('lichCalView', val); if(calendar) calendar.changeView(val); }
+  else { State.hourDays = parseInt(val,10); localStorage.setItem('lichHourSpan', String(State.hourDays)); loadData(); }
 });
 document.getElementById('addRentBtn').addEventListener('click', ()=> openCreate(defaultCam(), ymd(State.start)));
 document.getElementById('pickClose').addEventListener('click', closePick);
@@ -681,13 +913,13 @@ document.getElementById('apptDeleteBtn').addEventListener('click', deleteAppt);
 apptModal.addEventListener('click', e=>{ if(e.target===apptModal) closeAppt(); });
 document.querySelectorAll('#modeGroup .seg').forEach(b => b.addEventListener('click', ()=> setMode(b.dataset.mode)));
 document.querySelectorAll('#showGroup .seg').forEach(b => b.addEventListener('click', ()=> setShow(b.dataset.show)));
+document.querySelectorAll('#styleGroup .seg').forEach(b => b.addEventListener('click', ()=> setHourStyle(b.dataset.style)));
 
 // init
 document.querySelectorAll('#showGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.show===State.show));
 document.querySelectorAll('#modeGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.mode===State.mode));
 rebuildRangeSelect(State.mode);
-document.getElementById('gridWrap').classList.toggle('hidden', State.mode!=='grid');
-document.getElementById('calWrap').classList.toggle('hidden', State.mode!=='cal');
-loadData().then(()=>{ if(State.mode==='cal'){ ensureCalendar(); setTimeout(()=>{ calendar.updateSize(); }, 30); } });
+applyWraps();
+loadData();
 </script>
 {% endblock %}
