@@ -188,6 +188,9 @@
 {% set cam_tabs = [('rent','Cho thuê'),('sale','Để bán'),('deposit','Đã cọc'),('sold','Đã bán')] %}
 {% set cam_active = (admin_view.endpoint == 'cameras') %}
 {% set cur_tab = request.args.get('tab') %}
+{% set fin_tabs = [('tong','Tổng hợp'),('thue','Cho thuê'),('ban','Bán máy'),('phukien','Phụ kiện'),('dichvu','Dịch vụ'),('pnl','Lãi/lỗ theo máy')] %}
+{% set fin_active = (admin_view.endpoint == 'finance') %}
+{% set cur_section = request.args.get('section') or 'tong' %}
 <div id="tintus-app">
   <div class="ta-shell">
 
@@ -236,11 +239,34 @@
       {% if is_admin %}
       <div class="ta-navlabel">Quản trị</div>
       {% for ep, label, sub, who, icon in nav if who == 'admin' %}
+      {% if ep == 'finance' %}
+      <!-- Tài chính — expandable group (từng mục là một trang riêng) -->
+      <div class="ta-group{% if fin_active %} open{% endif %}">
+        <div class="ta-navitem ta-haschild{% if fin_active %} active{% endif %}">
+          <a href="{{ url_for('finance.index') }}" class="ta-navmain">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ icon|safe }}</svg>
+            <span class="ta-label">{{ label }}</span>
+          </a>
+          <button type="button" class="ta-caret" aria-label="Mở rộng danh mục tài chính">
+            <svg class="ta-chev" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+        </div>
+        <div class="ta-subnav">
+          {% for skey, slabel in fin_tabs %}
+          <a href="{{ url_for('finance.index', section=skey) }}" class="ta-subitem{% if fin_active and cur_section == skey %} active{% endif %}">
+            <span class="ta-subdot"></span>
+            <span class="ta-label">{{ slabel }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
       {% set active = (admin_view.endpoint == ep) %}
       <a href="{{ url_for(ep ~ '.index') }}" class="ta-navitem {% if active %}active{% endif %}">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ icon|safe }}</svg>
         <span class="ta-label">{{ label }}</span>
       </a>
+      {% endif %}
       {% endfor %}
       {% endif %}
 

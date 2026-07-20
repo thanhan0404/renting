@@ -17,17 +17,30 @@
 </div>
 {% endmacro %}
 
+{% macro delta(compare, key) %}
+{% set p = compare.get(key) %}
+{% if p is not none %}
+<span class="text-xs font-bold {% if p >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}" title="So với kỳ trước">{% if p >= 0 %}▲{% else %}▼{% endif %} {{ p|abs }}%</span>
+{% endif %}
+{% endmacro %}
+
+{% macro section_title(title, note) %}
+<div class="mb-4">
+  <h2 class="text-lg font-black text-gray-900">{{ title }}</h2>
+  {% if note %}<p class="text-sm text-gray-500">{{ note }}</p>{% endif %}
+</div>
+{% endmacro %}
+
 {% block admin_content %}
 <div class="flex flex-wrap items-end justify-between gap-3 mb-2">
   <div>
     <h1 class="text-xl font-black text-gray-900">Tài chính</h1>
-    <p class="text-sm text-gray-500">Doanh thu, chi phí và lợi nhuận — tách riêng Cho thuê / Bán máy và tổng hợp. Số liệu tính theo <b>kỳ đang chọn</b>.</p>
+    <p class="text-sm text-gray-500">Chọn mục ở thanh bên trái. Số liệu tính theo <b>kỳ đang chọn</b>.</p>
   </div>
   <div class="flex items-center gap-2">
     <!-- period type selector (dropdown) -->
-    <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kỳ</label>
     <select class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500"
-            onchange="location.href='{{ url_for('finance.index') }}?period='+this.value">
+            onchange="location.href='{{ url_for('finance.index') }}?section={{ section }}&period='+this.value">
       {% for key, label in [('day','Ngày'), ('month','Tháng'), ('year','Năm'), ('all','Tất cả')] %}
       <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -44,16 +57,17 @@
 </div>
 {% else %}
 <div class="flex flex-wrap items-center gap-2 mb-4">
-  <a href="{{ url_for('finance.index') }}?period={{ period }}&anchor={{ prev_anchor }}"
+  <a href="{{ url_for('finance.index') }}?section={{ section }}&period={{ period }}&anchor={{ prev_anchor }}"
      class="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:text-brand-700 hover:border-brand-300 font-bold" title="Kỳ trước">‹</a>
   <div class="px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-black text-gray-900">{{ anchor_label }}</div>
   {% if not is_current %}
-  <a href="{{ url_for('finance.index') }}?period={{ period }}&anchor={{ next_anchor }}"
+  <a href="{{ url_for('finance.index') }}?section={{ section }}&period={{ period }}&anchor={{ next_anchor }}"
      class="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:text-brand-700 hover:border-brand-300 font-bold" title="Kỳ sau">›</a>
   {% else %}
   <span class="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 text-gray-300 font-bold cursor-default">›</span>
   {% endif %}
   <form method="get" action="{{ url_for('finance.index') }}" class="flex items-center gap-2 ml-1">
+    <input type="hidden" name="section" value="{{ section }}">
     <input type="hidden" name="period" value="{{ period }}">
     {% if period == 'day' %}
       <input type="date" name="anchor" value="{{ anchor_value }}" onchange="this.form.submit()"
@@ -67,33 +81,22 @@
     {% endif %}
   </form>
   {% if not is_current %}
-  <a href="{{ url_for('finance.index') }}?period={{ period }}" class="text-xs font-bold text-gray-400 hover:text-brand-700 px-2 py-2">Về hiện tại</a>
+  <a href="{{ url_for('finance.index') }}?section={{ section }}&period={{ period }}" class="text-xs font-bold text-gray-400 hover:text-brand-700 px-2 py-2">Về hiện tại</a>
   {% endif %}
 </div>
 {% endif %}
 
-<!-- section selector (chia trang tài chính thành từng mục) -->
-<div class="flex items-center gap-2 mb-4">
-  <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Xem mục</label>
-  <select id="finSection" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500">
-    <option value="tong">Tổng hợp</option>
-    <option value="thue">Cho thuê</option>
-    <option value="ban">Bán máy</option>
-    <option value="phukien">Phụ kiện</option>
-    <option value="pnl">Lãi/lỗ theo máy</option>
-  </select>
-</div>
-
-<!-- ════════ TỔNG HỢP ════════ -->
-<section class="fin-sec" data-sec="tong">
+{# ══════════════════════ TỔNG HỢP ══════════════════════ #}
+{% if section == 'tong' %}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm p-5">
-    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tổng doanh thu</p>
+    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tổng doanh thu {{ delta(compare, 'total_revenue') }}</p>
     <p class="text-3xl font-black text-gray-900 leading-none">{{ summary.total_revenue|money }}<span class="text-xl">đ</span></p>
     <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-gray-500">
       <span>Thuê: <span class="text-gray-800">{{ summary.rental_revenue|money }}đ</span></span>
       <span>Bán máy: <span class="text-gray-800">{{ summary.sale_revenue|money }}đ</span></span>
-      <span>Phụ kiện: <span class="text-gray-800">{{ summary.accessory_revenue|money }}đ</span></span>
+      <span>Phụ kiện: <span class="text-gray-800">{{ summary.accessory_only_revenue|money }}đ</span></span>
+      <span>Dịch vụ: <span class="text-gray-800">{{ summary.service_revenue|money }}đ</span></span>
     </div>
   </div>
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-amber-500 rounded-2xl shadow-sm p-5">
@@ -106,7 +109,7 @@
   </div>
   {% set profit_ok = summary.net_profit >= 0 %}
   <div class="rounded-2xl shadow-sm p-5 border {% if profit_ok %}bg-emerald-50 border-emerald-200{% else %}bg-brand-50 border-brand-200{% endif %}">
-    <p class="text-xs font-bold uppercase tracking-wide mb-2 {% if profit_ok %}text-emerald-700{% else %}text-brand-700{% endif %}">Lợi nhuận ròng</p>
+    <p class="text-xs font-bold uppercase tracking-wide mb-2 {% if profit_ok %}text-emerald-700{% else %}text-brand-700{% endif %}">Lợi nhuận ròng {{ delta(compare, 'net_profit') }}</p>
     <p class="text-3xl font-black leading-none {% if profit_ok %}text-emerald-700{% else %}text-brand-700{% endif %}">{{ summary.net_profit|money }}<span class="text-xl">đ</span></p>
     <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold {% if profit_ok %}text-emerald-600{% else %}text-brand-600{% endif %}">
       <span>Lãi gộp: {{ summary.total_profit|money }}đ</span>
@@ -115,13 +118,80 @@
   </div>
 </div>
 
-</section>
+<!-- doanh thu theo nhóm -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
+  <h2 class="text-lg font-black text-gray-900 mb-4">Doanh thu &amp; lợi nhuận theo nhóm</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+          <th class="py-2.5 pr-4">Nhóm</th>
+          <th class="py-2.5 pr-4 text-right">Doanh thu</th>
+          <th class="py-2.5 pr-4 text-right">Chi phí</th>
+          <th class="py-2.5 text-right">Lợi nhuận</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in [
+          ('Cho thuê', summary.rental_revenue, summary.rental_cost, summary.rental_profit),
+          ('Bán máy', summary.sale_revenue, summary.sale_cost, summary.sale_profit),
+          ('Phụ kiện', summary.accessory_only_revenue, summary.accessory_cost - summary.service_revenue + summary.service_profit, summary.accessory_only_profit),
+          ('Dịch vụ khác', summary.service_revenue, summary.service_revenue - summary.service_profit, summary.service_profit)
+        ] %}
+        <tr class="border-b border-gray-100">
+          <td class="py-2.5 pr-4 font-bold text-gray-900">{{ row[0] }}</td>
+          <td class="py-2.5 pr-4 text-right font-semibold text-gray-800">{{ row[1]|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right text-gray-600">{{ row[2]|money }}đ</td>
+          <td class="py-2.5 text-right font-black {% if row[3] >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ row[3]|money }}đ</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 
-<!-- ════════ CHO THUÊ ════════ -->
-<section class="fin-sec hidden" data-sec="thue">
+<!-- hiệu suất nhân viên -->
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+  <h2 class="text-lg font-black text-gray-900 mb-1">Hiệu suất nhân viên</h2>
+  <p class="text-sm text-gray-500 mb-4">Theo {{ anchor_label|lower }}.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+          <th class="py-2.5 pr-4">Nhân viên</th>
+          <th class="py-2.5 pr-4 text-center">Máy bán</th>
+          <th class="py-2.5 pr-4 text-right">DT bán máy</th>
+          <th class="py-2.5 pr-4 text-right">Lãi bán máy</th>
+          <th class="py-2.5 pr-4 text-right">DT phụ kiện</th>
+          <th class="py-2.5 pr-4 text-right">DT dịch vụ</th>
+          <th class="py-2.5 text-center">Đơn thuê</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in staff_rows %}
+        <tr class="border-b border-gray-100 hover:bg-gray-50">
+          <td class="py-2.5 pr-4 font-bold text-gray-900">{{ r.staff }}</td>
+          <td class="py-2.5 pr-4 text-center tabular-nums">{{ r.sale_units }}</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums font-semibold text-gray-800">{{ r.sale_rev|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums {% if r.sale_profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ r.sale_profit|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums text-gray-700">{{ r.acc_rev|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums text-gray-700">{{ r.svc_rev|money }}đ</td>
+          <td class="py-2.5 text-center tabular-nums">{{ r.rentals }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="py-8 text-center text-gray-400 font-semibold">Chưa có hoạt động trong kỳ này.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ══════════════════════ CHO THUÊ ══════════════════════ #}
+{% if section == 'thue' %}
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-    <h2 class="text-lg font-black text-gray-900">Cho thuê</h2>
+    <h2 class="text-lg font-black text-gray-900">Cho thuê {{ delta(compare, 'rental_revenue') }}</h2>
     <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold">
       <span class="text-gray-500">Doanh thu <b class="text-gray-900">{{ summary.rental_revenue|money }}đ</b></span>
       <span class="text-gray-500">Chi phí (sửa) <b class="text-gray-900">{{ summary.rental_cost|money }}đ</b></span>
@@ -132,27 +202,56 @@
   {{ barchart(rental_series, 'bg-brand-600 hover:bg-brand-700') }}
 </div>
 
-</section>
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+  <h2 class="text-lg font-black text-gray-900 mb-1">Đơn thuê trong kỳ</h2>
+  <p class="text-sm text-gray-500 mb-4">{{ rental_rows|length }} đơn · theo {{ anchor_label|lower }}.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:820px">
+      <thead>
+        <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+          <th class="py-2.5 pr-4">Máy</th><th class="py-2.5 pr-4">Khách</th><th class="py-2.5 pr-4">SĐT</th>
+          <th class="py-2.5 pr-4">Bắt đầu</th><th class="py-2.5 pr-4">Kết thúc</th>
+          <th class="py-2.5 pr-4 text-right">Tiền thuê</th><th class="py-2.5 pr-4 text-right">Cọc</th><th class="py-2.5">Nhân viên</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rental_rows %}
+        <tr class="border-b border-gray-100 hover:bg-gray-50">
+          <td class="py-2.5 pr-4 font-bold text-gray-900">{{ r.camera }}</td>
+          <td class="py-2.5 pr-4 text-gray-700">{{ r.customer }}</td>
+          <td class="py-2.5 pr-4 text-gray-500">{{ r.phone }}</td>
+          <td class="py-2.5 pr-4 text-gray-600 whitespace-nowrap">{{ r.start }}</td>
+          <td class="py-2.5 pr-4 text-gray-600 whitespace-nowrap">{{ r.end }}</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums font-semibold text-gray-900">{{ r.total|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums text-gray-500">{{ r.deposit|money }}đ</td>
+          <td class="py-2.5 text-gray-600">{{ r.staff or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="py-8 text-center text-gray-400 font-semibold">Không có đơn thuê trong kỳ này.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 
-<!-- ════════ BÁN MÁY ════════ -->
-<section class="fin-sec hidden" data-sec="ban">
+{# ══════════════════════ BÁN MÁY ══════════════════════ #}
+{% if section == 'ban' %}
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-    <h2 class="text-lg font-black text-gray-900">Bán máy</h2>
+    <h2 class="text-lg font-black text-gray-900">Bán máy {{ delta(compare, 'sale_revenue') }}</h2>
     <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold">
       <span class="text-gray-500">Doanh thu <b class="text-gray-900">{{ summary.sale_revenue|money }}đ</b></span>
       <span class="text-gray-500">Vốn hàng bán <b class="text-gray-900">{{ summary.sale_cost|money }}đ</b></span>
       <span class="text-gray-500">Lợi nhuận <b class="{% if summary.sale_profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ summary.sale_profit|money }}đ</b></span>
     </div>
   </div>
-
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
     <div class="rounded-xl bg-emerald-50 py-3 text-center"><p class="text-2xl font-black text-emerald-700 leading-none">{{ summary.units_sold }}</p><p class="mt-1 text-[11px] font-bold text-emerald-600 uppercase tracking-wide">đã bán</p></div>
     <div class="rounded-xl bg-gray-50 py-3 text-center"><p class="text-2xl font-black text-gray-900 leading-none">{{ summary.in_stock_count }}</p><p class="mt-1 text-[11px] font-bold text-gray-500 uppercase tracking-wide">còn hàng</p></div>
     <div class="rounded-xl bg-amber-50 py-3 text-center"><p class="text-2xl font-black text-amber-700 leading-none">{{ summary.broken_count }}</p><p class="mt-1 text-[11px] font-bold text-amber-600 uppercase tracking-wide">cần sửa / hỏng</p></div>
     <div class="rounded-xl bg-gray-50 py-3 text-center"><p class="text-2xl font-black text-gray-900 leading-none">{{ summary.inventory_value|money }}đ</p><p class="mt-1 text-[11px] font-bold text-gray-500 uppercase tracking-wide">vốn tồn kho</p></div>
   </div>
-
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div>
       <p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Doanh thu bán theo {{ period_label }}</p>
@@ -163,45 +262,205 @@
       {{ barchart(sale_profit_series, 'bg-sky-500 hover:bg-sky-600') }}
     </div>
   </div>
+</div>
 
-  <div class="mt-5">
-    <div class="border border-gray-100 rounded-2xl p-4">
-      <h3 class="text-sm font-black text-gray-900 mb-3 flex items-center gap-2">🐌 Hàng tồn lâu (theo ngày về)</h3>
-      {% if aging %}
-      <div class="space-y-2">
-        {% for a in aging %}
-        <div class="flex items-center justify-between gap-2 text-sm">
-          <span class="font-semibold text-gray-700 truncate">{{ a.cam.name }}{% if a.cam.color %} · {{ a.cam.color }}{% endif %}</span>
-          <span class="shrink-0 text-xs text-gray-500">{% if a.days is not none %}{{ a.days }} ngày{% else %}—{% endif %}</span>
-        </div>
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
+  <h2 class="text-lg font-black text-gray-900 mb-1">Máy đã bán trong kỳ</h2>
+  <p class="text-sm text-gray-500 mb-4">{{ sold_rows|length }} máy · theo {{ anchor_label|lower }}.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:900px">
+      <thead>
+        <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+          <th class="py-2.5 pr-4">Máy</th><th class="py-2.5 pr-4">Ngày</th>
+          <th class="py-2.5 pr-4 text-right">Giá bán</th><th class="py-2.5 pr-4 text-right">Vốn</th><th class="py-2.5 pr-4 text-right">Lãi</th>
+          <th class="py-2.5 pr-4">Khách</th><th class="py-2.5 pr-4">Nguồn</th><th class="py-2.5">Nhân viên</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in sold_rows %}
+        <tr class="border-b border-gray-100 hover:bg-gray-50">
+          <td class="py-2.5 pr-4 font-bold text-gray-900">{{ r.name }}{% if r.color %} · {{ r.color }}{% endif %}</td>
+          <td class="py-2.5 pr-4 text-gray-600 whitespace-nowrap">{{ r.date }}</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums font-semibold text-gray-900">{{ r.price|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums text-gray-600">{{ r.cost|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums font-black {% if r.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ r.profit|money }}đ</td>
+          <td class="py-2.5 pr-4 text-gray-700">{{ r.customer }}</td>
+          <td class="py-2.5 pr-4 text-gray-600">{{ r.source }}</td>
+          <td class="py-2.5 text-gray-600">{{ r.staff or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="py-8 text-center text-gray-400 font-semibold">Không có máy nào bán trong kỳ này.</td></tr>
         {% endfor %}
-      </div>
-      {% else %}<p class="text-sm text-gray-400">Không có hàng tồn đọng.</p>{% endif %}
-    </div>
+      </tbody>
+    </table>
   </div>
 </div>
 
-</section>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+    <h3 class="text-sm font-black text-gray-900 mb-3">📣 Theo nguồn khách</h3>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+            <th class="py-2 pr-4">Nguồn</th><th class="py-2 pr-4 text-center">Máy</th><th class="py-2 pr-4 text-right">Doanh thu</th><th class="py-2 text-right">Lãi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in source_rows %}
+          <tr class="border-b border-gray-100">
+            <td class="py-2 pr-4 font-semibold text-gray-800">{{ r.source }}</td>
+            <td class="py-2 pr-4 text-center tabular-nums">{{ r.units }}</td>
+            <td class="py-2 pr-4 text-right tabular-nums text-gray-800">{{ r.revenue|money }}đ</td>
+            <td class="py-2 text-right tabular-nums {% if r.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ r.profit|money }}đ</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="py-6 text-center text-gray-400 font-semibold">Chưa có dữ liệu.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+    <h3 class="text-sm font-black text-gray-900 mb-3">🐌 Hàng tồn lâu (theo ngày về)</h3>
+    {% if aging %}
+    <div class="space-y-2">
+      {% for a in aging %}
+      <div class="flex items-center justify-between gap-2 text-sm">
+        <span class="font-semibold text-gray-700 truncate">{{ a.cam.name }}{% if a.cam.color %} · {{ a.cam.color }}{% endif %}</span>
+        <span class="shrink-0 text-xs text-gray-500">{% if a.days is not none %}{{ a.days }} ngày{% else %}—{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="text-sm text-gray-400">Không có hàng tồn đọng.</p>{% endif %}
+  </div>
+</div>
+{% endif %}
 
-<!-- ════════ PHỤ KIỆN ════════ -->
-<section class="fin-sec hidden" data-sec="phukien">
+{# ══════════════════════ PHỤ KIỆN ══════════════════════ #}
+{% if section == 'phukien' %}
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2">
     <h2 class="text-lg font-black text-gray-900">Phụ kiện</h2>
     <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold">
-      <span class="text-gray-500">Doanh thu <b class="text-gray-900">{{ summary.accessory_revenue|money }}đ</b></span>
-      <span class="text-gray-500">Vốn <b class="text-gray-900">{{ summary.accessory_cost|money }}đ</b></span>
+      <span class="text-gray-500">Doanh thu <b class="text-gray-900">{{ summary.accessory_only_revenue|money }}đ</b></span>
       {% if summary.accessory_damage_loss %}<span class="text-gray-500">Hư hỏng <b class="text-rose-600">{{ summary.accessory_damage_loss|money }}đ</b></span>{% endif %}
-      <span class="text-gray-500">Lợi nhuận <b class="{% if summary.accessory_profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ summary.accessory_profit|money }}đ</b></span>
+      <span class="text-gray-500">Lợi nhuận <b class="{% if summary.accessory_only_profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ summary.accessory_only_profit|money }}đ</b></span>
     </div>
   </div>
-  <p class="text-xs text-gray-400 mt-2">Doanh thu bán lens, pin, thẻ nhớ… trong {{ anchor_label|lower }} (đã trừ chi phí phụ kiện hư). Quản lý kho ở tab “Phụ kiện”.</p>
+  <p class="text-xs text-gray-400 mt-2">Bán lens, pin, thẻ nhớ… trong {{ anchor_label|lower }} (đã trừ chi phí phụ kiện hư).</p>
 </div>
 
-</section>
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
+  <h2 class="text-lg font-black text-gray-900 mb-1">Bán phụ kiện trong kỳ</h2>
+  <p class="text-sm text-gray-500 mb-4">{{ acc_rows|length }} giao dịch.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:760px">
+      <thead>
+        <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+          <th class="py-2.5 pr-4">Ngày</th><th class="py-2.5 pr-4">Phụ kiện</th><th class="py-2.5 pr-4 text-center">SL</th>
+          <th class="py-2.5 pr-4 text-right">Giá/cái</th><th class="py-2.5 pr-4 text-right">Doanh thu</th><th class="py-2.5 pr-4 text-right">Lãi</th>
+          <th class="py-2.5 pr-4">Khách</th><th class="py-2.5">Nhân viên</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in acc_rows %}
+        <tr class="border-b border-gray-100 hover:bg-gray-50">
+          <td class="py-2.5 pr-4 text-gray-600 whitespace-nowrap">{{ r.date }}</td>
+          <td class="py-2.5 pr-4 font-bold text-gray-900">{{ r.name }}</td>
+          <td class="py-2.5 pr-4 text-center tabular-nums">{{ r.qty }}</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums text-gray-700">{{ r.unit_price|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums font-semibold text-gray-900">{{ r.revenue|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums {% if r.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ r.profit|money }}đ</td>
+          <td class="py-2.5 pr-4 text-gray-700">{{ r.customer }}</td>
+          <td class="py-2.5 text-gray-600">{{ r.staff or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="py-8 text-center text-gray-400 font-semibold">Không có giao dịch phụ kiện trong kỳ này.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 
-<!-- ── Per-camera P&L tables ── -->
-<section class="fin-sec hidden" data-sec="pnl">
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+  <h2 class="text-lg font-black text-gray-900 mb-1">Phụ kiện hư trong kỳ</h2>
+  <p class="text-sm text-gray-500 mb-4">Chi phí hư hỏng: <b class="text-rose-600">{{ summary.accessory_damage_loss|money }}đ</b></p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:620px">
+      <thead>
+        <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+          <th class="py-2.5 pr-4">Ngày</th><th class="py-2.5 pr-4">Phụ kiện</th><th class="py-2.5 pr-4 text-center">SL</th>
+          <th class="py-2.5 pr-4 text-right">Thiệt hại</th><th class="py-2.5 pr-4">Lý do</th><th class="py-2.5">Người ghi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in dmg_rows %}
+        <tr class="border-b border-gray-100 hover:bg-gray-50">
+          <td class="py-2.5 pr-4 text-gray-600 whitespace-nowrap">{{ r.date }}</td>
+          <td class="py-2.5 pr-4 font-bold text-gray-900">{{ r.name }}</td>
+          <td class="py-2.5 pr-4 text-center tabular-nums">{{ r.qty }}</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums font-bold text-rose-600">{{ r.loss|money }}đ</td>
+          <td class="py-2.5 pr-4 text-gray-600">{{ r.note or '—' }}</td>
+          <td class="py-2.5 text-gray-600">{{ r.staff or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="py-8 text-center text-gray-400 font-semibold">Không có phụ kiện hư trong kỳ này.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ══════════════════════ DỊCH VỤ ══════════════════════ #}
+{% if section == 'dichvu' %}
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
+  <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <h2 class="text-lg font-black text-gray-900">Dịch vụ khác</h2>
+    <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold">
+      <span class="text-gray-500">Doanh thu <b class="text-gray-900">{{ summary.service_revenue|money }}đ</b></span>
+      <span class="text-gray-500">Lợi nhuận <b class="{% if summary.service_profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ summary.service_profit|money }}đ</b></span>
+    </div>
+  </div>
+  <p class="text-xs text-gray-400 mt-2">Vệ sinh máy, phí ship, dán màn hình… trong {{ anchor_label|lower }}.</p>
+</div>
+
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+  <h2 class="text-lg font-black text-gray-900 mb-1">Bán dịch vụ trong kỳ</h2>
+  <p class="text-sm text-gray-500 mb-4">{{ svc_rows|length }} giao dịch.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:760px">
+      <thead>
+        <tr class="text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+          <th class="py-2.5 pr-4">Ngày</th><th class="py-2.5 pr-4">Dịch vụ</th><th class="py-2.5 pr-4 text-center">SL</th>
+          <th class="py-2.5 pr-4 text-right">Giá/cái</th><th class="py-2.5 pr-4 text-right">Doanh thu</th><th class="py-2.5 pr-4 text-right">Lãi</th>
+          <th class="py-2.5 pr-4">Khách</th><th class="py-2.5">Nhân viên</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in svc_rows %}
+        <tr class="border-b border-gray-100 hover:bg-gray-50">
+          <td class="py-2.5 pr-4 text-gray-600 whitespace-nowrap">{{ r.date }}</td>
+          <td class="py-2.5 pr-4 font-bold text-gray-900">{{ r.name }}</td>
+          <td class="py-2.5 pr-4 text-center tabular-nums">{{ r.qty }}</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums text-gray-700">{{ r.unit_price|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums font-semibold text-gray-900">{{ r.revenue|money }}đ</td>
+          <td class="py-2.5 pr-4 text-right tabular-nums {% if r.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ r.profit|money }}đ</td>
+          <td class="py-2.5 pr-4 text-gray-700">{{ r.customer }}</td>
+          <td class="py-2.5 text-gray-600">{{ r.staff or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="py-8 text-center text-gray-400 font-semibold">Không có giao dịch dịch vụ trong kỳ này.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ══════════════════════ LÃI/LỖ THEO MÁY ══════════════════════ #}
+{% if section == 'pnl' %}
 {% set pnl_groups = [
   {'title':'Lãi/lỗ — Máy cho thuê', 'cams': rent_cameras, 'empty':'Chưa có máy cho thuê nào.'},
   {'title':'Lãi/lỗ — Máy để bán',   'cams': sale_cameras, 'empty':'Chưa có máy để bán nào.'}
@@ -253,23 +512,7 @@
   </div>
 </div>
 {% endfor %}
-</section>
+{% endif %}
 {% endblock %}
 
-{% block admin_js %}<script>
-(function () {
-  const sel = document.getElementById('finSection');
-  const secs = document.querySelectorAll('.fin-sec');
-  if (!sel) return;
-  const KEY = 'finSection';
-  function show(which) {
-    let matched = false;
-    secs.forEach(s => { const on = s.dataset.sec === which; s.classList.toggle('hidden', !on); if (on) matched = true; });
-    if (!matched) { secs.forEach((s, i) => s.classList.toggle('hidden', i !== 0)); which = secs[0] && secs[0].dataset.sec; }
-    sel.value = which;
-    try { localStorage.setItem(KEY, which); } catch (e) {}
-  }
-  show(localStorage.getItem(KEY) || 'tong');
-  sel.addEventListener('change', e => show(e.target.value));
-})();
-</script>{% endblock %}
+{% block admin_js %}<script>/* Tài chính: mỗi mục là một trang riêng (chọn ở sidebar). */</script>{% endblock %}

@@ -1911,6 +1911,14 @@ class FinanceView(AdminOnlyView):
         accessory_profit  = int(w['aprof'])
         store_cost_total = int(w['scost'])
 
+        # Split the accessory bucket into real accessories vs. free-form services
+        # (dịch vụ khác = AccessorySale rows with no accessory_id) for the sub-sections.
+        _accs_win = [s for s in acc_sales if s.sale_date and astart <= s.sale_date < aend]
+        service_revenue = int(sum(s.revenue for s in _accs_win if s.accessory_id is None))
+        service_profit  = int(sum(s.profit  for s in _accs_win if s.accessory_id is None))
+        accessory_only_revenue = accessory_revenue - service_revenue
+        accessory_only_profit  = accessory_profit - service_profit
+
         total_revenue = rental_revenue + sale_revenue + accessory_revenue
         total_profit  = rental_profit + sale_profit + accessory_profit
         total_cost    = rental_cost + sale_cost + accessory_cost
@@ -1922,7 +1930,6 @@ class FinanceView(AdminOnlyView):
         unfix_units  = [c for c in sale_cameras if c.sale_state == 'unfixable']
         inventory_value = int(sum(c.inventory_value for c in sale_cameras))
         sold_in_period = w['sold']
-        top_profit = sorted(sold_in_period, key=lambda c: c.profit, reverse=True)[:8]
         aging = [{'cam': c, 'days': (now - c.date_in).days if c.date_in else None} for c in in_stock]
         aging.sort(key=lambda x: (-1 if x['days'] is None else x['days']), reverse=True)
         aging = aging[:8]
@@ -1932,6 +1939,8 @@ class FinanceView(AdminOnlyView):
             'sale_revenue': sale_revenue, 'sale_cost': sale_cost, 'sale_profit': sale_profit,
             'accessory_revenue': accessory_revenue, 'accessory_cost': accessory_cost, 'accessory_profit': accessory_profit,
             'accessory_damage_loss': accessory_damage_loss,
+            'accessory_only_revenue': accessory_only_revenue, 'accessory_only_profit': accessory_only_profit,
+            'service_revenue': service_revenue, 'service_profit': service_profit,
             'total_revenue': total_revenue, 'total_cost': total_cost, 'total_profit': total_profit,
             'inventory_value': inventory_value,
             'store_cost_total': store_cost_total, 'net_profit': net_profit,
@@ -1939,6 +1948,96 @@ class FinanceView(AdminOnlyView):
             'broken_count': len(fixing_units) + len(unfix_units), 'unfixable_count': len(unfix_units),
             'sold_count': len(sold_in_period), 'camera_count': len(cameras),
         }
+
+        # ── detailed breakdowns for the sidebar sub-sections ──
+        section = request.args.get('section', 'tong')
+        if section not in ('tong', 'thue', 'ban', 'phukien', 'dichvu', 'pnl'):
+            section = 'tong'
+
+        def _in(d):
+            return bool(d) and astart <= d < aend
+
+        rental_rows = [{
+            'camera': (b.camera.name if b.camera else '—'),
+            'customer': b.customer_name or '—', 'phone': b.phone or '',
+            'start': b.start_date.strftime('%d/%m/%Y') if b.start_date else '',
+            'end': b.end_date.strftime('%d/%m/%Y') if b.end_date else '',
+            'total': int(b.total_price or 0), 'deposit': int(b.security_deposit or 0),
+            'staff': b.staff or '',
+        } for b in sorted([b for b in bookings if _in(b.start_date)],
+                          key=lambda b: b.start_date, reverse=True)]
+
+        sold_rows = [{
+            'name': c.name, 'color': c.color or '',
+            'price': int(c.sale_revenue), 'cost': int(c.cost), 'profit': int(c.profit),
+            'customer': c.sold_to or '—', 'source': c.sold_source or '—',
+            'staff': c.sold_by or '', 'state': c.state_label,
+            'date': c.sold_date.strftime('%d/%m/%Y') if c.sold_date else '',
+        } for c in sorted(sold_in_period, key=lambda c: c.sold_date or now, reverse=True)]
+
+        def _sale_row(s):
+            return {'name': s.name or '', 'qty': s.quantity or 0,
+                    'unit_price': int(s.unit_price or 0), 'revenue': int(s.revenue),
+                    'profit': int(s.profit), 'customer': s.customer_name or '—',
+                    'staff': s.staff or '',
+                    'date': s.sale_date.strftime('%d/%m/%Y') if s.sale_date else ''}
+        acc_rows = [_sale_row(s) for s in sorted(
+            [s for s in _accs_win if s.accessory_id is not None], key=lambda s: s.sale_date or now, reverse=True)]
+        svc_rows = [_sale_row(s) for s in sorted(
+            [s for s in _accs_win if s.accessory_id is None], key=lambda s: s.sale_date or now, reverse=True)]
+        dmg_rows = [{'name': x.name or '', 'qty': x.quantity or 0, 'loss': int(x.loss),
+                     'note': x.note or '', 'staff': x.staff or '',
+                     'date': x.damage_date.strftime('%d/%m/%Y') if x.damage_date else ''}
+                    for x in sorted([x for x in acc_damages if _in(x.damage_date)],
+                                    key=lambda x: x.damage_date or now, reverse=True)]
+
+        # staff performance over the selected window
+        emp_names = {e.username: (e.display_name or e.username) for e in Employee.query.all()}
+        staff_map = {}
+        def _bump(u, **kw):
+            row = staff_map.setdefault(u or '', {'staff': (emp_names.get(u, u) if u else '—') or '—',
+                'sale_units': 0, 'sale_rev': 0, 'sale_profit': 0, 'acc_rev': 0, 'svc_rev': 0, 'rentals': 0})
+            for k, v in kw.items():
+                row[k] += v
+        for c in sold_in_period:
+            _bump(c.sold_by, sale_units=1, sale_rev=int(c.sale_revenue), sale_profit=int(c.profit))
+        for s in _accs_win:
+            if s.accessory_id is not None:
+                _bump(s.staff, acc_rev=int(s.revenue))
+            else:
+                _bump(s.staff, svc_rev=int(s.revenue))
+        for b in bookings:
+            if _in(b.start_date):
+                _bump(b.staff, rentals=1)
+        for r in staff_map.values():
+            r['total_rev'] = r['sale_rev'] + r['acc_rev'] + r['svc_rev']
+        staff_rows = sorted(staff_map.values(), key=lambda r: r['total_rev'], reverse=True)
+
+        # sold-camera revenue grouped by customer source
+        src_map = {}
+        for c in sold_in_period:
+            key = c.sold_source or 'Khác'
+            row = src_map.setdefault(key, {'source': key, 'units': 0, 'revenue': 0, 'profit': 0})
+            row['units'] += 1
+            row['revenue'] += int(c.sale_revenue)
+            row['profit'] += int(c.profit)
+        source_rows = sorted(src_map.values(), key=lambda r: r['revenue'], reverse=True)
+
+        # comparison vs the immediately-preceding period (% change)
+        def _pct(cur, prev):
+            return None if not prev else round((cur - prev) / abs(prev) * 100)
+        compare = {}
+        if period != 'all':
+            wp = window(*self._bucket(period, self._shift(period, anchor, 1)))
+            p_rev = int(wp['rrev'] + wp['srev'] + wp['arev'])
+            p_net = int((wp['rrev'] - wp['rcost']) + wp['sprof'] + wp['aprof'] - wp['scost'])
+            compare = {
+                'total_revenue': _pct(total_revenue, p_rev),
+                'net_profit':    _pct(net_profit, p_net),
+                'rental_revenue': _pct(rental_revenue, int(wp['rrev'])),
+                'sale_revenue':   _pct(sale_revenue, int(wp['srev'])),
+                'accessory_revenue': _pct(accessory_revenue, int(wp['arev'])),
+            }
         period_labels = {'day': '14 ngày', 'month': '12 tháng', 'year': '5 năm', 'all': 'năm'}
         if period == 'all':
             anchor_label, anchor_value = 'Toàn thời gian', ''
@@ -1969,7 +2068,11 @@ class FinanceView(AdminOnlyView):
                            is_current=is_current,
                            rental_series=rental_series, sale_rev_series=sale_rev_series,
                            sale_profit_series=sale_profit_series, store_cost_series=store_cost_series,
-                           top_profit=top_profit, aging=aging)
+                           aging=aging,
+                           section=section, compare=compare,
+                           rental_rows=rental_rows, sold_rows=sold_rows,
+                           acc_rows=acc_rows, svc_rows=svc_rows, dmg_rows=dmg_rows,
+                           staff_rows=staff_rows, source_rows=source_rows)
 
     def _resolve_window(self):
         """Parse ?period + ?anchor into (period, start, end, label) — mirrors index()."""
