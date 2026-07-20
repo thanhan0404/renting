@@ -37,13 +37,10 @@
 </div>
 
 <!-- tabs -->
-<div class="flex flex-wrap items-center justify-between gap-2 mb-4">
-  <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-max">
-    <button id="tabBtnStock" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Kho</button>
-    <button id="tabBtnHist" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Lịch sử bán</button>
-    <button id="tabBtnDamaged" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Phụ kiện hư</button>
-  </div>
-  <button id="svcSellBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Bán dịch vụ khác</button>
+<div class="flex items-center gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-max">
+  <button id="tabBtnStock" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Kho</button>
+  <button id="tabBtnHist" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Lịch sử bán</button>
+  <button id="tabBtnDamaged" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Phụ kiện hư</button>
 </div>
 
 <div id="tabStock">
@@ -129,12 +126,13 @@
 <!-- ── History tab ── -->
 <div id="tabHistory" class="hidden">
   <div class="flex flex-wrap items-center gap-2 mb-3">
-    <div id="acPeriodSeg" class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="day">Hôm nay</button>
-      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="month">Tháng này</button>
-      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="year">Năm nay</button>
-      <button class="acper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="all">Tất cả</button>
-    </div>
+    <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kỳ</label>
+    <select id="acPeriodSel" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500">
+      <option value="day">Hôm nay</option>
+      <option value="month" selected>Tháng này</option>
+      <option value="year">Năm nay</option>
+      <option value="all">Tất cả</option>
+    </select>
     <span class="text-xs text-gray-400 ml-auto">Bấm vào ô để sửa trực tiếp. SL sẽ tự cập nhật lại tồn kho.</span>
   </div>
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -180,12 +178,13 @@
 <!-- ── Damaged tab (Phụ kiện hư) ── -->
 <div id="tabDamaged" class="hidden">
   <div class="flex flex-wrap items-center gap-2 mb-3">
-    <div id="dmgPeriodSeg" class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
-      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="day">Hôm nay</button>
-      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="month">Tháng này</button>
-      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="year">Năm nay</button>
-      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="all">Tất cả</button>
-    </div>
+    <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kỳ</label>
+    <select id="dmgPeriodSel" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500">
+      <option value="day">Hôm nay</option>
+      <option value="month" selected>Tháng này</option>
+      <option value="year">Năm nay</option>
+      <option value="all">Tất cả</option>
+    </select>
     <span class="text-xs text-gray-400 ml-auto">Ghi nhận phụ kiện hỏng/không bán được — số lượng bị trừ khỏi kho, tính vào chi phí.</span>
   </div>
   <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -243,7 +242,7 @@
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên khách (tuỳ chọn)</label>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên khách</label>
           <input id="acSellCustomer" type="text" placeholder="Tên khách" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
         </div>
         <div>
@@ -252,7 +251,7 @@
         </div>
       </div>
       <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú (tuỳ chọn)</label>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú</label>
         <input id="acSellNote" type="text" placeholder="VD: khách quen, kèm máy, giảm giá…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
       </div>
       <p class="text-sm text-gray-500">Thành tiền: <b id="acSellTotal" class="text-gray-900">0đ</b></p>
@@ -278,7 +277,7 @@
         <input id="acDmgQty" type="number" min="1" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
       </div>
       <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Lý do / tình trạng (tuỳ chọn)</label>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Lý do / tình trạng</label>
         <input id="acDmgNote" type="text" placeholder="VD: rơi vỡ, chai pin, lỗi không sửa được…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
       </div>
       <p class="text-xs text-gray-400">Số lượng này sẽ bị trừ khỏi kho và ghi nhận là chi phí hư hỏng.</p>
@@ -286,58 +285,6 @@
     <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
       <button id="acDmgCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
       <button id="acDmgDo" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận hư</button>
-    </div>
-  </div>
-</div>
-
-<!-- bán dịch vụ khác popup -->
-<div id="svcSellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
-  <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw]">
-    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-      <h3 class="font-black text-gray-900">Bán dịch vụ / hàng khác</h3>
-      <button id="svcClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
-    </div>
-    <div class="p-5 space-y-3.5">
-      <p class="text-xs text-gray-400">Bán dịch vụ hoặc mặt hàng không có trong kho (vệ sinh máy, phí ship, dán màn hình…). Ghi thẳng vào doanh thu.</p>
-      <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên dịch vụ / mặt hàng *</label>
-        <input id="svcName" type="text" placeholder="VD: Vệ sinh cảm biến" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số lượng</label>
-          <input id="svcQty" type="number" min="1" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá bán / cái</label>
-          <input id="svcPrice" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
-        </div>
-      </div>
-      {% if is_admin %}
-      <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá vốn / cái (tuỳ chọn)</label>
-        <input id="svcCost" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
-      </div>
-      {% endif %}
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên khách (tuỳ chọn)</label>
-          <input id="svcCustomer" type="text" placeholder="Tên khách" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số điện thoại</label>
-          <input id="svcPhone" type="tel" placeholder="09…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
-        </div>
-      </div>
-      <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú (tuỳ chọn)</label>
-        <input id="svcNote" type="text" placeholder="Ghi chú thêm…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
-      </div>
-      <p class="text-sm text-gray-500">Thành tiền: <b id="svcTotal" class="text-gray-900">0đ</b></p>
-    </div>
-    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
-      <button id="svcCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
-      <button id="svcDo" class="bg-brand-700 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận bán</button>
     </div>
   </div>
 </div>
@@ -370,7 +317,6 @@
   const DEL_URL  = "{{ url_for('phukien.delete') }}";
   const SALE_UPD_URL = "{{ url_for('phukien.sale_update') }}";
   const SALE_DEL_URL = "{{ url_for('phukien.sale_delete') }}";
-  const SVC_URL      = "{{ url_for('phukien.sell_service') }}";
   const DMG_URL      = "{{ url_for('phukien.damage') }}";
   const DMG_DEL_URL  = "{{ url_for('phukien.damage_delete') }}";
   const TODAY = "{{ today }}", THIS_MONTH = "{{ this_month }}", THIS_YEAR = "{{ this_year }}";
@@ -502,12 +448,10 @@
     if (empty) empty.classList.toggle('hidden', any);
     if (none)  none.classList.toggle('hidden', !any || shown > 0);
   }
-  document.querySelectorAll('#acPeriodSeg .acper-btn').forEach(b => b.addEventListener('click', () => {
-    acPeriod = b.dataset.per;
-    document.querySelectorAll('#acPeriodSeg .acper-btn').forEach(x => x.classList.toggle('active', x === b));
-    applyHistPeriod();
-  }));
-  document.querySelectorAll('#acPeriodSeg .acper-btn').forEach(b => b.classList.toggle('active', b.dataset.per === acPeriod));
+  if ($('acPeriodSel')) {
+    $('acPeriodSel').value = acPeriod;
+    $('acPeriodSel').addEventListener('change', e => { acPeriod = e.target.value; applyHistPeriod(); });
+  }
   document.querySelectorAll('#histBody .hist-row').forEach(wireSaleRow);
   applyHistPeriod();
 
@@ -706,12 +650,10 @@
     if (empty) empty.classList.toggle('hidden', any);
     if (none)  none.classList.toggle('hidden', !any || shown > 0);
   }
-  document.querySelectorAll('#dmgPeriodSeg .dmgper-btn').forEach(b => b.addEventListener('click', () => {
-    dmgPeriod = b.dataset.per;
-    document.querySelectorAll('#dmgPeriodSeg .dmgper-btn').forEach(x => x.classList.toggle('active', x === b));
-    applyDmgPeriod();
-  }));
-  document.querySelectorAll('#dmgPeriodSeg .dmgper-btn').forEach(b => b.classList.toggle('active', b.dataset.per === dmgPeriod));
+  if ($('dmgPeriodSel')) {
+    $('dmgPeriodSel').value = dmgPeriod;
+    $('dmgPeriodSel').addEventListener('change', e => { dmgPeriod = e.target.value; applyDmgPeriod(); });
+  }
   document.querySelectorAll('#dmgBody .dmg-row').forEach(wireDamageRow);
   applyDmgPeriod();
 
@@ -723,49 +665,6 @@
       el.textContent = fmt(num(el.textContent) + (Number(x.loss) || 0));
     }
   }
-
-  // ── bán dịch vụ khác (free-form service / other-item sale) ──
-  const svcModal = $('svcSellModal');
-  function recalcSvcTotal() {
-    const qty = parseInt($('svcQty').value, 10) || 0;
-    $('svcTotal').textContent = fmt(qty * num($('svcPrice').value));
-  }
-  function openSvc() {
-    $('svcName').value = ''; $('svcQty').value = 1; $('svcPrice').value = '';
-    if ($('svcCost')) $('svcCost').value = '';
-    $('svcCustomer').value = ''; $('svcPhone').value = ''; $('svcNote').value = '';
-    recalcSvcTotal();
-    svcModal.style.display = 'flex'; $('svcName').focus();
-  }
-  function closeSvc() { svcModal.style.display = 'none'; }
-  $('svcSellBtn').addEventListener('click', openSvc);
-  $('svcClose').addEventListener('click', closeSvc);
-  $('svcCancel').addEventListener('click', closeSvc);
-  svcModal.addEventListener('click', e => { if (e.target === svcModal) closeSvc(); });
-  $('svcQty').addEventListener('input', recalcSvcTotal);
-  $('svcPrice').addEventListener('input', recalcSvcTotal);
-  $('svcDo').addEventListener('click', async () => {
-    const name = $('svcName').value.trim();
-    if (!name) { TINTUS.toast('Nhập tên dịch vụ / mặt hàng', 'warn'); return; }
-    const qty = parseInt($('svcQty').value, 10) || 0;
-    if (qty < 1) { TINTUS.toast('Số lượng ≥ 1', 'warn'); return; }
-    if (num($('svcPrice').value) <= 0) { TINTUS.toast('Giá bán phải > 0đ', 'warn'); return; }
-    try {
-      const payload = { name, quantity: qty, price: num($('svcPrice').value),
-        note: $('svcNote').value.trim(), customer_name: $('svcCustomer').value.trim(),
-        phone: $('svcPhone').value.trim() };
-      if ($('svcCost')) payload.cost = num($('svcCost').value);
-      const res = await TINTUS.api(SVC_URL, payload);
-      if (res.sale) {
-        const hb = $('histBody');
-        if (hb) hb.insertBefore(makeSaleRow(res.sale), hb.firstChild);
-        const he = $('histEmpty'); if (he) he.classList.add('hidden');
-        applyHistPeriod();
-      }
-      closeSvc();
-      TINTUS.toast('Đã bán ' + name + ' (' + fmt(res.revenue) + ')', 'ok');
-    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
-  });
 })();
 </script>
 {% endblock %}

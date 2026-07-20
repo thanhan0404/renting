@@ -10,22 +10,22 @@
   </div>
 
   <div class="flex flex-wrap items-center gap-2">
-    <!-- mode toggle -->
-    <div class="seg-group" id="modeGroup">
-      <button class="seg" data-mode="grid">▦ Lưới (ngày)</button>
-      <button class="seg" data-mode="hour">🕐 Lịch giờ</button>
-    </div>
+    <!-- mode selector -->
+    <select id="modeSel" class="seg-select">
+      <option value="grid">▦ Lưới (ngày)</option>
+      <option value="hour">🕐 Lịch giờ</option>
+    </select>
     <!-- show filter -->
-    <div class="seg-group" id="showGroup">
-      <button class="seg" data-show="both">Cả hai</button>
-      <button class="seg" data-show="rent">Thuê máy</button>
-      <button class="seg" data-show="appt">Hẹn mua</button>
-    </div>
-    <!-- hour-view style toggle (only shown in Lịch giờ mode) -->
-    <div class="seg-group hidden" id="styleGroup">
-      <button class="seg" data-style="lanes">▤ Theo máy</button>
-      <button class="seg" data-style="fc">🕐 Dòng giờ</button>
-    </div>
+    <select id="showSel" class="seg-select">
+      <option value="both">Cả hai</option>
+      <option value="rent">Thuê máy</option>
+      <option value="appt">Hẹn mua</option>
+    </select>
+    <!-- hour-view style selector (only shown in Lịch giờ mode) -->
+    <select id="styleSel" class="seg-select hidden">
+      <option value="lanes">▤ Theo máy</option>
+      <option value="fc">🕐 Dòng giờ</option>
+    </select>
     <!-- shared navigation (both modes) -->
     <div class="flex items-center gap-2">
       <div class="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -176,7 +176,7 @@
         <input id="ap_interest" type="text" placeholder="VD: Fujifilm X-T30, màu đen" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none" onfocus="this.style.borderColor='#0e7490'" onblur="this.style.borderColor=''">
       </div>
       <div>
-        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giữ máy cụ thể (tuỳ chọn)</label>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giữ máy cụ thể</label>
         <select id="ap_camera" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none">
           <option value="">— Không giữ máy cụ thể —</option>
           {% for c in appt_cameras %}<option value="{{ c.id }}">{{ c.name }} — {{ c.brand }}{% if c.type == 'Sale' %} · bán{% endif %}</option>{% endfor %}
@@ -225,11 +225,8 @@
 </div>
 
 <style>
-  .seg-group { display:inline-flex; background:#f3f4f6; border-radius:12px; padding:3px; gap:2px; }
-  .seg { padding:7px 12px; border-radius:9px; font-size:13px; font-weight:700; color:#6b7280; white-space:nowrap; }
-  .seg:hover { color:#111827; }
-  .seg.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.1); }
-  #showGroup .seg.active { color:#0e7490; }
+  .seg-select { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:8px 12px; font-size:13px; font-weight:700; color:#374151; cursor:pointer; }
+  .seg-select:focus { outline:none; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
 
   /* ── Hour-grid (“Theo máy”): “now” marker ── */
   #hourGrid .hour-now { position:absolute; top:0; bottom:0; width:2px; background:#dc2626; z-index:8; pointer-events:none; }
@@ -844,20 +841,22 @@ function rebuildRangeSelect(mode){
   sel.value = cur;
 }
 
-// Show the right panel for the current mode + hour style, and sync the toggles.
+// Show the right panel for the current mode + hour style, and sync the dropdowns.
 function applyWraps(){
   const lanes = State.mode==='hour' && State.hourStyle==='lanes';
   const fc    = State.mode==='hour' && State.hourStyle==='fc';
   document.getElementById('gridWrap').classList.toggle('hidden', State.mode!=='grid');
   document.getElementById('hourWrap').classList.toggle('hidden', !lanes);
   document.getElementById('calWrap').classList.toggle('hidden', !fc);
-  document.getElementById('styleGroup').classList.toggle('hidden', State.mode!=='hour');
-  document.querySelectorAll('#styleGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.style===State.hourStyle));
+  // Hour-style selector is only meaningful in "Lịch giờ" mode → hide it in grid mode.
+  const styleSel = document.getElementById('styleSel');
+  styleSel.classList.toggle('hidden', State.mode!=='hour');
+  styleSel.value = State.hourStyle;
 }
 
 function setMode(m){
   State.mode = m; localStorage.setItem('lichMode', m);
-  document.querySelectorAll('#modeGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
+  document.getElementById('modeSel').value = m;
   applyWraps();
   rebuildRangeSelect(m);
   loadData();                       // span/style differs per mode → refetch, then render
@@ -870,21 +869,27 @@ function setHourStyle(st){
 }
 function setShow(s){
   State.show = s; localStorage.setItem('lichShow', s);
-  document.querySelectorAll('#showGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.show===s));
+  document.getElementById('showSel').value = s;
   loadData();
 }
 
 // ════════════ wire up ════════════
 function isFc(){ return State.mode==='hour' && State.hourStyle==='fc'; }
 // Prev/next slide the window by ONE day (not a whole page), so today stays visible:
-// e.g. clicking ‹ prepends yesterday and drops the last day. The FullCalendar ('fc')
-// style keeps its own native prev/next stepping.
+// e.g. clicking ‹ prepends yesterday and drops the last day. This applies to the grid
+// AND the hour views. In the FullCalendar ('fc' / "Dòng giờ") time views we slide one
+// day too via incrementDate; only the month view keeps its native month stepping.
 function navStep(){ return 1; }
+function fcStep(dir){
+  if(!calendar) return;
+  if(State.calView === 'dayGridMonth'){ dir < 0 ? calendar.prev() : calendar.next(); }
+  else { calendar.incrementDate({ days: dir }); }   // week / 3-day → slide by a single day
+}
 document.getElementById('prevBtn').addEventListener('click', ()=>{
-  if(isFc()){ if(calendar) calendar.prev(); } else { State.start = addDays(State.start, -navStep()); loadData(); }
+  if(isFc()){ fcStep(-1); } else { State.start = addDays(State.start, -navStep()); loadData(); }
 });
 document.getElementById('nextBtn').addEventListener('click', ()=>{
-  if(isFc()){ if(calendar) calendar.next(); } else { State.start = addDays(State.start,  navStep()); loadData(); }
+  if(isFc()){ fcStep(1); } else { State.start = addDays(State.start,  navStep()); loadData(); }
 });
 document.getElementById('todayBtn').addEventListener('click', ()=>{
   if(isFc()){ if(calendar) calendar.today(); } else { State.start = startOfDay(new Date()); loadData(); }
@@ -914,13 +919,13 @@ document.getElementById('apptCancel').addEventListener('click', closeAppt);
 document.getElementById('apptSave').addEventListener('click', saveAppt);
 document.getElementById('apptDeleteBtn').addEventListener('click', deleteAppt);
 apptModal.addEventListener('click', e=>{ if(e.target===apptModal) closeAppt(); });
-document.querySelectorAll('#modeGroup .seg').forEach(b => b.addEventListener('click', ()=> setMode(b.dataset.mode)));
-document.querySelectorAll('#showGroup .seg').forEach(b => b.addEventListener('click', ()=> setShow(b.dataset.show)));
-document.querySelectorAll('#styleGroup .seg').forEach(b => b.addEventListener('click', ()=> setHourStyle(b.dataset.style)));
+document.getElementById('modeSel').addEventListener('change', e=> setMode(e.target.value));
+document.getElementById('showSel').addEventListener('change', e=> setShow(e.target.value));
+document.getElementById('styleSel').addEventListener('change', e=> setHourStyle(e.target.value));
 
 // init
-document.querySelectorAll('#showGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.show===State.show));
-document.querySelectorAll('#modeGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.mode===State.mode));
+document.getElementById('showSel').value = State.show;
+document.getElementById('modeSel').value = State.mode;
 rebuildRangeSelect(State.mode);
 applyWraps();
 loadData();

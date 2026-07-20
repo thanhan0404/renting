@@ -1,0 +1,283 @@
+{% extends 'admin/tintus_base.html' %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-xl font-black text-gray-900">Dịch vụ khác</h1>
+    <p class="text-sm text-gray-500">Bán dịch vụ / mặt hàng không có trong kho (vệ sinh máy, phí ship, dán màn hình…). Ghi thẳng vào doanh thu.</p>
+  </div>
+  <button id="svcSellBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Bán dịch vụ</button>
+</div>
+
+<!-- stat cards -->
+<div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Số giao dịch</div>
+    <div id="svcCount" class="text-lg font-black text-gray-900 mt-0.5">{{ count }}</div>
+  </div>
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-brand-600 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Doanh thu tháng này</div>
+    <div class="text-lg font-black text-gray-900 mt-0.5">{{ month_rev|money }}đ</div>
+  </div>
+</div>
+
+<!-- period filter (dropdown) + history -->
+<div class="flex flex-wrap items-center gap-2 mb-3">
+  <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kỳ</label>
+  <select id="svcPeriod" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500">
+    <option value="day">Hôm nay</option>
+    <option value="month" selected>Tháng này</option>
+    <option value="year">Năm nay</option>
+    <option value="all">Tất cả</option>
+  </select>
+  <span class="text-xs text-gray-400 ml-auto">Bấm vào ô để sửa trực tiếp.</span>
+</div>
+
+<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:1000px">
+      <thead>
+        <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3" style="min-width:140px">Ngày</th>
+          <th class="text-left px-4 py-3" style="min-width:190px">Dịch vụ / mặt hàng</th>
+          <th class="text-left px-4 py-3" style="min-width:140px">Khách</th>
+          <th class="text-left px-4 py-3" style="min-width:120px">SĐT</th>
+          <th class="text-center px-4 py-3" style="min-width:70px">SL</th>
+          <th class="text-right px-4 py-3" style="min-width:120px">Giá bán/cái</th>
+          <th class="text-right px-4 py-3" style="min-width:120px">Doanh thu</th>
+          {% if is_admin %}<th class="text-right px-4 py-3" style="min-width:110px">Lãi</th>{% endif %}
+          <th class="text-left px-4 py-3" style="min-width:200px">Ghi chú</th>
+          <th class="text-center px-4 py-3" style="min-width:48px"></th>
+        </tr>
+      </thead>
+      <tbody id="svcBody">
+        {% for s in sales %}
+        <tr class="svc-row border-t border-gray-100 hover:bg-gray-50/60" data-id="{{ s.id }}" data-date="{{ s.date_iso }}">
+          <td class="px-4 py-1.5 text-gray-500 whitespace-nowrap">{{ s.date }}</td>
+          <td class="px-4 py-1.5">{% if is_admin %}<input class="svc-cell font-semibold text-gray-900" type="text" data-field="name" value="{{ s.name }}" placeholder="Tên">{% else %}<span class="font-semibold text-gray-900">{{ s.name }}</span>{% endif %}</td>
+          <td class="px-4 py-1.5"><input class="svc-cell text-gray-700" type="text" data-field="customer_name" value="{{ s.customer_name }}" placeholder="—"></td>
+          <td class="px-4 py-1.5"><input class="svc-cell text-gray-700" type="text" data-field="phone" value="{{ s.phone }}" placeholder="—"></td>
+          <td class="px-4 py-1.5"><input class="svc-cell svc-qty text-center tabular-nums" inputmode="numeric" data-field="quantity" value="{{ s.quantity }}"></td>
+          <td class="px-4 py-1.5"><input class="svc-cell svc-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="unit_price" data-raw="{{ s.unit_price }}"></td>
+          <td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 svc-rev">{{ s.revenue|money }}đ</td>
+          {% if is_admin %}<td class="px-4 py-1.5 text-right tabular-nums svc-profit {% if s.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ s.profit|money }}đ</td>{% endif %}
+          <td class="px-4 py-1.5"><input class="svc-cell text-gray-600" type="text" data-field="note" value="{{ s.note }}" placeholder="—"></td>
+          <td class="px-4 py-1.5 text-center">{% if is_admin %}<button class="svc-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div id="svcEmpty" class="px-6 py-10 text-center text-gray-400 {% if sales %}hidden{% endif %}">Chưa có giao dịch dịch vụ nào.</div>
+  <div id="svcNone" class="px-6 py-10 text-center text-gray-400 hidden">Không có giao dịch trong kỳ này.</div>
+</div>
+
+<!-- bán dịch vụ popup -->
+<div id="svcSellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Bán dịch vụ / hàng khác</h3>
+      <button id="svcClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên dịch vụ / mặt hàng *</label>
+        <input id="svcName" type="text" placeholder="VD: Vệ sinh cảm biến" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số lượng</label>
+          <input id="svcQty" type="number" min="1" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá bán / cái</label>
+          <input id="svcPrice" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      {% if is_admin %}
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá vốn / cái</label>
+        <input id="svcCost" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+      </div>
+      {% endif %}
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên khách</label>
+          <input id="svcCustomer" type="text" placeholder="Tên khách" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số điện thoại</label>
+          <input id="svcPhone" type="tel" placeholder="09…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú</label>
+        <input id="svcNote" type="text" placeholder="Ghi chú thêm…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <p class="text-sm text-gray-500">Thành tiền: <b id="svcTotal" class="text-gray-900">0đ</b></p>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="svcCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="svcDo" class="bg-brand-700 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận bán</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .svc-cell { width:100%; border:1px solid transparent; border-radius:8px; padding:4px 8px; font-size:13px; outline:none; background:transparent; }
+  .svc-cell:hover { background:#f3f4f6; }
+  .svc-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+</style>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+(function () {
+  const SELL_URL     = "{{ url_for('dichvu.sell') }}";
+  const SALE_UPD_URL = "{{ url_for('dichvu.sale_update') }}";
+  const SALE_DEL_URL = "{{ url_for('dichvu.sale_delete') }}";
+  const TODAY = "{{ today }}", THIS_MONTH = "{{ this_month }}", THIS_YEAR = "{{ this_year }}";
+  const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+  let period = 'month';
+  const fmt = TINTUS.fmtVND, num = TINTUS.parseMoney, group = TINTUS.group;
+  const $ = id => document.getElementById(id);
+  const esc = v => { const d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; };
+
+  document.querySelectorAll('.svc-money').forEach(inp => { inp.value = fmt(num(inp.dataset.raw)); });
+
+  // ── period filter ──
+  function inPeriod(dateIso) {
+    if (period === 'all') return true;
+    if (!dateIso) return false;
+    if (period === 'day')  return dateIso === TODAY;
+    if (period === 'year') return dateIso.slice(0, 4) === THIS_YEAR;
+    return dateIso.slice(0, 7) === THIS_MONTH;
+  }
+  function applyPeriod() {
+    let shown = 0, any = false;
+    document.querySelectorAll('#svcBody .svc-row').forEach(r => {
+      any = true;
+      const ok = inPeriod(r.dataset.date);
+      r.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    const empty = $('svcEmpty'), none = $('svcNone');
+    if (empty) empty.classList.toggle('hidden', any);
+    if (none)  none.classList.toggle('hidden', !any || shown > 0);
+  }
+  $('svcPeriod').addEventListener('change', e => { period = e.target.value; applyPeriod(); });
+
+  // ── row rendering / inline edit / delete ──
+  function makeRow(s) {
+    const tr = document.createElement('tr');
+    tr.className = 'svc-row border-t border-gray-100 hover:bg-gray-50/60';
+    tr.dataset.id = s.id; tr.dataset.date = s.date_iso || '';
+    const pc = (Number(s.profit) >= 0) ? 'text-emerald-600' : 'text-brand-700';
+    const nameCell = IS_ADMIN
+      ? `<input class="svc-cell font-semibold text-gray-900" type="text" data-field="name" value="${esc(s.name)}" placeholder="Tên">`
+      : `<span class="font-semibold text-gray-900">${esc(s.name)}</span>`;
+    tr.innerHTML =
+      `<td class="px-4 py-1.5 text-gray-500 whitespace-nowrap">${esc(s.date)}</td>` +
+      `<td class="px-4 py-1.5">${nameCell}</td>` +
+      `<td class="px-4 py-1.5"><input class="svc-cell text-gray-700" type="text" data-field="customer_name" value="${esc(s.customer_name)}" placeholder="—"></td>` +
+      `<td class="px-4 py-1.5"><input class="svc-cell text-gray-700" type="text" data-field="phone" value="${esc(s.phone)}" placeholder="—"></td>` +
+      `<td class="px-4 py-1.5"><input class="svc-cell svc-qty text-center tabular-nums" inputmode="numeric" data-field="quantity" value="${s.quantity}"></td>` +
+      `<td class="px-4 py-1.5"><input class="svc-cell svc-money text-right tabular-nums text-gray-700" inputmode="numeric" data-field="unit_price" data-raw="${s.unit_price}"></td>` +
+      `<td class="px-4 py-1.5 text-right tabular-nums font-bold text-gray-900 svc-rev">${fmt(s.revenue)}</td>` +
+      (IS_ADMIN ? `<td class="px-4 py-1.5 text-right tabular-nums svc-profit ${pc}">${fmt(s.profit)}</td>` : '') +
+      `<td class="px-4 py-1.5"><input class="svc-cell text-gray-600" type="text" data-field="note" value="${esc(s.note)}" placeholder="—"></td>` +
+      `<td class="px-4 py-1.5 text-center">` + (IS_ADMIN ? `<button class="svc-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Xoá giao dịch">Xoá</button>` : '') + `</td>`;
+    wireRow(tr);
+    return tr;
+  }
+  function applySale(tr, s) {
+    if (!s) return;
+    const rev = tr.querySelector('.svc-rev'), pr = tr.querySelector('.svc-profit');
+    if (rev) rev.textContent = fmt(s.revenue);
+    if (pr) { pr.textContent = fmt(s.profit); pr.classList.toggle('text-emerald-600', Number(s.profit) >= 0); pr.classList.toggle('text-brand-700', Number(s.profit) < 0); }
+    const q = tr.querySelector('[data-field="quantity"]'); if (q) q.value = s.quantity;
+    const up = tr.querySelector('[data-field="unit_price"]'); if (up) { up.dataset.raw = s.unit_price; up.value = fmt(s.unit_price); }
+  }
+  function wireRow(tr) {
+    tr.querySelectorAll('.svc-cell').forEach(inp => {
+      const money = inp.classList.contains('svc-money');
+      if (money) {
+        inp.value = fmt(num(inp.dataset.raw));
+        inp.addEventListener('focus', () => { inp.value = group(inp.dataset.raw); inp.select(); });
+      }
+      inp.dataset.prev = inp.value;
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      inp.addEventListener('change', async () => {
+        let value = inp.value;
+        if (money) { const raw = num(inp.value); inp.dataset.raw = raw; inp.value = fmt(raw); value = raw; }
+        else if (inp.dataset.field === 'quantity') { value = Math.max(1, num(inp.value) || 1); inp.value = value; }
+        try {
+          const res = await TINTUS.api(SALE_UPD_URL, { id: Number(tr.dataset.id), field: inp.dataset.field, value });
+          applySale(tr, res.sale);
+          inp.dataset.prev = inp.value;
+          TINTUS.toast('Đã lưu', 'ok');
+        } catch (e) {
+          if (money) { inp.value = fmt(num(inp.dataset.raw)); } else { inp.value = inp.dataset.prev; }
+          TINTUS.toast(e.message || 'Lỗi', 'err');
+        }
+      });
+    });
+    const del = tr.querySelector('.svc-del');
+    if (del) del.addEventListener('click', async () => {
+      if (!confirm('Xoá giao dịch này?')) return;
+      try {
+        await TINTUS.api(SALE_DEL_URL, { id: Number(tr.dataset.id) });
+        tr.remove(); applyPeriod();
+        TINTUS.toast('Đã xoá', 'ok');
+      } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  }
+  document.querySelectorAll('#svcBody .svc-row').forEach(wireRow);
+  applyPeriod();
+
+  // ── sell popup ──
+  const modal = $('svcSellModal');
+  function recalcTotal() {
+    const qty = parseInt($('svcQty').value, 10) || 0;
+    $('svcTotal').textContent = fmt(qty * num($('svcPrice').value));
+  }
+  function openSvc() {
+    $('svcName').value = ''; $('svcQty').value = 1; $('svcPrice').value = '';
+    if ($('svcCost')) $('svcCost').value = '';
+    $('svcCustomer').value = ''; $('svcPhone').value = ''; $('svcNote').value = '';
+    recalcTotal();
+    modal.style.display = 'flex'; $('svcName').focus();
+  }
+  function closeSvc() { modal.style.display = 'none'; }
+  $('svcSellBtn').addEventListener('click', openSvc);
+  $('svcClose').addEventListener('click', closeSvc);
+  $('svcCancel').addEventListener('click', closeSvc);
+  modal.addEventListener('click', e => { if (e.target === modal) closeSvc(); });
+  $('svcQty').addEventListener('input', recalcTotal);
+  $('svcPrice').addEventListener('input', recalcTotal);
+  $('svcDo').addEventListener('click', async () => {
+    const name = $('svcName').value.trim();
+    if (!name) { TINTUS.toast('Nhập tên dịch vụ / mặt hàng', 'warn'); return; }
+    const qty = parseInt($('svcQty').value, 10) || 0;
+    if (qty < 1) { TINTUS.toast('Số lượng ≥ 1', 'warn'); return; }
+    if (num($('svcPrice').value) <= 0) { TINTUS.toast('Giá bán phải > 0đ', 'warn'); return; }
+    try {
+      const payload = { name, quantity: qty, price: num($('svcPrice').value),
+        note: $('svcNote').value.trim(), customer_name: $('svcCustomer').value.trim(),
+        phone: $('svcPhone').value.trim() };
+      if ($('svcCost')) payload.cost = num($('svcCost').value);
+      const res = await TINTUS.api(SELL_URL, payload);
+      if (res.sale) {
+        const b = $('svcBody');
+        if (b) b.insertBefore(makeRow(res.sale), b.firstChild);
+        const e = $('svcEmpty'); if (e) e.classList.add('hidden');
+        const cnt = $('svcCount'); if (cnt) cnt.textContent = (parseInt(cnt.textContent, 10) || 0) + 1;
+        applyPeriod();
+      }
+      closeSvc();
+      TINTUS.toast('Đã bán ' + name + ' (' + fmt(res.revenue) + ')', 'ok');
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+})();
+</script>
+{% endblock %}

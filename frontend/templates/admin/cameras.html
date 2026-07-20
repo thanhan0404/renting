@@ -61,11 +61,14 @@
   </select>
   <input id="soldMonth" type="month" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:border-brand-500 hidden">
   <!-- period toggle (sold / deposit tabs) -->
-  <div id="periodSeg" class="hidden items-center gap-1 bg-gray-100 rounded-xl p-1">
-    <button class="per-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="day">Hôm nay</button>
-    <button class="per-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="month">Tháng này</button>
-    <button class="per-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="year">Năm nay</button>
-    <button class="per-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="all">Tất cả</button>
+  <div id="periodSeg" class="hidden items-center gap-2">
+    <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kỳ</label>
+    <select id="periodSelect" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500">
+      <option value="day">Hôm nay</option>
+      <option value="month" selected>Tháng này</option>
+      <option value="year">Năm nay</option>
+      <option value="all">Tất cả</option>
+    </select>
   </div>
   {% if is_admin %}
   <div id="importFilter" class="hidden flex items-center gap-1.5 border border-gray-200 rounded-xl pl-3 pr-1.5 py-1">
@@ -1206,11 +1209,10 @@
     if (periodSel === 'year') return dateIso.slice(0, 4) === THIS_YEAR;
     return dateIso.slice(0, 7) === THIS_MONTH;              // month (default)
   }
-  document.querySelectorAll('#periodSeg .per-btn').forEach(b => b.addEventListener('click', () => {
-    periodSel = b.dataset.per;
-    document.querySelectorAll('#periodSeg .per-btn').forEach(x => x.classList.toggle('active', x === b));
-    applyFilter();
-  }));
+  if ($('periodSelect')) {
+    $('periodSelect').value = periodSel;
+    $('periodSelect').addEventListener('change', e => { periodSel = e.target.value; applyFilter(); });
+  }
 
   // ════════════ search + filter ════════════
   const searchInput = $('searchInput');
@@ -1304,7 +1306,7 @@
   // ════════════ init ════════════
   document.querySelectorAll('#depositBody .deposit-unit').forEach(updateRemaining);
   recompute();
-  document.querySelectorAll('#periodSeg .per-btn').forEach(b => b.classList.toggle('active', b.dataset.per === periodSel));
+  if ($('periodSelect')) $('periodSelect').value = periodSel;
   const VALID_TABS = ['rent', 'sale', 'sold', 'deposit'];
   const urlTab = new URLSearchParams(location.search).get('tab');
   const saved = sessionStorage.getItem('camTab');

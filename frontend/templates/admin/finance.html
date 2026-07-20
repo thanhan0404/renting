@@ -24,13 +24,14 @@
     <p class="text-sm text-gray-500">Doanh thu, chi phí và lợi nhuận — tách riêng Cho thuê / Bán máy và tổng hợp. Số liệu tính theo <b>kỳ đang chọn</b>.</p>
   </div>
   <div class="flex items-center gap-2">
-    <!-- period type selector -->
-    <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+    <!-- period type selector (dropdown) -->
+    <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kỳ</label>
+    <select class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500"
+            onchange="location.href='{{ url_for('finance.index') }}?period='+this.value">
       {% for key, label in [('day','Ngày'), ('month','Tháng'), ('year','Năm'), ('all','Tất cả')] %}
-      <a href="{{ url_for('finance.index') }}?period={{ key }}"
-         class="px-4 py-1.5 rounded-lg text-sm font-bold transition-colors {% if period == key %}bg-white text-brand-700 shadow-sm{% else %}text-gray-500 hover:text-gray-800{% endif %}">{{ label }}</a>
+      <option value="{{ key }}" {% if period == key %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
-    </div>
+    </select>
     <a href="{{ url_for('finance.export') }}?period={{ period }}&anchor={{ anchor_value }}"
        class="text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl px-4 py-2" title="Tải báo cáo kỳ đang xem ra Excel">Xuất Excel</a>
   </div>
@@ -71,7 +72,20 @@
 </div>
 {% endif %}
 
+<!-- section selector (chia trang tài chính thành từng mục) -->
+<div class="flex items-center gap-2 mb-4">
+  <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Xem mục</label>
+  <select id="finSection" class="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 focus:outline-none focus:border-brand-500">
+    <option value="tong">Tổng hợp</option>
+    <option value="thue">Cho thuê</option>
+    <option value="ban">Bán máy</option>
+    <option value="phukien">Phụ kiện</option>
+    <option value="pnl">Lãi/lỗ theo máy</option>
+  </select>
+</div>
+
 <!-- ════════ TỔNG HỢP ════════ -->
+<section class="fin-sec" data-sec="tong">
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
   <div class="bg-white border border-gray-200 border-t-[3px] border-t-gray-800 rounded-2xl shadow-sm p-5">
     <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Tổng doanh thu</p>
@@ -101,7 +115,10 @@
   </div>
 </div>
 
+</section>
+
 <!-- ════════ CHO THUÊ ════════ -->
+<section class="fin-sec hidden" data-sec="thue">
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
     <h2 class="text-lg font-black text-gray-900">Cho thuê</h2>
@@ -115,7 +132,10 @@
   {{ barchart(rental_series, 'bg-brand-600 hover:bg-brand-700') }}
 </div>
 
+</section>
+
 <!-- ════════ BÁN MÁY ════════ -->
+<section class="fin-sec hidden" data-sec="ban">
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2 mb-4">
     <h2 class="text-lg font-black text-gray-900">Bán máy</h2>
@@ -144,20 +164,7 @@
     </div>
   </div>
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-5">
-    <div class="border border-gray-100 rounded-2xl p-4">
-      <h3 class="text-sm font-black text-gray-900 mb-3 flex items-center gap-2">🔥 Lãi cao nhất</h3>
-      {% if top_profit %}
-      <div class="space-y-2">
-        {% for c in top_profit %}
-        <div class="flex items-center justify-between gap-2 text-sm">
-          <span class="font-semibold text-gray-700 truncate">{{ loop.index }}. {{ c.name }}{% if c.color %} · {{ c.color }}{% endif %}</span>
-          <span class="shrink-0 font-black {% if c.profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ c.profit|money }}đ</span>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}<p class="text-sm text-gray-400">Chưa bán máy nào.</p>{% endif %}
-    </div>
+  <div class="mt-5">
     <div class="border border-gray-100 rounded-2xl p-4">
       <h3 class="text-sm font-black text-gray-900 mb-3 flex items-center gap-2">🐌 Hàng tồn lâu (theo ngày về)</h3>
       {% if aging %}
@@ -174,7 +181,10 @@
   </div>
 </div>
 
+</section>
+
 <!-- ════════ PHỤ KIỆN ════════ -->
+<section class="fin-sec hidden" data-sec="phukien">
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 mb-4">
   <div class="flex flex-wrap items-baseline justify-between gap-2">
     <h2 class="text-lg font-black text-gray-900">Phụ kiện</h2>
@@ -188,7 +198,10 @@
   <p class="text-xs text-gray-400 mt-2">Doanh thu bán lens, pin, thẻ nhớ… trong {{ anchor_label|lower }} (đã trừ chi phí phụ kiện hư). Quản lý kho ở tab “Phụ kiện”.</p>
 </div>
 
+</section>
+
 <!-- ── Per-camera P&L tables ── -->
+<section class="fin-sec hidden" data-sec="pnl">
 {% set pnl_groups = [
   {'title':'Lãi/lỗ — Máy cho thuê', 'cams': rent_cameras, 'empty':'Chưa có máy cho thuê nào.'},
   {'title':'Lãi/lỗ — Máy để bán',   'cams': sale_cameras, 'empty':'Chưa có máy để bán nào.'}
@@ -240,6 +253,23 @@
   </div>
 </div>
 {% endfor %}
+</section>
 {% endblock %}
 
-{% block admin_js %}<script>/* Tài chính: bảng tổng quan tĩnh. */</script>{% endblock %}
+{% block admin_js %}<script>
+(function () {
+  const sel = document.getElementById('finSection');
+  const secs = document.querySelectorAll('.fin-sec');
+  if (!sel) return;
+  const KEY = 'finSection';
+  function show(which) {
+    let matched = false;
+    secs.forEach(s => { const on = s.dataset.sec === which; s.classList.toggle('hidden', !on); if (on) matched = true; });
+    if (!matched) { secs.forEach((s, i) => s.classList.toggle('hidden', i !== 0)); which = secs[0] && secs[0].dataset.sec; }
+    sel.value = which;
+    try { localStorage.setItem(KEY, which); } catch (e) {}
+  }
+  show(localStorage.getItem(KEY) || 'tong');
+  sel.addEventListener('change', e => show(e.target.value));
+})();
+</script>{% endblock %}

@@ -2191,10 +2191,13 @@ class AccessoriesView(StaffView):
         total_stock  = int(sum(a.stock or 0 for a in items))
         stock_value  = int(sum(a.stock_value for a in items))
         now = datetime.now()
-        month_sales = [s for s in AccessorySale.query.all()
+        # Only real accessory sales here — free-form "dịch vụ khác" sales (accessory_id
+        # is NULL) live in their own tab (ServicesView / dichvu).
+        month_sales = [s for s in AccessorySale.query.filter(AccessorySale.accessory_id.isnot(None)).all()
                        if s.sale_date and s.sale_date.year == now.year and s.sale_date.month == now.month]
         month_rev = int(sum(s.revenue for s in month_sales))
-        sales = (AccessorySale.query.order_by(AccessorySale.sale_date.desc()).limit(300).all())
+        sales = (AccessorySale.query.filter(AccessorySale.accessory_id.isnot(None))
+                 .order_by(AccessorySale.sale_date.desc()).limit(300).all())
         damages = (AccessoryDamage.query.order_by(AccessoryDamage.damage_date.desc()).limit(300).all())
         month_damages = [x for x in damages
                          if x.damage_date and x.damage_date.year == now.year and x.damage_date.month == now.month]
@@ -2287,36 +2290,6 @@ class AccessoriesView(StaffView):
         db.session.commit()
         return jsonify({'ok': True, 'accessory': redact_accessory(serialize_accessory(a)),
                         'sold': qty, 'revenue': rec.revenue,
-                        'sale': redact_accessory_sale(serialize_accessory_sale(rec))})
-
-    @expose('/sell-service', methods=['POST'])
-    def sell_service(self):
-        """Record a free-form service / other-item sale (dịch vụ khác) that isn't tied
-        to a stocked accessory — e.g. vệ sinh máy, phí ship, dán màn hình. Stored as an
-        AccessorySale with no accessory_id so it feeds Finance like any other sale.
-        Cost (COGS) is optional and admin-only; employees just enter a price."""
-        d = request.get_json(silent=True) or {}
-        name = (d.get('name') or '').strip()
-        if not name:
-            return jsonify({'ok': False, 'error': 'Nhập tên dịch vụ / mặt hàng'}), 400
-        try:
-            qty   = max(1, int(d.get('quantity') or 1))
-            price = max(0, int(d.get('price') or 0))
-            cost  = max(0, int(d.get('cost') or 0)) if is_admin() else 0
-        except (TypeError, ValueError):
-            return jsonify({'ok': False, 'error': 'Số lượng / giá không hợp lệ'}), 400
-        if price <= 0:
-            return jsonify({'ok': False, 'error': 'Giá bán phải lớn hơn 0đ.'}), 400
-        rec = AccessorySale(accessory_id=None, name=name, quantity=qty,
-                            unit_price=price, unit_cost=cost,
-                            note=(d.get('note') or '').strip(),
-                            customer_name=(d.get('customer_name') or '').strip(),
-                            phone=(d.get('phone') or '').strip(),
-                            staff=current_staff_user(),
-                            sale_date=datetime.now())
-        db.session.add(rec)
-        db.session.commit()
-        return jsonify({'ok': True, 'sold': qty, 'revenue': rec.revenue,
                         'sale': redact_accessory_sale(serialize_accessory_sale(rec))})
 
     # ── Sales-history editing (Lịch sử bán) ──────────────────────────────────
@@ -2432,6 +2405,99 @@ class AccessoriesView(StaffView):
         db.session.delete(rec)
         db.session.commit()
         return jsonify({'ok': True, 'accessory': serialize_accessory(acc) if acc else None})
+
+
+class ServicesView(StaffView):
+    """Dịch vụ khác — free-form service / other-item sales not tied to stocked
+    inventory (vệ sinh máy, phí ship, dán màn hình…). Stored as AccessorySale rows
+    with accessory_id = NULL, so they still feed Finance, but live in their own tab
+    with their own sales history. Available to every staff member."""
+
+    SALE_EDITABLE = {'name': str, 'quantity': int, 'unit_price': int, 'note': str,
+                     'customer_name': str, 'phone': str}
+
+    @expose('/')
+    def index(self):
+        now = datetime.now()
+        q = AccessorySale.query.filter(AccessorySale.accessory_id.is_(None))
+        sales = q.order_by(AccessorySale.sale_date.desc()).limit(300).all()
+        month = [s for s in sales
+                 if s.sale_date and s.sale_date.year == now.year and s.sale_date.month == now.month]
+        return self.render('admin/dichvu.html',
+                           sales=[redact_accessory_sale(serialize_accessory_sale(s)) for s in sales],
+                           month_rev=int(sum(s.revenue for s in month)),
+                           count=len(sales),
+                           today=now.strftime('%Y-%m-%d'),
+                           this_month=now.strftime('%Y-%m'), this_year=now.strftime('%Y'))
+
+    @expose('/sell', methods=['POST'])
+    def sell(self):
+        """Record a free-form service / other-item sale. Cost (COGS) is optional and
+        admin-only; employees just enter a price (which must be > 0)."""
+        d = request.get_json(silent=True) or {}
+        name = (d.get('name') or '').strip()
+        if not name:
+            return jsonify({'ok': False, 'error': 'Nhập tên dịch vụ / mặt hàng'}), 400
+        try:
+            qty   = max(1, int(d.get('quantity') or 1))
+            price = max(0, int(d.get('price') or 0))
+            cost  = max(0, int(d.get('cost') or 0)) if is_admin() else 0
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Số lượng / giá không hợp lệ'}), 400
+        if price <= 0:
+            return jsonify({'ok': False, 'error': 'Giá bán phải lớn hơn 0đ.'}), 400
+        rec = AccessorySale(accessory_id=None, name=name, quantity=qty,
+                            unit_price=price, unit_cost=cost,
+                            note=(d.get('note') or '').strip(),
+                            customer_name=(d.get('customer_name') or '').strip(),
+                            phone=(d.get('phone') or '').strip(),
+                            staff=current_staff_user(),
+                            sale_date=datetime.now())
+        db.session.add(rec)
+        db.session.commit()
+        return jsonify({'ok': True, 'sold': qty, 'revenue': rec.revenue,
+                        'sale': redact_accessory_sale(serialize_accessory_sale(rec))})
+
+    @expose('/sale/update', methods=['POST'])
+    def sale_update(self):
+        """Inline-edit a logged service sale. Employees may fix customer info / notes;
+        name / quantity / price edits are admin-only."""
+        d = request.get_json(silent=True) or {}
+        rec = db.session.get(AccessorySale, d.get('id'))
+        if not rec or rec.accessory_id is not None:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy giao dịch'}), 404
+        field, value = d.get('field'), d.get('value')
+        if field not in self.SALE_EDITABLE:
+            return jsonify({'ok': False, 'error': 'Trường không hợp lệ'}), 400
+        if not is_admin() and field not in ('note', 'customer_name', 'phone'):
+            return _forbidden('Chỉ quản lý được sửa tên / số lượng / giá của giao dịch đã ghi.')
+        if field == 'quantity':
+            try:
+                rec.quantity = max(1, int(value or 1))
+            except (TypeError, ValueError):
+                return jsonify({'ok': False, 'error': 'Số lượng không hợp lệ'}), 400
+        elif field == 'unit_price':
+            try:
+                rec.unit_price = max(0, int(value or 0))
+            except (TypeError, ValueError):
+                return jsonify({'ok': False, 'error': 'Giá không hợp lệ'}), 400
+        else:
+            setattr(rec, field, (str(value) if value is not None else '').strip())
+        db.session.commit()
+        return jsonify({'ok': True, 'sale': redact_accessory_sale(serialize_accessory_sale(rec))})
+
+    @expose('/sale/delete', methods=['POST'])
+    def sale_delete(self):
+        """Delete a logged service sale (admin only)."""
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được xoá giao dịch đã ghi.')
+        d = request.get_json(silent=True) or {}
+        rec = db.session.get(AccessorySale, d.get('id'))
+        if not rec or rec.accessory_id is not None:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy giao dịch'}), 404
+        db.session.delete(rec)
+        db.session.commit()
+        return jsonify({'ok': True})
 
 
 def serialize_lead(l):
@@ -2997,6 +3063,7 @@ admin.add_view(BookingGridView(name='Lịch thuê (Sheet)', endpoint='bookinggri
 admin.add_view(CalendarView(name='Lịch (Calendar)',     endpoint='calendar'))
 admin.add_view(CamerasView(name='Quản lý máy',          endpoint='cameras'))
 admin.add_view(AccessoriesView(name='Phụ kiện',         endpoint='phukien'))
+admin.add_view(ServicesView(name='Dịch vụ khác',        endpoint='dichvu'))
 admin.add_view(CustomersView(name='Khách hàng',         endpoint='customers'))
 admin.add_view(FinanceView(name='Tài chính',            endpoint='finance'))
 admin.add_view(StoreCostView(name='Chi phí tiệm',       endpoint='chiphi'))
