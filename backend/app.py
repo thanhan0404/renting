@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from models import (db, Camera, RentalBooking, PurchaseOrder, Sheet,
                     StoreCost, RepairLog, ActivityLog,
-                    Accessory, AccessorySale, Appointment, Lead,
+                    Accessory, AccessorySale, AccessoryDamage, Appointment, Lead,
                     Employee, Customer, Setting)
 from seed import seed as seed_db, backfill_costs
 
@@ -128,7 +128,7 @@ db.init_app(app)
 # Employee/Setting are intentionally NOT logged (snapshots would store password
 # hashes, and undo could silently roll back credentials / config).
 LOGGED_MODELS = [Camera, RentalBooking, Appointment, Lead, RepairLog,
-                 StoreCost, Accessory, AccessorySale, PurchaseOrder, Sheet,
+                 StoreCost, Accessory, AccessorySale, AccessoryDamage, PurchaseOrder, Sheet,
                  Customer]
 TABLE_MODELS = {m.__tablename__: m for m in LOGGED_MODELS}
 
@@ -137,6 +137,7 @@ _ACT_TABLE_VI = {
     'camera': 'máy ảnh', 'rental_booking': 'đơn thuê', 'appointment': 'lịch hẹn',
     'lead': 'khách quan tâm', 'repair_log': 'sửa chữa', 'store_cost': 'chi phí tiệm',
     'accessory': 'phụ kiện', 'accessory_sale': 'bán phụ kiện',
+    'accessory_damage': 'phụ kiện hư',
     'purchase_order': 'đơn mua', 'sheet': 'sổ tay', 'customer': 'khách hàng',
 }
 _ACT_VERB = {'insert': 'Thêm', 'update': 'Sửa', 'delete': 'Xoá'}
@@ -1348,6 +1349,16 @@ def redact_accessory_sale(s):
     return s
 
 
+def redact_accessory_damage(x):
+    """Employee-safe copy of a damaged-accessory record (no cost / loss figures)."""
+    if is_admin():
+        return x
+    x = dict(x)
+    for k in ('unit_cost', 'loss'):
+        x.pop(k, None)
+    return x
+
+
 def serialize_cost(c):
     return {'id': c.id, 'category': c.category or 'Khác', 'note': c.note or '',
             'amount': c.amount or 0,
@@ -1367,6 +1378,14 @@ def serialize_accessory_sale(s):
             'customer_name': s.customer_name or '', 'phone': s.phone or '',
             'date': s.sale_date.strftime('%d/%m/%Y %H:%M') if s.sale_date else '',
             'date_iso': s.sale_date.strftime('%Y-%m-%d') if s.sale_date else ''}
+
+
+def serialize_accessory_damage(x):
+    return {'id': x.id, 'name': x.name or '', 'quantity': x.quantity or 0,
+            'unit_cost': x.unit_cost or 0, 'loss': x.loss, 'note': x.note or '',
+            'staff': x.staff or '',
+            'date': x.damage_date.strftime('%d/%m/%Y %H:%M') if x.damage_date else '',
+            'date_iso': x.damage_date.strftime('%Y-%m-%d') if x.damage_date else ''}
 
 
 def camera_pnl(cam):
@@ -1399,6 +1418,9 @@ class CamerasView(StaffView):
     # and stock overrides are admin-only.
     EMPLOYEE_EDITABLE = ('sold_to', 'sold_phone', 'sold_source',
                          'description', 'accessory', 'color')
+    # Rental pricing an employee may adjust — but only on rental (Rent) units.
+    # Sale pricing (sold_price) still goes through the guarded /sell flow.
+    EMPLOYEE_RENT_PRICE = ('price', 'price_d2', 'price_d3', 'price_d4')
     SALE_STATES = ('stock', 'processing', 'deposit', 'sold', 'fixing', 'unfixable')
     SELL_STATES = ('sold', 'deposit')    # states that finalise a sale (capture price/customer)
 
@@ -1440,8 +1462,11 @@ class CamerasView(StaffView):
         # Employees: read-only inventory except a few operational fields.
         # sale_state is allowed here (POS + re-classify); the one restriction —
         # un-finalising a sale — is enforced inside the sale_state branch below.
+        # Rental prices are also editable by employees, but only on Rent units.
         if not is_admin() and field != 'sale_state' and field not in self.EMPLOYEE_EDITABLE:
-            return _forbidden('Chỉ quản lý được sửa trường này.')
+            allow_rent_price = (field in self.EMPLOYEE_RENT_PRICE and cam.type == 'Rent')
+            if not allow_rent_price:
+                return _forbidden('Chỉ quản lý được sửa trường này.')
 
         # ── per-unit special fields ──
         if field == 'date_in':
@@ -1461,6 +1486,11 @@ class CamerasView(StaffView):
                     and value in ('stock', 'processing')):
                 return _forbidden('Chỉ quản lý được chuyển máy “đã bán / đã cọc” '
                                   'về “còn hàng / đang xử lý”.')
+            # A sale must have a price: block finalising (đã bán / đã cọc) a 0đ unit.
+            if value in self.SELL_STATES and (cam.sold_price or 0) <= 0:
+                return jsonify({'ok': False,
+                                'error': 'Cần nhập giá bán (khác 0đ) trước khi đánh dấu '
+                                         '“đã bán / đã cọc”. Dùng nút “Bán” để nhập giá.'}), 400
             cam.sale_state = value
             cam.is_sold = (value == 'sold')
             if value != 'deposit':                 # deposit amount only applies while đã cọc
@@ -1553,6 +1583,8 @@ class CamerasView(StaffView):
             price = max(0, int(d.get('sold_price') or 0))
         except (TypeError, ValueError):
             return jsonify({'ok': False, 'error': 'Giá bán không hợp lệ'}), 400
+        if price <= 0:
+            return jsonify({'ok': False, 'error': 'Giá bán phải lớn hơn 0đ.'}), 400
         try:
             deposit = max(0, int(d.get('deposit_amount') or 0))
         except (TypeError, ValueError):
@@ -1599,9 +1631,13 @@ class CamerasView(StaffView):
 
     @expose('/add', methods=['POST'])
     def add(self):
-        if not is_admin():
-            return _forbidden('Chỉ quản lý được thêm máy vào kho.')
         d = request.get_json(silent=True) or {}
+        cam_type = d.get('type') if d.get('type') in ('Rent', 'Sale') else 'Rent'
+        # Employees may add rental machines only, and never set acquisition cost
+        # (a financial field they don't see). Full add (incl. sale units) is admin-only.
+        if not is_admin():
+            if cam_type != 'Rent':
+                return _forbidden('Nhân viên chỉ được thêm máy cho thuê.')
         name = (d.get('name') or '').strip()
         if not name:
             return jsonify({'ok': False, 'error': 'Tên máy bắt buộc'}), 400
@@ -1610,12 +1646,12 @@ class CamerasView(StaffView):
         while Camera.query.filter_by(slug=slug).first():
             n += 1
             slug = f'{base}-{n}'
-        cam_type = d.get('type') if d.get('type') in ('Rent', 'Sale') else 'Rent'
         category = (d.get('category') or '').strip()
         state = d.get('sale_state') if d.get('sale_state') in self.SALE_STATES else 'stock'
+        import_cost = int(d.get('import_cost') or 0) if is_admin() else 0
         cam = Camera(name=name, slug=slug, brand=(d.get('brand') or '').strip(),
                      type=cam_type, category=category, price=int(d.get('price') or 0),
-                     import_cost=int(d.get('import_cost') or 0), stock=1,
+                     import_cost=import_cost, stock=1,
                      origin=(d.get('origin') or '').strip(),
                      accessory=(d.get('accessory') or '').strip(),
                      color=(d.get('color') or '').strip(),
@@ -1821,6 +1857,7 @@ class FinanceView(AdminOnlyView):
         sold_cams = [c for c in sale_cameras if c.sale_state in ('sold', 'deposit') and c.sold_date]
         store_costs = StoreCost.query.all()
         acc_sales = AccessorySale.query.all()
+        acc_damages = AccessoryDamage.query.all()     # dated accessory write-offs (phụ kiện hư)
         repair_logs = RepairLog.query.all()          # dated rental-repair expenses
 
         def window(start, end):
@@ -1834,9 +1871,12 @@ class FinanceView(AdminOnlyView):
             asales = [s for s in acc_sales if s.sale_date and start <= s.sale_date < end]
             arev  = sum(s.revenue for s in asales)
             acogs = sum(s.cost_total for s in asales)
+            # Damaged accessories: a write-off loss (cost of the units binned), booked
+            # in the period they were recorded. Reduces accessory profit like a COGS.
+            aloss = sum(x.loss for x in acc_damages if x.damage_date and start <= x.damage_date < end)
             return {'rrev': rrev, 'rcost': rcost, 'srev': srev, 'scogs': scogs, 'sprof': srev - scogs,
                     'scost': scost, 'sold': sold,
-                    'arev': arev, 'acogs': acogs, 'aprof': arev - acogs}
+                    'arev': arev, 'acogs': acogs, 'aloss': aloss, 'aprof': arev - acogs - aloss}
 
         # ── trailing buckets for the trend charts (ending at the anchor) ──
         # 'all' has no single anchor → show a yearly trend over the last few years for context.
@@ -1866,7 +1906,8 @@ class FinanceView(AdminOnlyView):
         sale_cost      = int(w['scogs'])
         sale_profit    = int(w['sprof'])
         accessory_revenue = int(w['arev'])
-        accessory_cost    = int(w['acogs'])
+        accessory_damage_loss = int(w['aloss'])
+        accessory_cost    = int(w['acogs']) + accessory_damage_loss   # COGS + write-off loss
         accessory_profit  = int(w['aprof'])
         store_cost_total = int(w['scost'])
 
@@ -1890,6 +1931,7 @@ class FinanceView(AdminOnlyView):
             'rental_revenue': rental_revenue, 'rental_cost': rental_cost, 'rental_profit': rental_profit,
             'sale_revenue': sale_revenue, 'sale_cost': sale_cost, 'sale_profit': sale_profit,
             'accessory_revenue': accessory_revenue, 'accessory_cost': accessory_cost, 'accessory_profit': accessory_profit,
+            'accessory_damage_loss': accessory_damage_loss,
             'total_revenue': total_revenue, 'total_cost': total_cost, 'total_profit': total_profit,
             'inventory_value': inventory_value,
             'store_cost_total': store_cost_total, 'net_profit': net_profit,
@@ -1966,6 +2008,7 @@ class FinanceView(AdminOnlyView):
         bookings = RentalBooking.query.all()
         store_costs = StoreCost.query.all()
         acc_sales = AccessorySale.query.all()
+        acc_damages = AccessoryDamage.query.all()
 
         repair_logs = RepairLog.query.all()
         in_win = lambda d: d and astart <= d < aend
@@ -1977,7 +2020,9 @@ class FinanceView(AdminOnlyView):
         scost = sum(int(x.amount or 0) for x in store_costs if in_win(x.cost_date))
         asales = [s for s in acc_sales if in_win(s.sale_date)]
         arev = sum(s.revenue for s in asales)
-        acogs = sum(s.cost_total for s in asales)
+        # accessory cost = COGS of sold units + write-off loss of damaged units (phụ kiện hư)
+        aloss = sum(x.loss for x in acc_damages if in_win(x.damage_date))
+        acogs = sum(s.cost_total for s in asales) + aloss
         inv = [c for c in sale_cameras if c.sale_state in ('stock', 'processing', 'fixing')]
         inv_value = int(sum(c.inventory_value for c in sale_cameras))
         total_rev = rrev + srev + arev
@@ -2150,13 +2195,19 @@ class AccessoriesView(StaffView):
                        if s.sale_date and s.sale_date.year == now.year and s.sale_date.month == now.month]
         month_rev = int(sum(s.revenue for s in month_sales))
         sales = (AccessorySale.query.order_by(AccessorySale.sale_date.desc()).limit(300).all())
+        damages = (AccessoryDamage.query.order_by(AccessoryDamage.damage_date.desc()).limit(300).all())
+        month_damages = [x for x in damages
+                         if x.damage_date and x.damage_date.year == now.year and x.damage_date.month == now.month]
+        month_loss = int(sum(x.loss for x in month_damages))
         return self.render('admin/phukien.html',
                            accessories=[redact_accessory(serialize_accessory(a)) for a in items],
                            sales=[redact_accessory_sale(serialize_accessory_sale(s)) for s in sales],
+                           damages=[redact_accessory_damage(serialize_accessory_damage(x)) for x in damages],
                            categories=ACCESSORY_CATEGORIES,
                            total_stock=total_stock,
                            stock_value=stock_value if is_admin() else 0,
                            item_count=len(items), month_rev=month_rev,
+                           month_loss=month_loss if is_admin() else 0,
                            today=now.strftime('%Y-%m-%d'),
                            this_month=now.strftime('%Y-%m'), this_year=now.strftime('%Y'))
 
@@ -2214,6 +2265,8 @@ class AccessoriesView(StaffView):
             return jsonify({'ok': False, 'error': 'Số lượng / giá không hợp lệ'}), 400
         if qty < 1:
             return jsonify({'ok': False, 'error': 'Số lượng phải ≥ 1'}), 400
+        if price <= 0:
+            return jsonify({'ok': False, 'error': 'Giá bán phải lớn hơn 0đ.'}), 400
         if qty > (a.stock or 0):
             return jsonify({'ok': False, 'error': f'Chỉ còn {a.stock or 0} cái trong kho'}), 400
         # Employee discount floor: listed price minus the admin-set max %.
@@ -2234,6 +2287,36 @@ class AccessoriesView(StaffView):
         db.session.commit()
         return jsonify({'ok': True, 'accessory': redact_accessory(serialize_accessory(a)),
                         'sold': qty, 'revenue': rec.revenue,
+                        'sale': redact_accessory_sale(serialize_accessory_sale(rec))})
+
+    @expose('/sell-service', methods=['POST'])
+    def sell_service(self):
+        """Record a free-form service / other-item sale (dịch vụ khác) that isn't tied
+        to a stocked accessory — e.g. vệ sinh máy, phí ship, dán màn hình. Stored as an
+        AccessorySale with no accessory_id so it feeds Finance like any other sale.
+        Cost (COGS) is optional and admin-only; employees just enter a price."""
+        d = request.get_json(silent=True) or {}
+        name = (d.get('name') or '').strip()
+        if not name:
+            return jsonify({'ok': False, 'error': 'Nhập tên dịch vụ / mặt hàng'}), 400
+        try:
+            qty   = max(1, int(d.get('quantity') or 1))
+            price = max(0, int(d.get('price') or 0))
+            cost  = max(0, int(d.get('cost') or 0)) if is_admin() else 0
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Số lượng / giá không hợp lệ'}), 400
+        if price <= 0:
+            return jsonify({'ok': False, 'error': 'Giá bán phải lớn hơn 0đ.'}), 400
+        rec = AccessorySale(accessory_id=None, name=name, quantity=qty,
+                            unit_price=price, unit_cost=cost,
+                            note=(d.get('note') or '').strip(),
+                            customer_name=(d.get('customer_name') or '').strip(),
+                            phone=(d.get('phone') or '').strip(),
+                            staff=current_staff_user(),
+                            sale_date=datetime.now())
+        db.session.add(rec)
+        db.session.commit()
+        return jsonify({'ok': True, 'sold': qty, 'revenue': rec.revenue,
                         'sale': redact_accessory_sale(serialize_accessory_sale(rec))})
 
     # ── Sales-history editing (Lịch sử bán) ──────────────────────────────────
@@ -2304,6 +2387,51 @@ class AccessoriesView(StaffView):
         db.session.delete(a)
         db.session.commit()
         return jsonify({'ok': True})
+
+    # ── Phụ kiện hư (damaged / write-off) ─────────────────────────────────────
+    @expose('/damage', methods=['POST'])
+    def damage(self):
+        """Report N units of an accessory as broken/unsellable → remove them from
+        sellable stock and log the loss (staff + admin)."""
+        d = request.get_json(silent=True) or {}
+        a = db.session.get(Accessory, d.get('id'))
+        if not a:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy'}), 404
+        try:
+            qty = int(d.get('quantity') or 0)
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'error': 'Số lượng không hợp lệ'}), 400
+        if qty < 1:
+            return jsonify({'ok': False, 'error': 'Số lượng phải ≥ 1'}), 400
+        if qty > (a.stock or 0):
+            return jsonify({'ok': False, 'error': f'Chỉ còn {a.stock or 0} cái trong kho'}), 400
+        a.stock -= qty
+        rec = AccessoryDamage(accessory_id=a.id, name=a.name, quantity=qty,
+                              unit_cost=int(a.cost or 0),
+                              note=(d.get('note') or '').strip(),
+                              staff=current_staff_user(),
+                              damage_date=datetime.now())
+        db.session.add(rec)
+        db.session.commit()
+        return jsonify({'ok': True, 'accessory': redact_accessory(serialize_accessory(a)),
+                        'damaged': qty,
+                        'damage': redact_accessory_damage(serialize_accessory_damage(rec))})
+
+    @expose('/damage/delete', methods=['POST'])
+    def damage_delete(self):
+        """Undo a damage write-off and return its units to stock (admin only)."""
+        if not is_admin():
+            return _forbidden('Chỉ quản lý được xoá ghi nhận phụ kiện hư.')
+        d = request.get_json(silent=True) or {}
+        rec = db.session.get(AccessoryDamage, d.get('id'))
+        if not rec:
+            return jsonify({'ok': False, 'error': 'Không tìm thấy'}), 404
+        acc = db.session.get(Accessory, rec.accessory_id) if rec.accessory_id else None
+        if acc:
+            acc.stock = (acc.stock or 0) + (rec.quantity or 0)
+        db.session.delete(rec)
+        db.session.commit()
+        return jsonify({'ok': True, 'accessory': serialize_accessory(acc) if acc else None})
 
 
 def serialize_lead(l):

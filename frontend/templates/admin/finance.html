@@ -181,10 +181,11 @@
     <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold">
       <span class="text-gray-500">Doanh thu <b class="text-gray-900">{{ summary.accessory_revenue|money }}đ</b></span>
       <span class="text-gray-500">Vốn <b class="text-gray-900">{{ summary.accessory_cost|money }}đ</b></span>
+      {% if summary.accessory_damage_loss %}<span class="text-gray-500">Hư hỏng <b class="text-rose-600">{{ summary.accessory_damage_loss|money }}đ</b></span>{% endif %}
       <span class="text-gray-500">Lợi nhuận <b class="{% if summary.accessory_profit >= 0 %}text-emerald-600{% else %}text-brand-700{% endif %}">{{ summary.accessory_profit|money }}đ</b></span>
     </div>
   </div>
-  <p class="text-xs text-gray-400 mt-2">Doanh thu bán lens, pin, thẻ nhớ… trong {{ anchor_label|lower }}. Quản lý kho ở tab “Phụ kiện”.</p>
+  <p class="text-xs text-gray-400 mt-2">Doanh thu bán lens, pin, thẻ nhớ… trong {{ anchor_label|lower }} (đã trừ chi phí phụ kiện hư). Quản lý kho ở tab “Phụ kiện”.</p>
 </div>
 
 <!-- ── Per-camera P&L tables ── -->

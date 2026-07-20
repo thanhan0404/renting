@@ -28,12 +28,22 @@
     <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Doanh thu tháng này</div>
     <div class="text-lg font-black text-gray-900 mt-0.5">{{ month_rev|money }}đ</div>
   </div>
+  {% if is_admin %}
+  <div class="bg-white border border-gray-200 border-t-[3px] border-t-rose-500 rounded-2xl shadow-sm px-4 py-3">
+    <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Hư hỏng tháng này</div>
+    <div id="acLoss" class="text-lg font-black text-gray-900 mt-0.5">{{ month_loss|money }}đ</div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- tabs -->
-<div class="flex items-center gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-max">
-  <button id="tabBtnStock" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Kho</button>
-  <button id="tabBtnHist" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Lịch sử bán</button>
+<div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+  <div class="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-max">
+    <button id="tabBtnStock" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Kho</button>
+    <button id="tabBtnHist" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Lịch sử bán</button>
+    <button id="tabBtnDamaged" class="ac-tab px-5 py-2 rounded-lg text-sm font-bold transition-colors">Phụ kiện hư</button>
+  </div>
+  <button id="svcSellBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Bán dịch vụ khác</button>
 </div>
 
 <div id="tabStock">
@@ -103,6 +113,7 @@
           <td class="px-4 py-1.5"><input class="ac-cell text-gray-700" type="text" data-field="note" value="{{ a.note }}" placeholder="—"></td>
           <td class="px-4 py-1.5 text-center whitespace-nowrap">
             <button class="ac-sell bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">Bán</button>
+            <button class="ac-damage border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold px-3 py-1.5 rounded-lg" title="Ghi nhận phụ kiện hư">Báo hư</button>
             {% if is_admin %}<button class="ac-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700 align-middle" title="Xoá">Xoá</button>{% endif %}
           </td>
         </tr>
@@ -166,6 +177,51 @@
   </div>
 </div>
 
+<!-- ── Damaged tab (Phụ kiện hư) ── -->
+<div id="tabDamaged" class="hidden">
+  <div class="flex flex-wrap items-center gap-2 mb-3">
+    <div id="dmgPeriodSeg" class="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="day">Hôm nay</button>
+      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="month">Tháng này</button>
+      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="year">Năm nay</button>
+      <button class="dmgper-btn px-3 py-1.5 rounded-lg text-xs font-bold" data-per="all">Tất cả</button>
+    </div>
+    <span class="text-xs text-gray-400 ml-auto">Ghi nhận phụ kiện hỏng/không bán được — số lượng bị trừ khỏi kho, tính vào chi phí.</span>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm" style="min-width:820px">
+        <thead>
+          <tr class="bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wide">
+            <th class="text-left px-4 py-3" style="min-width:140px">Ngày</th>
+            <th class="text-left px-4 py-3" style="min-width:180px">Phụ kiện</th>
+            <th class="text-center px-4 py-3" style="min-width:70px">SL</th>
+            {% if is_admin %}<th class="text-right px-4 py-3" style="min-width:120px">Thiệt hại</th>{% endif %}
+            <th class="text-left px-4 py-3" style="min-width:220px">Lý do</th>
+            <th class="text-left px-4 py-3" style="min-width:120px">Người ghi</th>
+            <th class="text-center px-4 py-3" style="min-width:48px"></th>
+          </tr>
+        </thead>
+        <tbody id="dmgBody">
+          {% for x in damages %}
+          <tr class="dmg-row border-t border-gray-100 hover:bg-gray-50/60" data-id="{{ x.id }}" data-date="{{ x.date_iso }}">
+            <td class="px-4 py-1.5 text-gray-500 whitespace-nowrap">{{ x.date }}</td>
+            <td class="px-4 py-1.5 font-semibold text-gray-900">{{ x.name }}</td>
+            <td class="px-4 py-1.5 text-center tabular-nums font-bold text-gray-900">{{ x.quantity }}</td>
+            {% if is_admin %}<td class="px-4 py-1.5 text-right tabular-nums font-bold text-rose-600">{{ x.loss|money }}đ</td>{% endif %}
+            <td class="px-4 py-1.5 text-gray-600">{{ x.note or '—' }}</td>
+            <td class="px-4 py-1.5 text-gray-600">{{ x.staff or '—' }}</td>
+            <td class="px-4 py-1.5 text-center">{% if is_admin %}<button class="dmg-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Huỷ ghi nhận (trả lại kho)">Xoá</button>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div id="dmgEmpty" class="px-6 py-10 text-center text-gray-400 {% if damages %}hidden{% endif %}">Chưa ghi nhận phụ kiện hư nào.</div>
+    <div id="dmgNone" class="px-6 py-10 text-center text-gray-400 hidden">Không có ghi nhận trong kỳ này.</div>
+  </div>
+</div>
+
 <!-- sell popup -->
 <div id="acSellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
   <div class="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[94vw]">
@@ -208,6 +264,84 @@
   </div>
 </div>
 
+<!-- báo hư popup -->
+<div id="acDamageModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Ghi nhận phụ kiện hư</h3>
+      <button id="acDmgClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <p class="text-sm text-gray-500">Phụ kiện: <b id="acDmgName" class="text-gray-900"></b> · còn <b id="acDmgStock" class="text-gray-900"></b> cái</p>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số lượng hư</label>
+        <input id="acDmgQty" type="number" min="1" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Lý do / tình trạng (tuỳ chọn)</label>
+        <input id="acDmgNote" type="text" placeholder="VD: rơi vỡ, chai pin, lỗi không sửa được…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <p class="text-xs text-gray-400">Số lượng này sẽ bị trừ khỏi kho và ghi nhận là chi phí hư hỏng.</p>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="acDmgCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="acDmgDo" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận hư</button>
+    </div>
+  </div>
+</div>
+
+<!-- bán dịch vụ khác popup -->
+<div id="svcSellModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(17,24,39,.55)">
+  <div class="bg-white rounded-2xl shadow-2xl w-[440px] max-w-[94vw]">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <h3 class="font-black text-gray-900">Bán dịch vụ / hàng khác</h3>
+      <button id="svcClose" class="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold">×</button>
+    </div>
+    <div class="p-5 space-y-3.5">
+      <p class="text-xs text-gray-400">Bán dịch vụ hoặc mặt hàng không có trong kho (vệ sinh máy, phí ship, dán màn hình…). Ghi thẳng vào doanh thu.</p>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên dịch vụ / mặt hàng *</label>
+        <input id="svcName" type="text" placeholder="VD: Vệ sinh cảm biến" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số lượng</label>
+          <input id="svcQty" type="number" min="1" value="1" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá bán / cái</label>
+          <input id="svcPrice" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      {% if is_admin %}
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá vốn / cái (tuỳ chọn)</label>
+        <input id="svcCost" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
+      </div>
+      {% endif %}
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tên khách (tuỳ chọn)</label>
+          <input id="svcCustomer" type="text" placeholder="Tên khách" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Số điện thoại</label>
+          <input id="svcPhone" type="tel" placeholder="09…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Ghi chú (tuỳ chọn)</label>
+        <input id="svcNote" type="text" placeholder="Ghi chú thêm…" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <p class="text-sm text-gray-500">Thành tiền: <b id="svcTotal" class="text-gray-900">0đ</b></p>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
+      <button id="svcCancel" class="text-gray-600 hover:bg-gray-100 font-bold text-sm px-4 py-2.5 rounded-xl">Huỷ</button>
+      <button id="svcDo" class="bg-brand-700 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl">Xác nhận bán</button>
+    </div>
+  </div>
+</div>
+
 <style>
   .ac-in { border:1px solid #e5e7eb; border-radius:10px; padding:8px 10px; font-size:13px; outline:none; background:#fff; }
   .ac-in:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
@@ -222,6 +356,8 @@
   .hist-cell:focus { background:#fff; border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
   .acper-btn { color:#6b7280; transition:background .12s,color .12s; }
   .acper-btn.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .dmgper-btn { color:#6b7280; transition:background .12s,color .12s; }
+  .dmgper-btn.active { background:#fff; color:#b91c1c; box-shadow:0 1px 3px rgba(0,0,0,.08); }
 </style>
 {% endblock %}
 
@@ -234,9 +370,12 @@
   const DEL_URL  = "{{ url_for('phukien.delete') }}";
   const SALE_UPD_URL = "{{ url_for('phukien.sale_update') }}";
   const SALE_DEL_URL = "{{ url_for('phukien.sale_delete') }}";
+  const SVC_URL      = "{{ url_for('phukien.sell_service') }}";
+  const DMG_URL      = "{{ url_for('phukien.damage') }}";
+  const DMG_DEL_URL  = "{{ url_for('phukien.damage_delete') }}";
   const TODAY = "{{ today }}", THIS_MONTH = "{{ this_month }}", THIS_YEAR = "{{ this_year }}";
   const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
-  let acPeriod = 'month';
+  let acPeriod = 'month', dmgPeriod = 'month';
   const fmt = TINTUS.fmtVND, num = TINTUS.parseMoney, group = TINTUS.group;
   const $ = id => document.getElementById(id);
 
@@ -255,16 +394,18 @@
 
   const esc = v => { const d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; };
 
-  // ── tabs (Kho / Lịch sử) ──
+  // ── tabs (Kho / Lịch sử / Phụ kiện hư) ──
   function setTab(which) {
-    const stock = which === 'stock';
-    $('tabStock').classList.toggle('hidden', !stock);
-    $('tabHistory').classList.toggle('hidden', stock);
-    $('tabBtnStock').classList.toggle('active', stock);
-    $('tabBtnHist').classList.toggle('active', !stock);
+    $('tabStock').classList.toggle('hidden', which !== 'stock');
+    $('tabHistory').classList.toggle('hidden', which !== 'history');
+    $('tabDamaged').classList.toggle('hidden', which !== 'damaged');
+    $('tabBtnStock').classList.toggle('active', which === 'stock');
+    $('tabBtnHist').classList.toggle('active', which === 'history');
+    $('tabBtnDamaged').classList.toggle('active', which === 'damaged');
   }
   $('tabBtnStock').addEventListener('click', () => setTab('stock'));
   $('tabBtnHist').addEventListener('click', () => setTab('history'));
+  $('tabBtnDamaged').addEventListener('click', () => setTab('damaged'));
   setTab('stock');
 
   function makeSaleRow(s) {
@@ -406,6 +547,8 @@
       });
     });
     tr.querySelector('.ac-sell').addEventListener('click', () => openSell(tr));
+    const dmg = tr.querySelector('.ac-damage');
+    if (dmg) dmg.addEventListener('click', () => openDamage(tr));
     const del = tr.querySelector('.ac-del');
     if (del) del.addEventListener('click', async () => {
       if (!confirm('Xoá phụ kiện này?')) return;
@@ -474,6 +617,153 @@
       }
       recalcCards(); closeSell();
       TINTUS.toast('Đã bán ' + res.sold + ' cái (' + fmt(res.revenue) + ')', 'ok');
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+
+  // ── report-damaged popup (Báo hư) ──
+  const dmgModal = $('acDamageModal');
+  let dmgTr = null, dmgMax = 0;
+  function openDamage(tr) {
+    dmgTr = tr;
+    dmgMax = num(tr.querySelector('[data-field="stock"]').value);
+    if (dmgMax <= 0) { TINTUS.toast('Hết hàng — không còn để ghi hư', 'warn'); return; }
+    $('acDmgName').textContent = tr.dataset.name;
+    $('acDmgStock').textContent = dmgMax;
+    $('acDmgQty').value = 1; $('acDmgQty').max = dmgMax;
+    $('acDmgNote').value = '';
+    dmgModal.style.display = 'flex'; $('acDmgQty').focus();
+  }
+  function closeDamage() { dmgModal.style.display = 'none'; dmgTr = null; }
+  $('acDmgClose').addEventListener('click', closeDamage);
+  $('acDmgCancel').addEventListener('click', closeDamage);
+  dmgModal.addEventListener('click', e => { if (e.target === dmgModal) closeDamage(); });
+  $('acDmgDo').addEventListener('click', async () => {
+    if (!dmgTr) return;
+    const qty = parseInt($('acDmgQty').value, 10) || 0;
+    if (qty < 1) { TINTUS.toast('Số lượng ≥ 1', 'warn'); return; }
+    if (qty > dmgMax) { TINTUS.toast('Vượt quá tồn kho', 'warn'); return; }
+    try {
+      const res = await TINTUS.api(DMG_URL, { id: Number(dmgTr.dataset.id), quantity: qty, note: $('acDmgNote').value.trim() });
+      const stockCell = dmgTr.querySelector('[data-field="stock"]');
+      stockCell.value = res.accessory.stock;
+      stockCell.classList.toggle('text-brand-700', res.accessory.stock <= 0);
+      stockCell.classList.toggle('text-gray-900', res.accessory.stock > 0);
+      if (res.damage) {
+        const dbody = $('dmgBody');
+        if (dbody) dbody.insertBefore(makeDamageRow(res.damage), dbody.firstChild);
+        const de = $('dmgEmpty'); if (de) de.classList.add('hidden');
+        applyDmgPeriod(); bumpLoss(res.damage);
+      }
+      recalcCards(); closeDamage();
+      TINTUS.toast('Đã ghi nhận ' + res.damaged + ' cái hư', 'ok');
+    } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+  });
+
+  // ── damage rows (render / delete / period filter) ──
+  function makeDamageRow(x) {
+    const tr = document.createElement('tr');
+    tr.className = 'dmg-row border-t border-gray-100 hover:bg-gray-50/60';
+    tr.dataset.id = x.id; tr.dataset.date = x.date_iso || '';
+    tr.innerHTML =
+      `<td class="px-4 py-1.5 text-gray-500 whitespace-nowrap">${esc(x.date)}</td>` +
+      `<td class="px-4 py-1.5 font-semibold text-gray-900">${esc(x.name)}</td>` +
+      `<td class="px-4 py-1.5 text-center tabular-nums font-bold text-gray-900">${x.quantity}</td>` +
+      (IS_ADMIN ? `<td class="px-4 py-1.5 text-right tabular-nums font-bold text-rose-600">${fmt(x.loss)}</td>` : '') +
+      `<td class="px-4 py-1.5 text-gray-600">${esc(x.note) || '—'}</td>` +
+      `<td class="px-4 py-1.5 text-gray-600">${esc(x.staff) || '—'}</td>` +
+      `<td class="px-4 py-1.5 text-center">` + (IS_ADMIN ? `<button class="dmg-del px-2 h-7 rounded-lg text-xs font-bold text-gray-400 hover:bg-brand-50 hover:text-brand-700" title="Huỷ ghi nhận (trả lại kho)">Xoá</button>` : '') + `</td>`;
+    wireDamageRow(tr);
+    return tr;
+  }
+  function wireDamageRow(tr) {
+    const del = tr.querySelector('.dmg-del');
+    if (del) del.addEventListener('click', async () => {
+      if (!confirm('Huỷ ghi nhận hư này? Số lượng sẽ được trả lại kho.')) return;
+      try {
+        const res = await TINTUS.api(DMG_DEL_URL, { id: Number(tr.dataset.id) });
+        if (res.accessory) syncStockRow(res.accessory);
+        tr.remove(); applyDmgPeriod();
+        TINTUS.toast('Đã huỷ ghi nhận', 'ok');
+      } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
+    });
+  }
+  function inDmgPeriod(dateIso) {
+    if (dmgPeriod === 'all') return true;
+    if (!dateIso) return false;
+    if (dmgPeriod === 'day')  return dateIso === TODAY;
+    if (dmgPeriod === 'year') return dateIso.slice(0, 4) === THIS_YEAR;
+    return dateIso.slice(0, 7) === THIS_MONTH;
+  }
+  function applyDmgPeriod() {
+    let shown = 0, any = false;
+    document.querySelectorAll('#dmgBody .dmg-row').forEach(r => {
+      any = true;
+      const ok = inDmgPeriod(r.dataset.date);
+      r.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+    const empty = $('dmgEmpty'), none = $('dmgNone');
+    if (empty) empty.classList.toggle('hidden', any);
+    if (none)  none.classList.toggle('hidden', !any || shown > 0);
+  }
+  document.querySelectorAll('#dmgPeriodSeg .dmgper-btn').forEach(b => b.addEventListener('click', () => {
+    dmgPeriod = b.dataset.per;
+    document.querySelectorAll('#dmgPeriodSeg .dmgper-btn').forEach(x => x.classList.toggle('active', x === b));
+    applyDmgPeriod();
+  }));
+  document.querySelectorAll('#dmgPeriodSeg .dmgper-btn').forEach(b => b.classList.toggle('active', b.dataset.per === dmgPeriod));
+  document.querySelectorAll('#dmgBody .dmg-row').forEach(wireDamageRow);
+  applyDmgPeriod();
+
+  // keep the "Hư hỏng tháng này" card live (admin only)
+  function bumpLoss(x) {
+    const el = $('acLoss');
+    if (!el || !IS_ADMIN) return;
+    if (x.date_iso && x.date_iso.slice(0, 7) === THIS_MONTH) {
+      el.textContent = fmt(num(el.textContent) + (Number(x.loss) || 0));
+    }
+  }
+
+  // ── bán dịch vụ khác (free-form service / other-item sale) ──
+  const svcModal = $('svcSellModal');
+  function recalcSvcTotal() {
+    const qty = parseInt($('svcQty').value, 10) || 0;
+    $('svcTotal').textContent = fmt(qty * num($('svcPrice').value));
+  }
+  function openSvc() {
+    $('svcName').value = ''; $('svcQty').value = 1; $('svcPrice').value = '';
+    if ($('svcCost')) $('svcCost').value = '';
+    $('svcCustomer').value = ''; $('svcPhone').value = ''; $('svcNote').value = '';
+    recalcSvcTotal();
+    svcModal.style.display = 'flex'; $('svcName').focus();
+  }
+  function closeSvc() { svcModal.style.display = 'none'; }
+  $('svcSellBtn').addEventListener('click', openSvc);
+  $('svcClose').addEventListener('click', closeSvc);
+  $('svcCancel').addEventListener('click', closeSvc);
+  svcModal.addEventListener('click', e => { if (e.target === svcModal) closeSvc(); });
+  $('svcQty').addEventListener('input', recalcSvcTotal);
+  $('svcPrice').addEventListener('input', recalcSvcTotal);
+  $('svcDo').addEventListener('click', async () => {
+    const name = $('svcName').value.trim();
+    if (!name) { TINTUS.toast('Nhập tên dịch vụ / mặt hàng', 'warn'); return; }
+    const qty = parseInt($('svcQty').value, 10) || 0;
+    if (qty < 1) { TINTUS.toast('Số lượng ≥ 1', 'warn'); return; }
+    if (num($('svcPrice').value) <= 0) { TINTUS.toast('Giá bán phải > 0đ', 'warn'); return; }
+    try {
+      const payload = { name, quantity: qty, price: num($('svcPrice').value),
+        note: $('svcNote').value.trim(), customer_name: $('svcCustomer').value.trim(),
+        phone: $('svcPhone').value.trim() };
+      if ($('svcCost')) payload.cost = num($('svcCost').value);
+      const res = await TINTUS.api(SVC_URL, payload);
+      if (res.sale) {
+        const hb = $('histBody');
+        if (hb) hb.insertBefore(makeSaleRow(res.sale), hb.firstChild);
+        const he = $('histEmpty'); if (he) he.classList.add('hidden');
+        applyHistPeriod();
+      }
+      closeSvc();
+      TINTUS.toast('Đã bán ' + name + ' (' + fmt(res.revenue) + ')', 'ok');
     } catch (e) { TINTUS.toast(e.message || 'Lỗi', 'err'); }
   });
 })();

@@ -101,24 +101,41 @@ class Camera(db.Model):
         return ', '.join(g.get('name', '') for g in self.gifts if g.get('name'))
 
     @property
+    def logged_repair(self):
+        """Repairs already booked as dated RepairLog expenses (these are only created
+        while the unit is a rental — see app.py). Excluded from Sale COGS so that a
+        Rent→Sale conversion doesn't double-count them (once via RepairLog in Finance's
+        rental repair total, and again inside this unit's sale cost)."""
+        logs = getattr(self, 'repair_logs', None) or []
+        return int(sum(int(l.amount or 0) for l in logs))
+
+    @property
     def cost(self):
         """Sale: acquisition + repair + gifted accessories. Rental: repairs only
         (gear is an owned asset — its purchase price is not expensed).
         A deposit (đã cọc) is treated as a completed sale for accounting: full COGS
-        is recognised on the deposit day, same as the full price (see sale_revenue)."""
+        is recognised on the deposit day, same as the full price (see sale_revenue).
+        Any repair already logged as a dated RepairLog (i.e. incurred while the unit
+        was a rental, before conversion) is left out of the sale COGS to avoid the
+        double-count described in `logged_repair`."""
         if self.type == 'Sale':
-            return int((self.import_cost or 0) + (self.repair_cost or 0) + self.gift_cost)
+            repair = max(0, int(self.repair_cost or 0) - self.logged_repair)
+            return int((self.import_cost or 0) + repair + self.gift_cost)
         return int(self.repair_cost or 0)
 
     @property
     def profit(self):
-        """Sale: realised only when sold/deposited; an unfixable unit is a write-off loss."""
+        """Sale: realised only when sold/deposited; an unfixable unit is a write-off loss.
+        Rental income the unit earned *before* it was put up for sale (e.g. a former
+        rental camera later converted to 'Sale') is still that unit's income, so it is
+        kept in profit — otherwise converting a rented machine would silently drop its
+        rental history from the P&L."""
         if self.type == 'Sale':
             if self.sale_state in self.SOLD_STATES:
-                return self.sale_revenue - self.cost
+                return self.revenue - self.cost          # revenue = rental_revenue + sale_revenue
             if self.sale_state == 'unfixable':
-                return -self.cost
-            return 0                       # stock / processing / fixing → not yet realised
+                return self.rental_revenue - self.cost   # write-off, but keep rentals earned
+            return self.rental_revenue                   # not sold yet; rentals already earned
         return self.revenue - self.cost
 
     @property
@@ -230,6 +247,7 @@ class RepairLog(db.Model):
     amount     = db.Column(db.Integer, default=0)             # delta added this edit (may be negative)
     note       = db.Column(db.String(200), default='')
     created_at = db.Column(db.DateTime, default=datetime.now)
+    camera     = db.relationship('Camera', backref='repair_logs')
 
 
 class ActivityLog(db.Model):
@@ -300,6 +318,25 @@ class AccessorySale(db.Model):
     @property
     def profit(self):
         return self.revenue - self.cost_total
+
+
+class AccessoryDamage(db.Model):
+    """A logged write-off of N units of an accessory that broke / became unsellable
+    ('phụ kiện hư'). Mirrors AccessorySale, but instead of revenue it books a loss
+    equal to quantity × unit_cost into Finance for the period it was recorded.
+    The units are removed from the accessory's sellable stock when logged."""
+    id           = db.Column(db.Integer, primary_key=True)
+    accessory_id = db.Column(db.Integer, db.ForeignKey('accessory.id'), nullable=True)
+    name         = db.Column(db.String(120), default='')      # snapshot of the name at damage time
+    quantity     = db.Column(db.Integer, default=1)
+    unit_cost    = db.Column(db.Integer, default=0)           # cost snapshot → the loss per unit
+    note         = db.Column(db.String(200), default='')      # reason / tình trạng hư
+    staff        = db.Column(db.String(60),  default='')      # người ghi nhận
+    damage_date  = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    @property
+    def loss(self):
+        return int((self.quantity or 0) * (self.unit_cost or 0))
 
 
 class PurchaseOrder(db.Model):

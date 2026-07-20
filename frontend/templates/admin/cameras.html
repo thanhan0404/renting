@@ -6,7 +6,7 @@
     <h1 class="text-xl font-black text-gray-900">Quản lý máy</h1>
     <p class="text-sm text-gray-500">Cho thuê: bảng sửa nhanh. Để bán: sổ nhập – bán theo từng máy (như file Excel). Máy đã bán chuyển sang tab “Đã bán”.</p>
   </div>
-  {% if is_admin %}<button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Thêm máy cho thuê</button>{% endif %}
+  <button id="addBtn" class="bg-brand-700 hover:bg-brand-800 text-white text-sm font-bold px-4 py-2 rounded-xl">+ Thêm máy cho thuê</button>
 </div>
 
 <!-- ── Stat cards (reflect the active tab + day/month/year/all period) ── -->
@@ -506,10 +506,12 @@
           <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá ngày 1</label>
           <input id="a_price" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
         </div>
+        {% if is_admin %}
         <div>
           <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Giá nhập</label>
           <input id="a_import" type="text" inputmode="numeric" placeholder="0" class="money-live w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-right tabular-nums focus:outline-none focus:border-brand-500">
         </div>
+        {% endif %}
       </div>
     </div>
     <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
@@ -826,6 +828,18 @@
     const rowEl = sel.closest('.cam-row');
     sel.dataset.prev = sel.value;
     sel.addEventListener('change', async () => {
+      // Converting a rented unit that already has rental history to a for-sale unit:
+      // the rental history is kept and still counted in its revenue/profit, but warn
+      // so it's a deliberate choice (the unit moves to the "Để bán" tab).
+      if (sel.value === 'Sale' && sel.dataset.prev === 'Rent') {
+        const rentalCell = rowEl.querySelector('.cell-rental');
+        const hasHistory = rentalCell && num(rentalCell.textContent) > 0;
+        const msg = hasHistory
+          ? 'Máy này đã có lịch sử cho thuê. Chuyển sang “Để bán” sẽ đưa máy sang tab Để bán; '
+            + 'lịch sử & doanh thu thuê vẫn được giữ và tính vào lãi/lỗ của máy. Tiếp tục?'
+          : 'Chuyển máy này sang “Để bán”?';
+        if (!confirm(msg)) { sel.value = sel.dataset.prev; return; }
+      }
       try {
         await TINTUS.api(UPDATE_URL, { id: Number(rowEl.dataset.id), field: 'type', value: sel.value });
         TINTUS.toast(sel.value === 'Sale' ? 'Đã chuyển sang Để bán' : 'Đã chuyển sang Cho thuê', 'ok');
@@ -1269,7 +1283,7 @@
   const modal = $('modal');
   if (modal && addBtn) {
   function openModal() {
-    ['a_name', 'a_brand', 'a_price', 'a_import'].forEach(id => $(id).value = '');
+    ['a_name', 'a_brand', 'a_price', 'a_import'].forEach(id => { const el = $(id); if (el) el.value = ''; });
     modal.style.display = 'flex'; $('a_name').focus();
   }
   function closeModal() { modal.style.display = 'none'; }
@@ -1281,7 +1295,7 @@
     const name = $('a_name').value.trim();
     if (!name) { TINTUS.toast('Nhập tên máy', 'warn'); return; }
     const payload = { name, type: 'Rent', brand: $('a_brand').value.trim(),
-      price: num($('a_price').value), import_cost: num($('a_import').value) };
+      price: num($('a_price').value), import_cost: ($('a_import') ? num($('a_import').value) : 0) };
     try { await TINTUS.api(ADD_URL, payload); TINTUS.toast('Đã thêm máy', 'ok'); location.reload(); }
     catch (e) { TINTUS.toast(e.message || 'Lỗi khi thêm', 'err'); }
   });

@@ -876,7 +876,10 @@ function setShow(s){
 
 // ════════════ wire up ════════════
 function isFc(){ return State.mode==='hour' && State.hourStyle==='fc'; }
-function navStep(){ return State.mode==='grid' ? State.days : State.hourDays; }
+// Prev/next slide the window by ONE day (not a whole page), so today stays visible:
+// e.g. clicking ‹ prepends yesterday and drops the last day. The FullCalendar ('fc')
+// style keeps its own native prev/next stepping.
+function navStep(){ return 1; }
 document.getElementById('prevBtn').addEventListener('click', ()=>{
   if(isFc()){ if(calendar) calendar.prev(); } else { State.start = addDays(State.start, -navStep()); loadData(); }
 });
